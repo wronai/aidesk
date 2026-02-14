@@ -1,3 +1,19 @@
+## [2.1.25] - 2026-02-14
+
+### Summary
+
+refactor(examples): code analysis engine
+
+### Other
+
+- update backend/.env.example
+- update backend/multi_monitor.py
+- update backend/ocr_engines.py
+- update backend/semantic_memory.py
+- update backend/tests/test_analyzer.py
+- update backend/vlm_ocr_engine.py
+
+
 ## [2.1.24] - 2026-02-14
 
 ### Summary

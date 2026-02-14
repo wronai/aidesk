@@ -230,6 +230,31 @@ class SemanticMemory:
 
     # ── Public API ───────────────────────────────────────────────────
 
+    def _persist_to_db(self, memory_id: str, content: str, context_type: str,
+                       ts: float, meta_json: str, emb_blob):
+        """Persist a single memory item to SQLite."""
+        if not self._db:
+            return
+        try:
+            self._db.execute(
+                "INSERT OR REPLACE INTO memories "
+                "(memory_id, content, context_type, timestamp, metadata, embedding) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (memory_id, content, context_type, ts, meta_json, emb_blob),
+            )
+            self._db.commit()
+        except Exception as e:
+            logger.warning("Failed to persist memory", error=str(e))
+
+    def _update_cache(self, item: MemoryItem, embedding):
+        """Update in-memory caches and auto-prune if over limit."""
+        self._content_cache[item.memory_id] = item
+        if embedding is not None:
+            self._embeddings_cache[item.memory_id] = embedding
+        self.total_memories = len(self._content_cache)
+        if self.total_memories > self.max_memories:
+            self._prune_oldest(self.total_memories - self.max_memories)
+
     def add_memory(
         self,
         content: str,
@@ -253,33 +278,18 @@ class SemanticMemory:
             return None
 
         ts = timestamp or time.time()
-        # Deduplicate: skip if identical content was added in last 5 seconds
         content_hash = hashlib.md5(content.encode()).hexdigest()[:12]
         memory_id = f"{content_hash}_{int(ts)}"
 
         if memory_id in self._content_cache:
             return memory_id
 
-        # Embed
         embedding = self._embed(content) if self.enabled else None
-
-        # Store to DB
         meta_json = json.dumps(metadata or {})
         emb_blob = embedding.tobytes() if embedding is not None else None
 
-        if self._db:
-            try:
-                self._db.execute(
-                    "INSERT OR REPLACE INTO memories "
-                    "(memory_id, content, context_type, timestamp, metadata, embedding) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    (memory_id, content, context_type, ts, meta_json, emb_blob),
-                )
-                self._db.commit()
-            except Exception as e:
-                logger.warning("Failed to persist memory", error=str(e))
+        self._persist_to_db(memory_id, content, context_type, ts, meta_json, emb_blob)
 
-        # Update cache
         item = MemoryItem(
             memory_id=memory_id,
             content=content,
@@ -288,16 +298,7 @@ class SemanticMemory:
             metadata=metadata or {},
             embedding=embedding,
         )
-        self._content_cache[memory_id] = item
-        if embedding is not None:
-            self._embeddings_cache[memory_id] = embedding
-
-        self.total_memories = len(self._content_cache)
-
-        # Auto-prune if over limit
-        if self.total_memories > self.max_memories:
-            self._prune_oldest(self.total_memories - self.max_memories)
-
+        self._update_cache(item, embedding)
         return memory_id
 
     def recall_relevant(
@@ -335,6 +336,41 @@ class SemanticMemory:
         items.sort(key=lambda m: m.timestamp, reverse=True)
         return items[:n]
 
+    def _select_compressible(self, cutoff: float) -> Dict[str, List]:
+        """Find old uncompressed memories grouped by hour."""
+        old_items = [
+            m for m in self._content_cache.values()
+            if m.timestamp < cutoff and m.context_type != "summary"
+        ]
+        if len(old_items) < 5:
+            return {}
+        groups: Dict[str, List] = defaultdict(list)
+        for item in old_items:
+            hour_key = time.strftime("%Y-%m-%d %H:00", time.localtime(item.timestamp))
+            groups[hour_key].append(item)
+        return groups
+
+    def _summarize_group(self, hour_key: str, items: List) -> str:
+        """Build summary text for a group of memories."""
+        texts = [f"[{m.context_type}] {m.content[:100]}" for m in items]
+        summary = f"Podsumowanie ({hour_key}, {len(items)} zdarze\u0144): " + " | ".join(texts[:10])
+        if len(texts) > 10:
+            summary += f" ... (+{len(texts) - 10} wi\u0119cej)"
+        return summary
+
+    def _replace_with_summary(self, hour_key: str, items: List) -> int:
+        """Replace a group of memories with a single summary entry. Returns count removed."""
+        summary_content = self._summarize_group(hour_key, items)
+        self.add_memory(
+            content=summary_content,
+            context_type="summary",
+            metadata={"compressed_count": len(items), "hour": hour_key},
+            timestamp=items[0].timestamp,
+        )
+        for item in items:
+            self._remove_memory(item.memory_id)
+        return len(items)
+
     def compress_old_context(self, before_timestamp: Optional[float] = None) -> int:
         """
         Summarize and compress memories older than threshold.
@@ -352,45 +388,14 @@ class SemanticMemory:
             return 0
 
         cutoff = before_timestamp or (time.time() - self.compress_after_hours * 3600)
-
-        # Find old uncompressed memories
-        old_items = [
-            m for m in self._content_cache.values()
-            if m.timestamp < cutoff and m.context_type != "summary"
-        ]
-
-        if len(old_items) < 5:  # Don't compress tiny batches
+        hourly_groups = self._select_compressible(cutoff)
+        if not hourly_groups:
             return 0
-
-        # Group by hour
-        hourly_groups = defaultdict(list)
-        for item in old_items:
-            hour_key = time.strftime("%Y-%m-%d %H:00", time.localtime(item.timestamp))
-            hourly_groups[hour_key].append(item)
 
         compressed_count = 0
         for hour_key, items in hourly_groups.items():
-            if len(items) < 3:
-                continue
-
-            # Create summary
-            texts = [f"[{m.context_type}] {m.content[:100]}" for m in items]
-            summary_content = f"Podsumowanie ({hour_key}, {len(items)} zdarzeń): " + " | ".join(texts[:10])
-            if len(texts) > 10:
-                summary_content += f" ... (+{len(texts) - 10} więcej)"
-
-            # Store summary
-            self.add_memory(
-                content=summary_content,
-                context_type="summary",
-                metadata={"compressed_count": len(items), "hour": hour_key},
-                timestamp=items[0].timestamp,
-            )
-
-            # Remove originals
-            for item in items:
-                self._remove_memory(item.memory_id)
-                compressed_count += 1
+            if len(items) >= 3:
+                compressed_count += self._replace_with_summary(hour_key, items)
 
         if compressed_count > 0:
             self.total_compressions += 1
@@ -451,6 +456,21 @@ class SemanticMemory:
 
     # ── Internal search methods ──────────────────────────────────────
 
+    def _filter_candidates(
+        self,
+        context_type: Optional[str],
+        since: Optional[float],
+    ) -> List[MemoryItem]:
+        """Filter content cache by type and time constraints."""
+        items = []
+        for item in self._content_cache.values():
+            if context_type and item.context_type != context_type:
+                continue
+            if since and item.timestamp < since:
+                continue
+            items.append(item)
+        return items
+
     def _recall_semantic(
         self,
         query: str,
@@ -463,28 +483,20 @@ class SemanticMemory:
         if query_vec is None:
             return self._recall_keyword(query, k, context_type, since)
 
-        # Build candidate list
         candidates = []
-        for mid, emb in self._embeddings_cache.items():
-            item = self._content_cache.get(mid)
-            if not item:
-                continue
-            if context_type and item.context_type != context_type:
-                continue
-            if since and item.timestamp < since:
-                continue
-            candidates.append((mid, emb, item))
+        for item in self._filter_candidates(context_type, since):
+            emb = self._embeddings_cache.get(item.memory_id)
+            if emb is not None:
+                candidates.append((emb, item))
 
         if not candidates:
             return []
 
-        # Vectorized cosine similarity (embeddings are already L2-normalized)
-        emb_matrix = np.stack([c[1] for c in candidates])
+        emb_matrix = np.stack([c[0] for c in candidates])
         similarities = emb_matrix @ query_vec
 
-        # Sort by similarity
         scored = []
-        for i, (mid, emb, item) in enumerate(candidates):
+        for i, (emb, item) in enumerate(candidates):
             sim = float(similarities[i])
             if sim >= self.similarity_threshold:
                 item.relevance_score = sim
@@ -506,16 +518,10 @@ class SemanticMemory:
             return self.recall_recent(k, context_type)
 
         scored = []
-        for item in self._content_cache.values():
-            if context_type and item.context_type != context_type:
-                continue
-            if since and item.timestamp < since:
-                continue
-
+        for item in self._filter_candidates(context_type, since):
             content_words = set(item.content.lower().split())
             overlap = len(query_words & content_words)
             if overlap > 0:
-                # Jaccard-like score
                 score = overlap / max(len(query_words | content_words), 1)
                 item.relevance_score = score
                 scored.append(item)

@@ -116,6 +116,35 @@ class MonitorAwareCapture:
             active_only=active_only,
         )
 
+    @staticmethod
+    def _find_window_monitor(
+        monitors: List[MonitorInfo],
+        active_window: Optional[WindowInfo],
+    ) -> Optional[int]:
+        """Find monitor index for the active window (by stored index or geometry)."""
+        if not active_window:
+            return None
+        if active_window.monitor_index >= 0:
+            for mon in monitors:
+                if mon.index == active_window.monitor_index:
+                    return mon.index
+        if active_window.width > 0:
+            cx = active_window.x + active_window.width // 2
+            cy = active_window.y + active_window.height // 2
+            for mon in monitors:
+                if (mon.x <= cx < mon.x + mon.width and
+                        mon.y <= cy < mon.y + mon.height):
+                    return mon.index
+        return None
+
+    @staticmethod
+    def _find_primary_monitor(monitors: List[MonitorInfo]) -> int:
+        """Return index of the primary monitor, or 0."""
+        for mon in monitors:
+            if mon.is_primary:
+                return mon.index
+        return 0
+
     def detect_active_monitor(
         self,
         monitors: List[MonitorInfo],
@@ -128,45 +157,52 @@ class MonitorAwareCapture:
         1. Monitor containing active window (most reliable)
         2. Monitor under mouse cursor (fallback)
         3. Primary monitor (final fallback)
-
-        Args:
-            monitors: List of connected monitors
-            active_window: Current active window info
-
-        Returns:
-            Monitor index with user's attention
         """
         if not monitors:
             return 0
 
-        # 1. Active window monitor
-        if active_window:
-            # Try stored monitor_index first
-            if active_window.monitor_index >= 0:
-                for mon in monitors:
-                    if mon.index == active_window.monitor_index:
-                        return mon.index
+        win_mon = self._find_window_monitor(monitors, active_window)
+        if win_mon is not None:
+            return win_mon
 
-            # Fallback: window center → monitor lookup
-            if active_window.width > 0:
-                cx = active_window.x + active_window.width // 2
-                cy = active_window.y + active_window.height // 2
-                for mon in monitors:
-                    if (mon.x <= cx < mon.x + mon.width and
-                            mon.y <= cy < mon.y + mon.height):
-                        return mon.index
-
-        # 2. Mouse cursor monitor
         mouse_mon = self._get_mouse_monitor(monitors)
         if mouse_mon is not None:
             return mouse_mon
 
-        # 3. Primary monitor
-        for mon in monitors:
-            if mon.is_primary:
-                return mon.index
+        return self._find_primary_monitor(monitors)
 
-        return 0
+    def _build_monitor_activity(
+        self,
+        mon: MonitorInfo,
+        all_windows: List,
+        active_idx: int,
+        organized_screen,
+    ) -> MonitorActivity:
+        """Build activity data for a single monitor."""
+        activity = MonitorActivity(monitor=mon)
+
+        mon_windows = self._windows_on_monitor(mon, all_windows)
+        activity.window_count = len(mon_windows)
+        activity.has_active_window = (mon.index == active_idx)
+
+        categories = set()
+        for w in mon_windows:
+            cat = getattr(w, 'category', AppCategory.UNKNOWN)
+            if isinstance(cat, AppCategory):
+                categories.add(cat.value)
+            elif isinstance(cat, str):
+                categories.add(cat)
+        activity.category_summary = sorted(categories)
+
+        if organized_screen:
+            for crop in getattr(organized_screen, 'crops', []):
+                if self._window_on_monitor(mon, crop.window):
+                    activity.change_score += crop.change_score
+                    if crop.is_focus:
+                        activity.has_focus_window = True
+
+        activity.priority = self._compute_priority(activity, mon)
+        return activity
 
     def build_snapshot(
         self,
@@ -180,15 +216,6 @@ class MonitorAwareCapture:
 
         Maps windows to monitors, computes per-monitor activity,
         and generates prioritized ordering.
-
-        Args:
-            monitors: Connected monitors
-            all_windows: All visible windows (VisibleWindow or WindowInfo list)
-            active_window: Current active window
-            organized_screen: OrganizedScreenData (for change scores)
-
-        Returns:
-            MultiMonitorSnapshot with per-monitor activity data
         """
         self.total_snapshots += 1
         now = time.time()
@@ -196,51 +223,17 @@ class MonitorAwareCapture:
 
         active_idx = self.detect_active_monitor(monitors, active_window)
 
-        # Build per-monitor activity
-        activities = []
-        for mon in monitors:
-            activity = MonitorActivity(monitor=mon)
+        activities = [
+            self._build_monitor_activity(mon, all_windows, active_idx, organized_screen)
+            for mon in monitors
+        ]
 
-            # Map windows to this monitor
-            mon_windows = self._windows_on_monitor(mon, all_windows)
-            activity.window_count = len(mon_windows)
-
-            # Check if active window is on this monitor
-            activity.has_active_window = (mon.index == active_idx)
-
-            # Collect categories
-            categories = set()
-            for w in mon_windows:
-                cat = getattr(w, 'category', AppCategory.UNKNOWN)
-                if isinstance(cat, AppCategory):
-                    categories.add(cat.value)
-                elif isinstance(cat, str):
-                    categories.add(cat)
-            activity.category_summary = sorted(categories)
-
-            # Aggregate change scores from organized screen data
-            if organized_screen:
-                for crop in getattr(organized_screen, 'crops', []):
-                    win = crop.window
-                    if self._window_on_monitor(mon, win):
-                        activity.change_score += crop.change_score
-                        if crop.is_focus:
-                            activity.has_focus_window = True
-
-            # Compute priority score
-            activity.priority = self._compute_priority(activity, mon)
-
-            activities.append(activity)
-
-        # Sort by priority (descending)
         prioritized = sorted(activities, key=lambda a: a.priority, reverse=True)
         prioritized_order = [a.monitor.index for a in prioritized]
 
-        # Count skipped monitors
         if self.active_only and len(monitors) > 1:
             self.monitors_skipped += len(monitors) - 1
 
-        # Build description
         description = ""
         if self.include_description and monitors:
             description = self._build_description(activities, active_idx)

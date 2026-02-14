@@ -368,6 +368,7 @@ ENGINES = {
     "paddleocr": PaddleOCREngine,
     "easyocr": EasyOCREngine,
     "tesseract": TesseractEngine,
+    # vlm_ocr registered dynamically in OCRManager._register_available_engines()
 }
 
 
@@ -423,6 +424,27 @@ class OCRManager:
                 logger.info(f"OCR engine registered", engine=name)
             except ImportError:
                 logger.debug(f"OCR engine not available (missing dependency)", engine=name)
+
+        # VLM OCR — Cloud-based (available when litellm is installed)
+        try:
+            import litellm  # noqa: F401
+            from vlm_ocr_engine import VLMOCREngine
+
+            vlm_model = os.environ.get(
+                "VLM_OCR_MODEL",
+                "openrouter/qwen/qwen2.5-vl-32b-instruct:free",
+            )
+            vlm_engine = VLMOCREngine(
+                model=vlm_model,
+                max_tokens=int(os.environ.get("VLM_OCR_MAX_TOKENS", "1500")),
+                timeout=float(os.environ.get("VLM_OCR_TIMEOUT", "15.0")),
+                image_detail=os.environ.get("VLM_OCR_IMAGE_DETAIL", "low"),
+                languages=self.languages,
+            )
+            self.engines["vlm_ocr"] = vlm_engine
+            logger.info("OCR engine registered", engine="vlm_ocr", model=vlm_model)
+        except ImportError:
+            logger.debug("VLM OCR not available (litellm not installed)")
 
     @property
     def active_engine(self) -> Optional[BaseOCREngine]:
