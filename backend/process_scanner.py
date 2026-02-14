@@ -91,6 +91,21 @@ class ProcessScanner:
     Uses wmctrl for window listing + /proc for process details.
     """
 
+    # Compositor/service/helper windows that should not be treated as user work windows.
+    _SERVICE_CLASS_PATTERNS = (
+        r"mutter-x11-frames",
+        r"gnome-shell",
+        r"xwaylandvideobridge",
+        r"jetbrains-toolbox",
+        r"com-jetbrains-toolbox-entry",
+        r"ai-desktop-assistant-overlay",
+    )
+    _SERVICE_TITLES = {
+        "mutter guard window",
+        "sun-awt-x11-xcanvaspeer",
+        "content window",
+    }
+
     def __init__(self, window_manager: Optional[WindowManager] = None):
         self.window_manager = window_manager
         self._has_wmctrl = self._check_tool("wmctrl")
@@ -154,6 +169,11 @@ class ProcessScanner:
         elif self._has_xdotool:
             windows = self._scan_via_xdotool(active_wid)
 
+        # Drop compositor/helper/service windows before enrichment/cropping.
+        before_filter = len(windows)
+        windows = [w for w in windows if not self._is_service_window(w)]
+        filtered_service_windows = before_filter - len(windows)
+
         # Enrich with process info
         for win in windows:
             if win.pid > 0:
@@ -168,9 +188,26 @@ class ProcessScanner:
             "Window scan complete",
             total_windows=len(windows),
             active_wid=active_wid,
+            filtered_service_windows=filtered_service_windows,
         )
 
         return windows
+
+    @classmethod
+    def _is_service_window_fields(cls, wm_class: str, wm_class_name: str, title: str) -> bool:
+        """Heuristic guard for compositor/helper windows across monitors."""
+        combined = f"{wm_class} {wm_class_name}".lower()
+        title_lower = (title or "").strip().lower()
+
+        if title_lower in cls._SERVICE_TITLES:
+            return True
+
+        return any(re.search(pattern, combined) for pattern in cls._SERVICE_CLASS_PATTERNS)
+
+    @classmethod
+    def _is_service_window(cls, win: VisibleWindow) -> bool:
+        """Check if a VisibleWindow is a non-user service/compositor window."""
+        return cls._is_service_window_fields(win.wm_class, win.wm_class_name, win.title)
 
     def _scan_via_wmctrl(self, active_wid: int) -> List[VisibleWindow]:
         """List windows using wmctrl -lGpx."""

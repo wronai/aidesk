@@ -32,18 +32,20 @@ def _load_builtins():
     global BUILTIN_SKILLS
     from skills.shell_command import ShellCommandSkill
     from skills.error_fixer import ErrorFixerSkill
+    from skills.clipboard_relation import ClipboardRelationSkill
     from skills.translation import TranslationSkill
     from skills.tts import TTSSkill
     from skills.voice_command import VoiceCommandSkill
     from skills.url_handler import URLHandlerSkill
 
     BUILTIN_SKILLS = [
-        VoiceCommandSkill,   # priority 95 — voice overrides all
-        ShellCommandSkill,   # priority 90
-        ErrorFixerSkill,     # priority 85
-        URLHandlerSkill,     # priority 70
-        TranslationSkill,    # priority 60
-        TTSSkill,            # priority 40
+        VoiceCommandSkill,       # priority 95 — voice overrides all
+        ShellCommandSkill,       # priority 90
+        ErrorFixerSkill,         # priority 85
+        ClipboardRelationSkill,  # priority 80 — selection ↔ clipboard intent
+        URLHandlerSkill,         # priority 70
+        TranslationSkill,        # priority 60
+        TTSSkill,                # priority 40
     ]
 
 

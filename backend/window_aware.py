@@ -37,6 +37,11 @@ class AppCategory(str, Enum):
 
 # Application classification rules: (window_class_pattern, category)
 APP_RULES: List[Tuple[str, AppCategory]] = [
+    # Service/compositor/helper windows (must be before app-specific rules)
+    (r"mutter-x11-frames|gnome-shell|xwaylandvideobridge", AppCategory.SYSTEM),
+    (r"jetbrains-toolbox|com-jetbrains-toolbox-entry", AppCategory.SYSTEM),
+    (r"ai-desktop-assistant-overlay", AppCategory.SYSTEM),
+
     # IDEs
     (r"code|vscodium|codium", AppCategory.IDE),
     (r"jetbrains|idea|pycharm|webstorm|clion|goland|rider|datagrip", AppCategory.IDE),
@@ -52,9 +57,9 @@ APP_RULES: List[Tuple[str, AppCategory]] = [
     # Terminals
     (r"gnome-terminal|konsole|xfce4-terminal|terminator|alacritty|kitty|wezterm|foot|tilix|\bst\b|urxvt|xterm|sakura|guake|yakuake|tilda", AppCategory.TERMINAL),
     # Browsers
-    (r"firefox|navigator|chromium|chrome|google-chrome|brave|vivaldi|opera|edge|epiphany|midori|qutebrowser|min", AppCategory.BROWSER),
+    (r"firefox|navigator|chromium|chrome|google-chrome|brave|vivaldi|opera|edge|epiphany|midori|qutebrowser|\bmin\b", AppCategory.BROWSER),
     # Email
-    (r"thunderbird|evolution|geary|kmail|mutt|neomutt|mailspring|bluemail", AppCategory.EMAIL),
+    (r"thunderbird|evolution|geary|kmail|\bmutt\b|\bneomutt\b|mailspring|bluemail", AppCategory.EMAIL),
     # Chat / Communication
     (r"slack|discord|telegram|signal|element|teams|zoom|skype|matrix|hexchat|weechat|irssi", AppCategory.CHAT),
     # Office
@@ -337,14 +342,18 @@ class WindowManager:
     def _classify_app(wm_class: str, wm_class_name: str, title: str) -> AppCategory:
         """Classify application based on WM_CLASS and title."""
         # Combine class fields for matching
-        combined = f"{wm_class} {wm_class_name}".lower()
+        combined = f"{wm_class or ''} {wm_class_name or ''}".lower()
+        title_lower = (title or "").lower()
+
+        # Helper/compositor titles that should never be treated as user apps
+        if title_lower in {"mutter guard window", "sun-awt-x11-xcanvaspeer", "content window"}:
+            return AppCategory.SYSTEM
 
         for pattern, category in APP_RULES:
             if re.search(pattern, combined):
                 return category
 
         # Fallback: check title for clues
-        title_lower = title.lower()
         if any(kw in title_lower for kw in ["vim", "nvim", "nano", "helix", "windsurf", "cursor"]):
             return AppCategory.IDE
         if any(kw in title_lower for kw in ["bash", "zsh", "fish", "sh -"]):

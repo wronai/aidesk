@@ -324,34 +324,37 @@ class OCREnhancer:
         terminal_score = 0
         prose_score = 0
 
-        for line in lines[:30]:  # Check first 30 lines
-            for pattern in CODE_INDICATORS:
-                if re.search(pattern, line, re.MULTILINE):
-                    code_score += 1
-                    break
+        for line in lines[:30]:
+            c, t, p = self._score_line(line)
+            code_score += c
+            terminal_score += t
+            prose_score += p
 
-            for pattern in TERMINAL_INDICATORS:
-                if re.search(pattern, line, re.MULTILINE):
-                    terminal_score += 1
-                    break
+        return self._classify_scores(code_score, terminal_score, prose_score)
 
-            # Prose heuristic: long sentences with spaces, punctuation
-            if len(line) > 40 and line.count(" ") > 5 and re.search(r"[.!?,;:]", line):
-                prose_score += 1
+    @staticmethod
+    def _score_line(line: str) -> Tuple[int, int, int]:
+        """Score a single line for code, terminal, and prose indicators."""
+        code = int(any(re.search(p, line, re.MULTILINE) for p in CODE_INDICATORS))
+        terminal = int(any(re.search(p, line, re.MULTILINE) for p in TERMINAL_INDICATORS))
+        prose = int(len(line) > 40 and line.count(" ") > 5 and bool(re.search(r"[.!?,;:]", line)))
+        return code, terminal, prose
 
-        # Determine type
+    @staticmethod
+    def _classify_scores(code_score: int, terminal_score: int, prose_score: int) -> str:
+        """Classify text type from accumulated scores."""
         total = code_score + terminal_score + prose_score
         if total == 0:
             return TextType.UNKNOWN
 
         max_score = max(code_score, terminal_score, prose_score)
-
-        if code_score == max_score and code_score > 2:
-            return TextType.CODE
-        if terminal_score == max_score and terminal_score > 2:
-            return TextType.TERMINAL
-        if prose_score == max_score and prose_score > 2:
-            return TextType.PROSE
+        for score, text_type in [
+            (code_score, TextType.CODE),
+            (terminal_score, TextType.TERMINAL),
+            (prose_score, TextType.PROSE),
+        ]:
+            if score == max_score and score > 2:
+                return text_type
 
         if code_score > 0 and terminal_score > 0:
             return TextType.MIXED
@@ -510,34 +513,44 @@ class OCREnhancer:
         fixed_words = []
 
         for word in words:
-            # Strip punctuation for checking
             clean = re.sub(r'^[^\w]+|[^\w]+$', '', word)
 
-            # Skip: empty, code keywords, short words, numbers, paths
-            if (not clean
-                    or clean in PROGRAMMING_KEYWORDS
-                    or clean.lower() in PROGRAMMING_KEYWORDS
-                    or len(clean) < 3
-                    or re.match(r'^[\d.]+$', clean)
-                    or '/' in clean
-                    or '_' in clean
-                    or clean[0].isupper()):  # Proper nouns
+            if self._should_skip_spell_check(clean):
                 fixed_words.append(word)
                 continue
 
-            suggestions = self._spell.lookup(
-                clean, Verbosity.CLOSEST, max_edit_distance=self.max_edit_distance
-            )
-            if suggestions and suggestions[0].distance > 0 and suggestions[0].distance <= self.max_edit_distance:
-                # Replace only the clean part, preserve surrounding punctuation
-                corrected = word.replace(clean, suggestions[0].term, 1)
-                if corrected != word:
-                    corrections += 1
-                fixed_words.append(corrected)
-            else:
-                fixed_words.append(word)
+            corrected, was_fixed = self._try_spell_correct(word, clean)
+            if was_fixed:
+                corrections += 1
+            fixed_words.append(corrected)
 
         return " ".join(fixed_words), corrections
+
+    @staticmethod
+    def _should_skip_spell_check(clean: str) -> bool:
+        """Check if a word should be skipped during spell checking."""
+        if not clean or len(clean) < 3:
+            return True
+        if clean in PROGRAMMING_KEYWORDS or clean.lower() in PROGRAMMING_KEYWORDS:
+            return True
+        if re.match(r'^[\d.]+$', clean):
+            return True
+        if '/' in clean or '_' in clean:
+            return True
+        if clean[0].isupper():  # Proper nouns
+            return True
+        return False
+
+    def _try_spell_correct(self, word: str, clean: str) -> Tuple[str, bool]:
+        """Try to spell-correct a single word. Returns (result, was_corrected)."""
+        suggestions = self._spell.lookup(
+            clean, Verbosity.CLOSEST, max_edit_distance=self.max_edit_distance
+        )
+        if suggestions and 0 < suggestions[0].distance <= self.max_edit_distance:
+            corrected = word.replace(clean, suggestions[0].term, 1)
+            if corrected != word:
+                return corrected, True
+        return word, False
 
     # ── Stats ────────────────────────────────────────────────────────
 

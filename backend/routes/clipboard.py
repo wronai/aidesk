@@ -138,6 +138,16 @@ async def analyze_selection(request: Request):
 
     # Build context from app_state
     latest_window = _state.get("latest_window") or {}
+    # Build clipboard context
+    clipboard_top = body.get("clipboard_text", "")
+    clipboard_items_raw = []
+    mgr = _state.get("clipboard_manager")
+    if mgr:
+        if not clipboard_top:
+            recent = mgr.queue.get_recent(1)
+            clipboard_top = recent[0].text if recent else ""
+        clipboard_items_raw = [i.to_dict() for i in mgr.queue.get_recent(5)]
+
     ctx = SkillContext(
         text=text,
         window_category=latest_window.get("category", "unknown"),
@@ -146,6 +156,8 @@ async def analyze_selection(request: Request):
         cwd=latest_window.get("cwd", ""),
         locale=body.get("locale", "pl"),
         latest_transcript=_state.get("latest_transcript", ""),
+        clipboard_top=clipboard_top,
+        clipboard_items=clipboard_items_raw,
     )
 
     # Get or create router (cached on app_state)
@@ -194,6 +206,16 @@ async def execute_skill(request: Request):
         return JSONResponse(status_code=400, content={"error": "skill, option_id, and text required"})
 
     latest_window = _state.get("latest_window") or {}
+    # Build clipboard context
+    clipboard_top = body.get("clipboard_text", "")
+    clipboard_items_raw = []
+    mgr = _state.get("clipboard_manager")
+    if mgr:
+        if not clipboard_top:
+            recent = mgr.queue.get_recent(1)
+            clipboard_top = recent[0].text if recent else ""
+        clipboard_items_raw = [i.to_dict() for i in mgr.queue.get_recent(5)]
+
     ctx = SkillContext(
         text=text,
         window_category=latest_window.get("category", "unknown"),
@@ -202,6 +224,8 @@ async def execute_skill(request: Request):
         cwd=latest_window.get("cwd", ""),
         locale=body.get("locale", "pl"),
         latest_transcript=_state.get("latest_transcript", ""),
+        clipboard_top=clipboard_top,
+        clipboard_items=clipboard_items_raw,
     )
 
     router = _state.get("skill_router")

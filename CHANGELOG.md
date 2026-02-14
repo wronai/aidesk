@@ -1,3 +1,24 @@
+## [2.1.10] - 2026-02-14
+
+### Summary
+
+refactor(goal): CLI interface improvements
+
+### Other
+
+- update backend/ocr_post_process.py
+- update backend/pipeline.py
+- update backend/process_scanner.py
+- update backend/routes/clipboard.py
+- update backend/server.py
+- update backend/skills/__init__.py
+- update backend/skills/base.py
+- update backend/skills/clipboard_relation.py
+- update backend/tests/test_clipboard_intel.py
+- update backend/tests/test_units.py
+- ... and 5 more
+
+
 ## [2.1.9] - 2026-02-14
 
 ### Summary

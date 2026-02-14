@@ -47,6 +47,19 @@ class TestAppClassification:
     def test_email_detection(self):
         assert WindowManager._classify_app("thunderbird", "Thunderbird", "Inbox") == AppCategory.EMAIL
 
+    def test_service_window_not_misclassified_as_email(self):
+        """mutter-x11-frames must not match mutt/neomutt email rule."""
+        result = WindowManager._classify_app("mutter-x11-frames", "mutter-x11-frames", "Toolbox")
+        assert result == AppCategory.SYSTEM
+
+    def test_jetbrains_toolbox_helper_classified_as_system(self):
+        result = WindowManager._classify_app(
+            "com-jetbrains-toolbox-entry-ToolboxProcessEarlyEntry",
+            "com-jetbrains-toolbox-entry-ToolboxProcessEarlyEntry",
+            "Content window",
+        )
+        assert result == AppCategory.SYSTEM
+
     def test_chat_detection(self):
         assert WindowManager._classify_app("slack", "Slack", "#general") == AppCategory.CHAT
         assert WindowManager._classify_app("discord", "Discord", "Server") == AppCategory.CHAT
@@ -58,6 +71,11 @@ class TestAppClassification:
         """Terminal running vim should be classified based on WM_CLASS (terminal), not title."""
         result = WindowManager._classify_app("alacritty", "Alacritty", "nvim server.py")
         assert result == AppCategory.TERMINAL
+
+    def test_classify_app_handles_missing_fields(self):
+        """Missing WM_CLASS/title metadata should not crash classification."""
+        assert WindowManager._classify_app(None, None, None) == AppCategory.UNKNOWN
+        assert WindowManager._classify_app(None, None, "Content window") == AppCategory.SYSTEM
 
 
 class TestWindowInfo:
@@ -274,6 +292,38 @@ class TestProcessScanner:
         assert "screen_bounds" in layout
         assert "timestamp" in layout
 
+    def test_service_window_detection_by_fields(self):
+        assert ProcessScanner._is_service_window_fields(
+            "mutter-x11-frames", "mutter-x11-frames", "Toolbox"
+        )
+        assert ProcessScanner._is_service_window_fields(
+            "jetbrains-toolbox", "jetbrains-toolbox", "Toolbox"
+        )
+        assert ProcessScanner._is_service_window_fields(
+            "com-jetbrains-toolbox-entry-ToolboxProcessEarlyEntry",
+            "com-jetbrains-toolbox-entry-ToolboxProcessEarlyEntry",
+            "Content window",
+        )
+        assert not ProcessScanner._is_service_window_fields(
+            "jetbrains-pycharm", "jetbrains-pycharm", "aidesk - process_scanner.py"
+        )
+
+    def test_scan_filters_service_windows(self):
+        scanner = ProcessScanner()
+        scanner._has_wmctrl = True
+        scanner._has_xdotool = False
+
+        wmctrl_output = "\n".join([
+            "0x01000001 0 100 0 0 490 750 mutter-x11-frames.mutter-x11-frames host Toolbox",
+            "0x01000002 0 200 23 490 2112 1602 jetbrains-pycharm.jetbrains-pycharm host aidesk - process_scanner.py",
+        ])
+
+        with patch.object(scanner, "_run", return_value=wmctrl_output):
+            windows = scanner.scan_all_windows()
+
+        assert len(windows) == 1
+        assert windows[0].wm_class_name == "jetbrains-pycharm"
+
 
 # ===== WindowCropper =====
 
@@ -346,6 +396,38 @@ class TestWindowCropper:
         ]
         crops = cropper.crop_all_windows(img, tiny_windows)
         assert len(crops) == 0
+
+    def test_skip_service_windows(self):
+        scanner = ProcessScanner()
+        cropper = WindowCropper(process_scanner=scanner)
+        img = self._make_test_image()
+        windows = [
+            VisibleWindow(
+                window_id=98,
+                title="Toolbox",
+                wm_class="mutter-x11-frames",
+                wm_class_name="mutter-x11-frames",
+                x=0,
+                y=0,
+                width=490,
+                height=750,
+                category=AppCategory.SYSTEM,
+            ),
+            VisibleWindow(
+                window_id=99,
+                title="Main.py - PyCharm",
+                wm_class="jetbrains-pycharm",
+                wm_class_name="jetbrains-pycharm",
+                x=600,
+                y=0,
+                width=1200,
+                height=900,
+                category=AppCategory.IDE,
+            ),
+        ]
+        crops = cropper.crop_all_windows(img, windows)
+        assert len(crops) == 1
+        assert crops[0].window.wm_class_name == "jetbrains-pycharm"
 
     def test_clamp_to_screen_bounds(self):
         """Windows partially off-screen should be clamped."""

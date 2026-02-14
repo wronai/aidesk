@@ -6,6 +6,7 @@ import json
 import os
 import time
 import sqlite3
+import threading
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional
 
@@ -43,12 +44,55 @@ nfo_logger = nfo.configure(
     name="aidesk",
     level=os.getenv("LOG_LEVEL", "INFO"),
     sinks=["sqlite:logs/nfo_aidesk.db", "md:logs/nfo_aidesk.md"],
-    bridge_stdlib=False,
+    bridge_stdlib=True,
     force=True,
 )
 
+_SQLITE_CONN: Optional[sqlite3.Connection] = None
+_SQLITE_LOCK = threading.Lock()
+_SQLITE_PENDING_WRITES = 0
+_SQLITE_FLUSH_EVERY = int(os.getenv("LOG_DB_FLUSH_EVERY", "20"))
+
+
+def _get_sqlite_conn(db_file: str) -> sqlite3.Connection:
+    """Get a shared SQLite connection for log writes (reused across log entries)."""
+    global _SQLITE_CONN
+    if _SQLITE_CONN is None:
+        os.makedirs(os.path.dirname(db_file), exist_ok=True)
+        _SQLITE_CONN = sqlite3.connect(db_file, check_same_thread=False)
+        _SQLITE_CONN.execute("PRAGMA journal_mode=WAL")
+        _SQLITE_CONN.execute("PRAGMA synchronous=NORMAL")
+        _SQLITE_CONN.execute(
+            "CREATE TABLE IF NOT EXISTS logs (timestamp TEXT, level TEXT, message TEXT, module TEXT)"
+        )
+        _SQLITE_CONN.commit()
+    return _SQLITE_CONN
+
+
+def _flush_and_close_sqlite_conn():
+    """Flush buffered SQLite log writes and close shared connection on shutdown."""
+    global _SQLITE_CONN, _SQLITE_PENDING_WRITES
+
+    conn = _SQLITE_CONN
+    if conn is None:
+        return
+
+    try:
+        with _SQLITE_LOCK:
+            if _SQLITE_PENDING_WRITES > 0:
+                conn.commit()
+                _SQLITE_PENDING_WRITES = 0
+            conn.close()
+    except Exception:
+        # Shutdown path should be best-effort.
+        pass
+    finally:
+        _SQLITE_CONN = None
+
 # Configure structured logging
 def setup_logging():
+    global _SQLITE_PENDING_WRITES
+
     log_file = os.getenv("LOG_FILE", "logs/assistant.log")
     db_file = os.getenv("LOG_DB", "logs/logs.sqlite")
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -65,23 +109,27 @@ def setup_logging():
     # File handler
     loguru_logger.add(log_file, rotation="10 MB", level=log_level, format="{time} | {level} | {message}")
 
-    # SQLite handler
+    # SQLite handler (batched commits + shared connection for lower overhead)
+    db_conn = _get_sqlite_conn(db_file)
+
     def sqlite_sink(message):
+        global _SQLITE_PENDING_WRITES
+
         record = message.record
         try:
-            conn = sqlite3.connect(db_file)
-            cursor = conn.cursor()
-            cursor.execute(
-                "CREATE TABLE IF NOT EXISTS logs (timestamp TEXT, level TEXT, message TEXT, module TEXT)"
-            )
-            cursor.execute(
-                "INSERT INTO logs VALUES (?, ?, ?, ?)",
-                (record["time"].isoformat(), record["level"].name, record["message"], record["module"])
-            )
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print(f"Failed to log to SQLite: {e}")
+            with _SQLITE_LOCK:
+                db_conn.execute(
+                    "INSERT INTO logs VALUES (?, ?, ?, ?)",
+                    (record["time"].isoformat(), record["level"].name, record["message"], record["module"]),
+                )
+                _SQLITE_PENDING_WRITES += 1
+
+                if _SQLITE_PENDING_WRITES >= _SQLITE_FLUSH_EVERY or record["level"].name in ("ERROR", "CRITICAL"):
+                    db_conn.commit()
+                    _SQLITE_PENDING_WRITES = 0
+        except Exception:
+            # Logging path must never break app execution.
+            pass
 
     loguru_logger.add(sqlite_sink, level=log_level)
 
@@ -268,6 +316,7 @@ async def lifespan(app: FastAPI):
     yield
 
     await bootstrap.shutdown()
+    _flush_and_close_sqlite_conn()
 
 
 # Create FastAPI app

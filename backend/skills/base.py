@@ -62,6 +62,8 @@ class SkillContext:
     locale: str = "pl"                      # User's native language
     latest_transcript: str = ""             # Latest STT transcript (for voice commands)
     timestamp: float = 0.0
+    clipboard_top: str = ""                 # Most recent clipboard content
+    clipboard_items: List[Dict] = field(default_factory=list)  # Recent clipboard queue
 
     def __post_init__(self):
         if not self.timestamp:

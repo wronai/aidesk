@@ -47,12 +47,9 @@ class App {
   }
 
   setupSSE() {
-    // Connection status updates
-    sseService.on('sse:connecting', () => this.connectionStatus.update('connecting'));
-    sseService.on('sse:connected', () => this.connectionStatus.update('connected'));
-    sseService.on('sse:error', () => this.connectionStatus.update('error'));
+    // Connection status is handled by <connection-status> component via window events
 
-    // Data events
+    // Data events from SSE server
     sseService.on('analysis', (data) => this.handleAnalysis(data));
     sseService.on('transcript', (data) => this.transcriptViewer.update(data.text, data.is_final));
     sseService.on('window', (data) => this.windowContext.update(data));

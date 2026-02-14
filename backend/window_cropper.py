@@ -289,6 +289,8 @@ class WindowCropper:
         """Check if a window should be skipped (too small, guard, duplicate, off-screen)."""
         if win.width < self.min_window_size or win.height < self.min_window_size:
             return True
+        if ProcessScanner._is_service_window_fields(win.wm_class, win.wm_class_name, win.title):
+            return True
         if win.title in self._GUARD_TITLES and not win.wm_class_name:
             return True
         if geo_key in seen:

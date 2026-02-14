@@ -175,6 +175,17 @@ class PipelineContext:
     # Pipeline profile for this run
     profile: str = "normal"  # PipelineProfile value
 
+    # Tier 1 module fields
+    multi_monitor_snapshot: Optional[Any] = None
+    monitor_description: str = ""
+    recalled_memories: List[Any] = field(default_factory=list)
+    template_actions: List[Dict] = field(default_factory=list)
+    ocr_enhanced: bool = False
+    ocr_corrections: int = 0
+    prediction: Optional[Dict] = None
+    used_prefetch: bool = False
+    clipboard_suggestions: List[Dict] = field(default_factory=list)
+
     # Metadata
     steps_executed: List[str] = field(default_factory=list)
     step_timings: Dict[str, float] = field(default_factory=dict)
@@ -548,6 +559,303 @@ class BuildBroadcastStep:
         return ctx
 
 
+# ===== Parallel Group (concurrent step execution) =====
+
+class ParallelGroup:
+    """
+    Runs multiple pipeline steps concurrently via asyncio.gather.
+
+    Acts as a single PipelineStep from the orchestrator's perspective,
+    but internally fans out to N sub-steps in parallel.
+    """
+
+    def __init__(self, steps: List, name: Optional[str] = None):
+        self._steps = steps
+        self.name = name or f"parallel({','.join(s.name for s in steps)})"
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return any(s.can_run(ctx) for s in self._steps)
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        runnable = [(s, s.can_run(ctx)) for s in self._steps]
+
+        async def _run_one(step):
+            t0 = time.time()
+            try:
+                await step.execute(ctx, bus)
+                elapsed = time.time() - t0
+                ctx.steps_executed.append(step.name)
+                ctx.step_timings[step.name] = round(elapsed * 1000, 1)
+            except Exception as e:
+                elapsed = time.time() - t0
+                ctx.errors.append({
+                    "step": step.name,
+                    "error": str(e),
+                    "elapsed_ms": round(elapsed * 1000, 1),
+                })
+                logger.error("Parallel step failed", step=step.name, error=str(e))
+
+        tasks = [_run_one(s) for s, can in runnable if can]
+        if tasks:
+            await asyncio.gather(*tasks)
+        return ctx
+
+
+# ===== Tier 1 Pipeline Steps =====
+
+class MultiMonitorStep:
+    """Detect active monitor and build multi-monitor snapshot."""
+    name = "multi_monitor"
+
+    def __init__(self, monitor_capture, window_manager=None):
+        self._monitor = monitor_capture
+        self._wm = window_manager
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return self._monitor is not None and ctx.active_window is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        monitors = []
+        if self._wm and hasattr(self._wm, 'get_monitors'):
+            monitors = self._wm.get_monitors()
+
+        if len(monitors) <= 1:
+            ctx.multi_monitor_snapshot = None
+            return ctx
+
+        snapshot = self._monitor.build_snapshot(
+            monitors=monitors,
+            active_window=ctx.active_window,
+            all_windows=ctx.all_windows,
+        )
+        ctx.multi_monitor_snapshot = snapshot
+        if snapshot:
+            ctx.monitor_description = snapshot.get_description() if hasattr(snapshot, 'get_description') else ""
+
+        await bus.publish(Event(
+            type="pipeline.multi_monitor",
+            data={"monitors": len(monitors), "active_monitor": snapshot.active_index if snapshot else None},
+            source=self.name,
+            correlation_id=ctx.correlation_id,
+        ))
+        return ctx
+
+
+class SemanticMemoryStep:
+    """Store analysis results and recall relevant memories."""
+    name = "semantic_memory"
+
+    def __init__(self, semantic_memory):
+        self._memory = semantic_memory
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False
+        return self._memory is not None and ctx.analysis_result is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        analysis_text = ctx.analysis_result.get("text", "")
+        app_name = ""
+        if ctx.active_window:
+            app_name = getattr(ctx.active_window, 'wm_class_name', '') or getattr(ctx.active_window, 'title', '')
+
+        self._memory.add_memory(
+            content=analysis_text,
+            context_type="screen",
+            metadata={"run_id": ctx.run_id, "app": app_name},
+        )
+
+        recalled = self._memory.recall_relevant(analysis_text, k=3)
+        ctx.recalled_memories = recalled
+
+        await bus.publish(Event(
+            type="pipeline.semantic_memory",
+            data={"stored": True, "recalled": len(recalled)},
+            source=self.name,
+            correlation_id=ctx.correlation_id,
+        ))
+        return ctx
+
+
+class ActionTemplateStep:
+    """Match analysis against action templates and suggest actions."""
+    name = "action_templates"
+
+    def __init__(self, action_library):
+        self._library = action_library
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False
+        return self._library is not None and ctx.analysis_result is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        analysis_text = ctx.analysis_result.get("text", "")
+        ocr_text = ""
+        if ctx.analysis_result.get("ocr") and ctx.analysis_result["ocr"].get("text"):
+            ocr_text = ctx.analysis_result["ocr"]["text"]
+        combined = f"{analysis_text}\n{ocr_text}"
+
+        app_cat = ""
+        if ctx.active_window:
+            cat = ctx.active_window.category
+            app_cat = cat.value if hasattr(cat, 'value') else str(cat or '')
+
+        matches = self._library.suggest_with_confidence(combined, app_category=app_cat)
+        ctx.template_actions = [m.to_dict() if hasattr(m, 'to_dict') else m for m in matches]
+
+        await bus.publish(Event(
+            type="pipeline.action_templates",
+            data={"matched": len(matches)},
+            source=self.name,
+            correlation_id=ctx.correlation_id,
+        ))
+        return ctx
+
+
+class OCRPostProcessStep:
+    """Post-process OCR text to fix common errors."""
+    name = "ocr_post_process"
+
+    def __init__(self, enhancer):
+        self._enhancer = enhancer
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False
+        return (
+            self._enhancer is not None
+            and ctx.analysis_result is not None
+            and ctx.analysis_result.get("ocr") is not None
+            and ctx.analysis_result["ocr"].get("text")
+        )
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        ocr_text = ctx.analysis_result["ocr"]["text"]
+        result = self._enhancer.enhance(ocr_text)
+
+        ctx.analysis_result["ocr"]["text"] = result.enhanced_text
+        ctx.analysis_result["ocr"]["post_process"] = result.to_dict()
+        ctx.ocr_enhanced = True
+        ctx.ocr_corrections = result.corrections_count
+
+        await bus.publish(Event(
+            type="pipeline.ocr_post_process",
+            data={"corrections": result.corrections_count, "text_type": result.text_type},
+            source=self.name,
+            correlation_id=ctx.correlation_id,
+        ))
+        return ctx
+
+
+class PredictiveStep:
+    """Record window transitions and predict next app switch."""
+    name = "predictive"
+
+    def __init__(self, predictive_analyzer):
+        self._predictor = predictive_analyzer
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False
+        return self._predictor is not None and getattr(self._predictor, 'enabled', True) and ctx.active_window is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        cat = getattr(ctx.active_window, 'category', None)
+        cat_str = cat.value if hasattr(cat, 'value') else str(cat or 'unknown')
+        wid = getattr(ctx.active_window, 'window_id', 0)
+        self._predictor.observe_window_change(cat_str, new_window_id=wid)
+
+        prediction = self._predictor.predict_next_action()
+        if prediction:
+            ctx.prediction = prediction.to_dict() if hasattr(prediction, 'to_dict') else {"app": str(prediction)}
+
+        await bus.publish(Event(
+            type="pipeline.predictive",
+            data={"predicted": prediction is not None},
+            source=self.name,
+            correlation_id=ctx.correlation_id,
+        ))
+        return ctx
+
+
+class ClipboardStep:
+    """Auto-copy relevant content to clipboard intelligence."""
+    name = "clipboard"
+
+    def __init__(self, clipboard_manager):
+        self._clipboard = clipboard_manager
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False
+        return self._clipboard is not None and ctx.analysis_result is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        from window_aware import AppCategory
+        analysis_text = ctx.analysis_result.get("text", "")
+        category = AppCategory.UNKNOWN
+        if ctx.active_window:
+            category = getattr(ctx.active_window, 'category', AppCategory.UNKNOWN)
+
+        self._clipboard.scan_and_copy(analysis_text, category=category)
+
+        # Auto-copy agent actions to clipboard
+        for action in ctx.agent_actions:
+            cmd = action.get("command", "")
+            if cmd:
+                from clipboard_intel import ClipSource
+                self._clipboard.push(cmd, source=ClipSource.AGENT, category=category.value if hasattr(category, 'value') else '', label=action.get("description", ""))
+
+        suggestions = self._clipboard.suggest_paste(category=category, screen_text=analysis_text)
+        ctx.clipboard_suggestions = [s.to_dict() if hasattr(s, 'to_dict') else {"text": str(s)} for s in suggestions]
+
+        await bus.publish(Event(
+            type="pipeline.clipboard",
+            data={"suggestions": len(ctx.clipboard_suggestions)},
+            source=self.name,
+            correlation_id=ctx.correlation_id,
+        ))
+        return ctx
+
+
+# ===== Parallel Group (concurrent step execution) =====
+
+class ParallelGroup:
+    """
+    Runs multiple pipeline steps concurrently via asyncio.gather.
+
+    Acts as a single composite step — can be inserted into the pipeline
+    wherever independent steps can safely run in parallel.
+    """
+
+    def __init__(self, steps: List, name: str = ""):
+        self.steps = steps
+        self.name = name or f"parallel({','.join(s.name for s in steps)})"
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return any(s.can_run(ctx) for s in self.steps)
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        runnable = [s for s in self.steps if s.can_run(ctx)]
+        if not runnable:
+            return ctx
+
+        async def _run_one(step):
+            try:
+                await step.execute(ctx, bus)
+                ctx.steps_executed.append(step.name)
+            except Exception as e:
+                ctx.errors.append({
+                    "step": step.name,
+                    "error": str(e),
+                })
+                logger.error("Parallel step failed", step=step.name, error=str(e))
+
+        await asyncio.gather(*[_run_one(s) for s in runnable])
+        return ctx
+
+
 # ===== Pipeline Orchestrator =====
 
 class PipelineOrchestrator:
@@ -674,6 +982,13 @@ def create_pipeline(
     process_scanner=None,
     window_cropper=None,
     app_state_ref=None,
+    multi_monitor=None,
+    semantic_memory=None,
+    action_library=None,
+    ocr_enhancer=None,
+    predictive_engine=None,
+    clipboard_manager=None,
+    cost_budget=None,
 ) -> PipelineOrchestrator:
     """
     Factory: create the standard analysis pipeline from components.
@@ -684,36 +999,28 @@ def create_pipeline(
     use_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
     scan_cache_ttl = float(os.getenv("SCAN_CACHE_TTL", "3.0"))
 
+    # (guard, step_factory) — steps are added in order when guard is truthy
+    step_defs = [
+        (process_scanner,   lambda: ScanWindowsStep(process_scanner, cache_ttl=scan_cache_ttl)),
+        (window_mgr,        lambda: DetectActiveWindowStep(window_mgr, use_window_roi=use_roi)),
+        (capture,           lambda: CaptureScreenStep(capture)),
+        (window_cropper,    lambda: CropWindowsStep(window_cropper)),
+        (multi_monitor,     lambda: MultiMonitorStep(multi_monitor, window_mgr)),
+        (context_mgr,       lambda: BuildContextStep(context_mgr, profile_mgr, app_state_ref)),
+        (analyzer,          lambda: AnalyzeStep(analyzer)),
+        (ocr_enhancer,      lambda: OCRPostProcessStep(ocr_enhancer)),
+        (shell_agent,       lambda: SuggestActionsStep(shell_agent)),
+        (action_library,    lambda: ActionTemplateStep(action_library)),
+        (semantic_memory,   lambda: SemanticMemoryStep(semantic_memory)),
+        (predictive_engine, lambda: PredictiveStep(predictive_engine)),
+        (clipboard_manager, lambda: ClipboardStep(clipboard_manager)),
+        (True,              lambda: BuildBroadcastStep()),
+    ]
+
     pipeline = PipelineOrchestrator(bus)
-
-    # Phase 1: Detect windows and processes (with caching for FAST/NORMAL)
-    if process_scanner:
-        pipeline.add_step(ScanWindowsStep(process_scanner, cache_ttl=scan_cache_ttl))
-    if window_mgr:
-        pipeline.add_step(DetectActiveWindowStep(window_mgr, use_window_roi=use_roi))
-
-    # Phase 2: Capture
-    if capture:
-        pipeline.add_step(CaptureScreenStep(capture))
-
-    # Phase 3+4: Crop and organize (skipped on FAST profile)
-    if window_cropper:
-        pipeline.add_step(CropWindowsStep(window_cropper))
-
-    # Phase 5: Build context
-    if context_mgr:
-        pipeline.add_step(BuildContextStep(context_mgr, profile_mgr, app_state_ref))
-
-    # Phase 6: Analyze
-    if analyzer:
-        pipeline.add_step(AnalyzeStep(analyzer))
-
-    # Phase 7: Suggest actions
-    if shell_agent:
-        pipeline.add_step(SuggestActionsStep(shell_agent))
-
-    # Final: build broadcast payload
-    pipeline.add_step(BuildBroadcastStep())
+    for guard, factory in step_defs:
+        if guard:
+            pipeline.add_step(factory())
 
     logger.info(
         "Pipeline created",
