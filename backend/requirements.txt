@@ -15,6 +15,12 @@ numpy==2.2.2
 # AI/ML - LiteLLM unified gateway (supports 100+ providers)
 litellm>=1.55.0
 
+# OCR Engines (install the ones you need)
+paddleocr>=2.9.1
+paddlepaddle>=3.0.0b1  # CPU version; use paddlepaddle-gpu for GPU
+easyocr>=1.7.2
+pytesseract>=0.3.13
+
 # Provider SDKs (installed by litellm as needed, pinned for stability)
 google-generativeai>=0.8.3
 openai>=1.59.8
@@ -24,6 +30,12 @@ anthropic>=0.42.0
 deepgram-sdk==3.11.0
 sounddevice==0.5.1
 soundfile==0.12.1
+
+# OCR Engines (install what you need, others are gracefully skipped)
+pytesseract>=0.3.10
+easyocr>=1.7.0
+paddleocr>=2.9.0
+paddlepaddle>=2.6.0  # PaddleOCR backend (CPU; use paddlepaddle-gpu for GPU)
 
 # Utilities
 python-dotenv==1.0.1

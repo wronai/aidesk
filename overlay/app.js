@@ -18,6 +18,12 @@ const elements = {
   analysis: document.getElementById('analysis'),
   statsText: document.getElementById('statsText'),
   timestamp: document.getElementById('timestamp'),
+  modeSelect: document.getElementById('modeSelect'),
+  ocrEngineSelect: document.getElementById('ocrEngineSelect'),
+  btnBenchmark: document.getElementById('btnBenchmark'),
+  benchmarkResults: document.getElementById('benchmarkResults'),
+  ocrInfo: document.getElementById('ocrInfo'),
+  ocrInfoText: document.getElementById('ocrInfoText'),
 };
 
 /**
@@ -56,6 +62,21 @@ function connect() {
   eventSource.addEventListener('error', (e) => {
     const data = JSON.parse(e.data);
     handleError(data);
+  });
+
+  eventSource.addEventListener('ocr_engine_changed', (e) => {
+    const data = JSON.parse(e.data);
+    handleOCREngineChanged(data);
+  });
+
+  eventSource.addEventListener('mode_changed', (e) => {
+    const data = JSON.parse(e.data);
+    handleModeChanged(data);
+  });
+
+  eventSource.addEventListener('ocr_benchmark', (e) => {
+    const data = JSON.parse(e.data);
+    handleBenchmarkResult(data);
   });
 
   eventSource.addEventListener('heartbeat', (e) => {
@@ -105,7 +126,7 @@ function updateConnectionStatus(status) {
  * Handle screen analysis event
  */
 function handleAnalysis(data) {
-  const { text, timestamp, size_kb, tokens, cost, provider } = data;
+  const { text, timestamp, size_kb, tokens, cost, provider, mode, ocr } = data;
 
   // Update analysis content with fade effect
   elements.analysis.classList.add('updating');
@@ -115,9 +136,19 @@ function handleAnalysis(data) {
     elements.analysis.innerHTML = formatAnalysisText(text);
     elements.analysis.classList.remove('updating');
 
-    // Update stats
-    const statsText = `${provider} • ${Math.round(tokens)} tok • $${cost.toFixed(6)}`;
+    // Update stats with mode info
+    const modeLabel = mode || 'vision';
+    const statsText = `${provider} • ${modeLabel} • ${Math.round(tokens)} tok • $${cost.toFixed(6)}`;
     elements.statsText.textContent = statsText;
+
+    // Show OCR info if available
+    if (ocr && ocr.engine !== 'disabled') {
+      elements.ocrInfo.style.display = 'block';
+      elements.ocrInfoText.textContent = 
+        `OCR: ${ocr.engine} • ${ocr.latency_ms.toFixed(0)}ms • ${(ocr.confidence * 100).toFixed(0)}% • ${ocr.boxes_count} box`;
+    } else {
+      elements.ocrInfo.style.display = 'none';
+    }
 
     // Update timestamp
     updateTimestamp(timestamp);
@@ -246,6 +277,154 @@ async function checkHealth() {
 }
 
 /**
+ * Handle OCR engine change event
+ */
+function handleOCREngineChanged(data) {
+  const { engine } = data;
+  if (elements.ocrEngineSelect) {
+    elements.ocrEngineSelect.value = engine;
+  }
+  console.log('OCR engine changed to:', engine);
+}
+
+/**
+ * Handle analysis mode change event
+ */
+function handleModeChanged(data) {
+  const { mode } = data;
+  if (elements.modeSelect) {
+    elements.modeSelect.value = mode;
+  }
+  console.log('Analysis mode changed to:', mode);
+}
+
+/**
+ * Handle benchmark result event
+ */
+function handleBenchmarkResult(data) {
+  const { engines, winners } = data;
+  
+  if (!elements.benchmarkResults) return;
+  elements.benchmarkResults.style.display = 'block';
+
+  let html = '<div class="benchmark-title">Benchmark Results</div>';
+  html += '<div class="benchmark-grid">';
+  
+  for (const [name, result] of Object.entries(engines)) {
+    const isWinner = name === winners.fastest;
+    const isMostConfident = name === winners.most_confident;
+    const badges = [];
+    if (isWinner) badges.push('<span class="badge badge-fast">fastest</span>');
+    if (isMostConfident) badges.push('<span class="badge badge-conf">best conf</span>');
+    
+    html += `
+      <div class="benchmark-item ${isWinner ? 'benchmark-winner' : ''}">
+        <div class="benchmark-engine">${escapeHtml(name)} ${badges.join(' ')}</div>
+        <div class="benchmark-stats">
+          <span>${result.latency_ms.toFixed(0)}ms</span>
+          <span>${(result.confidence * 100).toFixed(0)}%</span>
+          <span>${result.boxes_count} box</span>
+        </div>
+        <div class="benchmark-preview">${escapeHtml(result.text_preview || '').substring(0, 80)}${(result.text_preview || '').length > 80 ? '...' : ''}</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+
+  elements.benchmarkResults.innerHTML = html;
+
+  // Auto-hide after 15 seconds
+  setTimeout(() => {
+    elements.benchmarkResults.style.display = 'none';
+  }, 15000);
+}
+
+/**
+ * Switch analysis mode via API
+ */
+async function switchMode(mode) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/mode/${mode}`, { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('Mode switch failed:', data);
+    }
+  } catch (error) {
+    console.error('Mode switch error:', error);
+  }
+}
+
+/**
+ * Switch OCR engine via API
+ */
+async function switchOCREngine(engine) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/ocr/engine/${engine}`, { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('OCR engine switch failed:', data);
+    }
+  } catch (error) {
+    console.error('OCR engine switch error:', error);
+  }
+}
+
+/**
+ * Run OCR benchmark via API
+ */
+async function runBenchmark() {
+  try {
+    elements.btnBenchmark.disabled = true;
+    elements.btnBenchmark.textContent = '...';
+    const response = await fetch(`${BACKEND_URL}/ocr/benchmark`, { method: 'POST' });
+    const data = await response.json();
+    if (response.ok) {
+      handleBenchmarkResult(data);
+    }
+  } catch (error) {
+    console.error('Benchmark error:', error);
+  } finally {
+    elements.btnBenchmark.disabled = false;
+    elements.btnBenchmark.textContent = '\u26a1 Test';
+  }
+}
+
+/**
+ * Load current OCR/mode settings from backend
+ */
+async function loadOCRSettings() {
+  try {
+    // Load mode
+    const modeRes = await fetch(`${BACKEND_URL}/mode`);
+    if (modeRes.ok) {
+      const modeData = await modeRes.json();
+      if (elements.modeSelect) {
+        elements.modeSelect.value = modeData.mode;
+      }
+    }
+
+    // Load OCR engines
+    const ocrRes = await fetch(`${BACKEND_URL}/ocr/engines`);
+    if (ocrRes.ok) {
+      const ocrData = await ocrRes.json();
+      if (elements.ocrEngineSelect && ocrData.engines) {
+        // Rebuild options based on actually available engines
+        elements.ocrEngineSelect.innerHTML = '';
+        ocrData.engines.forEach(eng => {
+          const opt = document.createElement('option');
+          opt.value = eng.engine;
+          opt.textContent = eng.engine;
+          if (eng.active) opt.selected = true;
+          elements.ocrEngineSelect.appendChild(opt);
+        });
+      }
+    }
+  } catch (error) {
+    console.log('Could not load OCR settings (backend may not be ready):', error.message);
+  }
+}
+
+/**
  * Initialize on page load
  */
 window.addEventListener('DOMContentLoaded', () => {
@@ -259,6 +438,20 @@ window.addEventListener('DOMContentLoaded', () => {
   
   // Connect to backend
   connect();
+
+  // Set up OCR control event listeners
+  if (elements.modeSelect) {
+    elements.modeSelect.addEventListener('change', (e) => switchMode(e.target.value));
+  }
+  if (elements.ocrEngineSelect) {
+    elements.ocrEngineSelect.addEventListener('change', (e) => switchOCREngine(e.target.value));
+  }
+  if (elements.btnBenchmark) {
+    elements.btnBenchmark.addEventListener('click', runBenchmark);
+  }
+
+  // Load current settings from backend after short delay
+  setTimeout(loadOCRSettings, 2000);
   
   // Periodic health check (every 30s)
   setInterval(() => {

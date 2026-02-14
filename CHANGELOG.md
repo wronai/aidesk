@@ -1,3 +1,22 @@
+## [1.0.2] - 2026-02-14
+
+### Summary
+
+feat(examples): configuration management system
+
+### Config
+
+- config: update goal.yaml
+
+### Other
+
+- update backend/.env.example
+- update backend/requirements.txt
+- update overlay/app.js
+- update overlay/index.html
+- update overlay/styles.css
+
+
 ## [1.0.1] - 2026-02-14
 
 ### Summary
