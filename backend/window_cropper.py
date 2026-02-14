@@ -123,7 +123,8 @@ class OrganizedScreenData:
         category_priority = [
             AppCategory.IDE, AppCategory.TERMINAL, AppCategory.BROWSER,
             AppCategory.CHAT, AppCategory.EMAIL, AppCategory.OFFICE,
-            AppCategory.MEDIA, AppCategory.FILE_MANAGER, AppCategory.SYSTEM,
+            AppCategory.GRAPHICS, AppCategory.MEDIA, AppCategory.GAME,
+            AppCategory.FILE_MANAGER, AppCategory.UTILITY, AppCategory.SYSTEM,
             AppCategory.UNKNOWN,
         ]
 
@@ -146,12 +147,15 @@ class WindowCropper:
     CATEGORY_PRIORITY = {
         AppCategory.IDE: 10,
         AppCategory.TERMINAL: 9,
-        AppCategory.BROWSER: 7,
-        AppCategory.EMAIL: 6,
-        AppCategory.CHAT: 5,
-        AppCategory.OFFICE: 4,
-        AppCategory.MEDIA: 3,
-        AppCategory.FILE_MANAGER: 2,
+        AppCategory.BROWSER: 8,
+        AppCategory.EMAIL: 7,
+        AppCategory.CHAT: 6,
+        AppCategory.OFFICE: 5,
+        AppCategory.GRAPHICS: 5,
+        AppCategory.MEDIA: 4,
+        AppCategory.GAME: 4,
+        AppCategory.FILE_MANAGER: 3,
+        AppCategory.UTILITY: 2,
         AppCategory.SYSTEM: 1,
         AppCategory.UNKNOWN: 0,
     }

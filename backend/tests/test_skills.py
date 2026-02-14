@@ -656,3 +656,260 @@ class TestClipboardRelationInRouter:
         matches = router.analyze("some random text", ctx)
         names = [m.skill_name for m in matches]
         assert "clipboard_relation" not in names
+
+
+# ===== Expanded Intent Detectors =====
+
+class TestClipboardRelationExpandedIntents:
+    """Test the 8 new intent detectors added to ClipboardRelationSkill."""
+
+    def setup_method(self):
+        self.skill = ClipboardRelationSkill()
+
+    # ── JSON pair ──
+
+    def test_json_pair_both_json(self):
+        sel = '{"name": "Alice", "age": 30}'
+        clip = '{"name": "Bob", "age": 25}'
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "json_pair"
+        assert intent.score > 0.5
+
+    def test_json_pair_only_one_json(self):
+        sel = '{"key": "value"}'
+        clip = "just plain text"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        if intent:
+            assert intent.name != "json_pair"
+
+    def test_json_pair_options(self):
+        sel = '{"a": 1}'
+        clip = '{"b": 2}'
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "show_diff" in ids
+
+    # ── Git context ──
+
+    def test_git_ref_with_diff(self):
+        sel = "abc1234"
+        clip = "diff --git a/file.py b/file.py\n--- a/file.py\n+++ b/file.py\n@@ -1,3 +1,3 @@"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "git_diff_ref"
+        assert intent.score > 0.7
+
+    def test_git_compare_two_refs(self):
+        sel = "main"
+        clip = "develop"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "git_compare"
+
+    def test_git_ref_no_diff(self):
+        sel = "abc1234"
+        clip = "just some normal text without any git context"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        if intent:
+            assert intent.name not in ("git_diff_ref", "git_compare")
+
+    # ── IP / Host ──
+
+    def test_ip_with_connection_error(self):
+        sel = "192.168.1.100"
+        clip = "Error: connection refused to 192.168.1.100:5432"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "ip_conn_error"
+        assert intent.score > 0.8
+
+    def test_ip_pair(self):
+        sel = "10.0.0.1"
+        clip = "10.0.0.2"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "ip_pair"
+
+    def test_host_port_with_timeout(self):
+        sel = "db.example.com:5432"
+        clip = "Connection timeout after 30s to db.example.com:5432"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "ip_conn_error"
+
+    # ── Env var ──
+
+    def test_env_var_match(self):
+        sel = "DATABASE_URL=postgres://localhost/mydb"
+        clip = "Error: DATABASE_URL is not configured properly"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "env_var_match"
+
+    def test_env_var_missing(self):
+        sel = "API_KEY"
+        clip = "KeyError: 'API_KEY' - environment variable not set"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "env_var_missing"
+        assert intent.score > 0.8
+
+    def test_env_var_no_reference(self):
+        sel = "MY_VAR=hello"
+        clip = "just some text without any env references"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        if intent:
+            assert intent.name not in ("env_var_match", "env_var_missing")
+
+    # ── Docker ──
+
+    def test_docker_container_error(self):
+        sel = "a1b2c3d4e5f6"
+        clip = "docker: Error response from daemon: container a1b2c3d4e5f6 failed to start"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "docker_error"
+        assert intent.score > 0.8
+
+    def test_docker_context_both(self):
+        sel = "FROM python:3.11-slim\nRUN pip install flask"
+        clip = "docker build -t myapp .\ndocker run -p 8080:8080 myapp"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "docker_context"
+
+    # ── Config key ──
+
+    def test_config_key_in_config_block(self):
+        sel = "server.port"
+        clip = "server.host = 0.0.0.0\nserver.port = 8080\nserver.workers = 4"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "config_key_match"
+
+    def test_config_key_not_in_clipboard(self):
+        sel = "server.port"
+        clip = "just some random text"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        if intent:
+            assert intent.name != "config_key_match"
+
+    # ── Stack trace context ──
+
+    def test_stack_trace_symbol(self):
+        sel = "handle_request"
+        clip = '''Traceback (most recent call last):
+  File "server.py", line 42, in handle_request
+    result = process(data)
+ValueError: invalid data'''
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "stack_trace_symbol"
+        assert intent.score > 0.8
+
+    def test_stack_trace_js_symbol(self):
+        sel = "fetchData"
+        clip = "TypeError: Cannot read property 'map' of undefined\n    at fetchData (app.js:15:3)"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "stack_trace_symbol"
+
+    def test_stack_trace_no_match(self):
+        sel = "myFunction"
+        clip = "This is just a normal text without any stack trace"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        if intent:
+            assert intent.name != "stack_trace_symbol"
+
+    # ── Regex test ──
+
+    def test_regex_selection_with_test_data(self):
+        sel = r"^\d{3}-\d{3}-\d{4}$"
+        clip = "555-123-4567\n800-555-0199\nhello world"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "regex_test"
+
+    def test_regex_clipboard_with_test_data(self):
+        sel = "test@example.com\nfoo@bar.org\nnot-an-email"
+        clip = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        assert intent is not None
+        assert intent.name == "regex_test"
+
+    def test_regex_neither_is_regex(self):
+        sel = "hello world"
+        clip = "foo bar baz"
+        ctx = _ctx(clipboard_top=clip)
+        intent = self.skill._best_intent(sel, ctx)
+        if intent:
+            assert intent.name != "regex_test"
+
+
+class TestExpandedIntentOptions:
+    """Test that expanded intents return proper options."""
+
+    def setup_method(self):
+        self.skill = ClipboardRelationSkill()
+
+    def test_git_ref_options(self):
+        sel = "abc1234"
+        clip = "diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "copy_both" in ids
+
+    def test_ip_error_options(self):
+        sel = "192.168.1.1"
+        clip = "ECONNREFUSED 192.168.1.1:3000"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "search_pair" in ids
+
+    def test_env_missing_options(self):
+        sel = "SECRET_KEY"
+        clip = "Error: SECRET_KEY is not set"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "search_pair" in ids
+
+    def test_stack_trace_options(self):
+        sel = "process_data"
+        clip = 'File "main.py", line 10, in process_data\nRuntimeError: fail'
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "copy_both" in ids
+
+    def test_regex_options(self):
+        sel = r"^\d+$"
+        clip = "123\nabc\n456"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "copy_both" in ids

@@ -5,17 +5,41 @@ Analyzes the *pair* (selected_text, clipboard_content) to infer what the user
 wants to do. This goes beyond single-text classification by looking at how
 the two texts relate to each other.
 
-Detected intents:
-- already_copied: selection == clipboard (user re-selected what's already copied)
-- error_file_match: selection is a file path, clipboard has error from that file
-- cross_language: selection and clipboard are in different languages → translate pair
-- code_similarity: both are code fragments → compare/replace/refactor
-- complement_cmd: selection is a package name, clipboard has install error → install
-- url_pair: both are URLs from same domain → compare pages
-- save_to_path: selection is a file path, clipboard has content → save
-- diff_fragments: both are similar code/text → show diff
-
 Priority: 80 (between ErrorFixer=85 and URLHandler=70)
+
+Intent Catalog (16 detectors, sorted by confidence score):
+
+  Score  Intent               Selection example       Clipboard example
+  ─────  ───────────────────  ─────────────────────   ──────────────────────────
+  0.95   already_copied       any text                same text (>90% similar)
+  0.92   error_file_match     app.py                  Traceback mentioning app.py
+  0.88   complement_cmd       flask                   ModuleNotFoundError: flask
+  0.86   stack_trace_symbol   handle_request          stack trace with handle_request
+  0.85   ip_conn_error        192.168.1.100           connection refused
+  0.84   env_var_missing      API_KEY                 API_KEY is not set
+  0.83   docker_error         a1b2c3d4e5f6            docker error for container
+  0.82   git_diff_ref         abc1234                 diff --git a/file.py ...
+  0.78   cross_language       Polish text             English text
+  0.76   env_var_match        DB_URL=postgres://...   config referencing DB_URL
+  0.73   config_key_match     server.port             config block with server.port
+  0.72   json_pair            {"a": 1}                {"b": 2}
+  0.70   url_pair             github.com/repo1        github.com/repo2
+  0.70   git_compare          main                    develop
+  0.68   regex_test           ^\\d{3}-\\d{4}$           test data
+  0.65   save_to_path         /tmp/out.txt            long content to save
+
+  Variable-score intents:
+  0.6-0.8  code_similarity    def hello(): ...        def hello(): ... (similar)
+  0.4-0.7  diff_fragments     text fragment A         text fragment B (similar)
+  0.55     ip_pair            10.0.0.1                10.0.0.2
+  0.58     docker_context     FROM python:3.11        docker build -t myapp .
+
+Signal extraction methods:
+- Language detection: 5 languages (en/pl/de/fr/es) + Cyrillic/CJK script
+- Text similarity: SequenceMatcher ratio (0.0–1.0, capped at 500 chars)
+- Domain extraction: URL parsing for same-domain detection
+- Pattern matching: 12 compiled regexes (URL, path, package, error, code,
+  JSON, git ref/diff, IP, env var, docker, config key, stack frame, regex)
 """
 import re
 from difflib import SequenceMatcher
@@ -64,6 +88,17 @@ _ERROR_RE = re.compile(
 )
 _FILE_LINE_RE = re.compile(r'File "([^"]+)", line (\d+)')
 _CODE_RE = re.compile(r"(def |class |import |function |const |let |var |fn |pub )")
+_JSON_RE = re.compile(r'^\s*[{\[]', re.MULTILINE)
+_GIT_REF_RE = re.compile(r'^[0-9a-f]{7,40}$|^(refs/|HEAD|origin/|main|master|develop)', re.MULTILINE)
+_GIT_DIFF_RE = re.compile(r'^(diff --git|@@\s|[+-]{3}\s)', re.MULTILINE)
+_IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b|\b[0-9a-fA-F:]{6,39}\b')
+_HOST_PORT_RE = re.compile(r'\b[\w.-]+:\d{2,5}\b')
+_ENV_VAR_RE = re.compile(r'^[A-Z][A-Z0-9_]{2,}=', re.MULTILINE)
+_ENV_REF_RE = re.compile(r'\$\{?[A-Z][A-Z0-9_]{2,}\}?|\b[A-Z][A-Z0-9_]{2,}\b')
+_DOCKER_RE = re.compile(r'(docker|container|image|Dockerfile|docker-compose|ENTRYPOINT|FROM\s+\w)', re.IGNORECASE)
+_CONFIG_KEY_RE = re.compile(r'^[\w.-]+\s*[:=]\s*', re.MULTILINE)
+_STACK_FRAME_RE = re.compile(r'at\s+[\w.$]+\(|File "[^"]+", line \d+|\w+\.\w+:\d+', re.MULTILINE)
+_REGEX_RE = re.compile(r'[\^$*+?{}\[\]|\\].*[\^$*+?{}\[\]|\\]')
 
 
 def _detect_lang(text: str) -> str:
@@ -213,6 +248,15 @@ class ClipboardRelationSkill(BaseSkill):
             self._check_save_to_path(text, clipboard),
             self._check_code_similarity(text, clipboard),
             self._check_diff_fragments(text, clipboard),
+            # ── Expanded intent detectors ──
+            self._check_json_pair(text, clipboard),
+            self._check_git_context(text, clipboard),
+            self._check_ip_host(text, clipboard),
+            self._check_env_var(text, clipboard),
+            self._check_docker_context(text, clipboard),
+            self._check_config_key_value(text, clipboard),
+            self._check_stack_trace_context(text, clipboard),
+            self._check_regex_test(text, clipboard),
         ]
 
         valid = [i for i in intents if i and i.score > 0]
@@ -229,6 +273,9 @@ class ClipboardRelationSkill(BaseSkill):
     def _check_error_file_match(self, text: str, clipboard: str) -> Optional[_Intent]:
         """Selection is a file path/name, clipboard has traceback mentioning that file."""
         clean = text.strip().split("\n")[0].strip().strip("'\"")
+        # Reject IP addresses (e.g. 192.168.1.100)
+        if re.match(r'^\d{1,3}(\.\d{1,3}){2,}$', clean):
+            return None
         # Accept full paths OR bare filenames with extension (e.g. app.py, main.rs)
         is_path = bool(_PATH_RE.search(clean))
         is_filename = bool(re.match(r"^[\w./-]+\.\w{1,10}$", clean))
@@ -265,6 +312,17 @@ class ClipboardRelationSkill(BaseSkill):
             return None
         if not _ERROR_RE.search(clipboard):
             return None
+        # Exclude things that look like non-package identifiers
+        if re.match(r'^[A-Z][A-Z0-9_]{2,}$', clean):
+            return None  # ENV_VAR style → handled by _check_env_var
+        if re.match(r'^[a-f0-9]{7,}$', clean):
+            return None  # git hash or docker ID
+        if _IP_RE.match(clean):
+            return None  # IP address
+        if '_' in clean:
+            return None  # snake_case → function/variable name, not a package
+        if re.match(r'^[a-z]+[A-Z]', clean):
+            return None  # camelCase → function/class name
         if clean.lower() in clipboard.lower():
             return _Intent(
                 "complement_cmd", 0.88,
@@ -311,6 +369,160 @@ class ClipboardRelationSkill(BaseSkill):
         sim = _text_similarity(text, clipboard)
         if 0.2 < sim < 0.9 and len(text) > 20 and len(clipboard) > 20:
             return _Intent("diff_fragments", 0.4 + sim * 0.3, f"Porównaj fragmenty ({sim:.0%})", "📊")
+        return None
+
+    # ── Expanded intent detectors ──
+
+    def _check_json_pair(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Both look like JSON → compare/merge/validate."""
+        t_json = bool(_JSON_RE.search(text)) and ('{' in text or '[' in text)
+        c_json = bool(_JSON_RE.search(clipboard)) and ('{' in clipboard or '[' in clipboard)
+        if not t_json or not c_json:
+            return None
+        sim = _text_similarity(text, clipboard)
+        if sim > 0.9:
+            return None  # already_copied handles this
+        return _Intent(
+            "json_pair", 0.72,
+            f"Dwa obiekty JSON (podobieństwo {sim:.0%})", "📋",
+            options_fn=self._json_options,
+        )
+
+    def _check_git_context(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Selection is a git ref/hash, clipboard has diff or commit context."""
+        sel_is_ref = bool(_GIT_REF_RE.search(text.strip()))
+        clip_has_diff = bool(_GIT_DIFF_RE.search(clipboard))
+        clip_has_ref = bool(_GIT_REF_RE.search(clipboard.strip()))
+        if sel_is_ref and clip_has_diff:
+            return _Intent(
+                "git_diff_ref", 0.82,
+                f"Git ref + diff", "🔀",
+                options_fn=self._git_options,
+            )
+        if sel_is_ref and clip_has_ref and text.strip() != clipboard.strip():
+            return _Intent(
+                "git_compare", 0.70,
+                "Porównaj dwa commity/branche", "🔀",
+                options_fn=self._git_compare_options,
+            )
+        return None
+
+    def _check_ip_host(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Selection is IP/host, clipboard has connection error or config."""
+        sel_ip = bool(_IP_RE.search(text)) or bool(_HOST_PORT_RE.search(text))
+        clip_ip = bool(_IP_RE.search(clipboard)) or bool(_HOST_PORT_RE.search(clipboard))
+        if not sel_ip:
+            return None
+        has_conn_error = bool(re.search(r'(connection refused|timeout|unreachable|ECONNREFUSED|no route)', clipboard, re.IGNORECASE))
+        if has_conn_error:
+            return _Intent(
+                "ip_conn_error", 0.85,
+                f"Błąd połączenia z {text.strip()[:30]}", "🌐",
+                options_fn=self._ip_error_options,
+            )
+        if clip_ip:
+            return _Intent(
+                "ip_pair", 0.55,
+                "Dwa adresy sieciowe", "🌐",
+            )
+        return None
+
+    def _check_env_var(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Selection is env var name/value, clipboard has config or error referencing it."""
+        sel_is_env = bool(_ENV_VAR_RE.search(text))
+        clip_refs_env = bool(_ENV_REF_RE.search(clipboard))
+        if sel_is_env and clip_refs_env:
+            var_name = text.strip().split('=')[0].strip()
+            if var_name.upper() in clipboard.upper():
+                return _Intent(
+                    "env_var_match", 0.76,
+                    f"Zmienna {var_name} w kontekście", "⚙️",
+                    options_fn=self._env_options,
+                )
+        # Selection is a var name, clipboard has "not set" / "undefined" error
+        clean = text.strip()
+        if re.match(r'^[A-Z][A-Z0-9_]{2,}$', clean):
+            if re.search(r'(not set|undefined|missing|required)', clipboard, re.IGNORECASE) and clean in clipboard:
+                return _Intent(
+                    "env_var_missing", 0.84,
+                    f"Brakująca zmienna: {clean}", "⚙️",
+                    options_fn=self._env_missing_options,
+                )
+        return None
+
+    def _check_docker_context(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Selection + clipboard both reference Docker → container management."""
+        sel_docker = bool(_DOCKER_RE.search(text))
+        clip_docker = bool(_DOCKER_RE.search(clipboard))
+        if not sel_docker and not clip_docker:
+            return None
+        # Selection is container ID/name, clipboard has docker error
+        if re.match(r'^[a-f0-9]{12,64}$', text.strip()) and _ERROR_RE.search(clipboard) and clip_docker:
+            return _Intent(
+                "docker_error", 0.83,
+                f"Błąd kontenera {text.strip()[:12]}", "🐳",
+                options_fn=self._docker_options,
+            )
+        if sel_docker and clip_docker:
+            return _Intent(
+                "docker_context", 0.58,
+                "Kontekst Docker", "🐳",
+            )
+        return None
+
+    def _check_config_key_value(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Selection is a config key, clipboard has config block or error about that key."""
+        clean = text.strip()
+        # Single config key (e.g. "DATABASE_URL" or "server.port")
+        is_config_key = bool(re.match(r'^[\w][-\w.]{1,60}$', clean))
+        if not is_config_key:
+            return None
+        clip_has_config = bool(_CONFIG_KEY_RE.search(clipboard))
+        key_in_clip = clean.lower() in clipboard.lower()
+        if clip_has_config and key_in_clip:
+            return _Intent(
+                "config_key_match", 0.73,
+                f"Klucz konfiguracji: {clean}", "🔧",
+                options_fn=self._config_options,
+            )
+        return None
+
+    def _check_stack_trace_context(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Selection is a function/class name, clipboard has stack trace mentioning it."""
+        clean = text.strip()
+        # Function or class name pattern (e.g. "MyClass.my_method" or "handle_request")
+        is_symbol = bool(re.match(r'^[A-Za-z_][\w.]{1,80}$', clean))
+        if not is_symbol:
+            return None
+        clip_has_stack = bool(_STACK_FRAME_RE.search(clipboard))
+        if not clip_has_stack:
+            return None
+        if clean in clipboard:
+            return _Intent(
+                "stack_trace_symbol", 0.86,
+                f"Symbol {clean} w stack trace", "🔍",
+                options_fn=self._stack_trace_options,
+            )
+        return None
+
+    def _check_regex_test(self, text: str, clipboard: str) -> Optional[_Intent]:
+        """Selection looks like a regex, clipboard has test data (or vice versa)."""
+        sel_is_regex = bool(_REGEX_RE.search(text)) and len(text.strip()) < 200
+        clip_is_regex = bool(_REGEX_RE.search(clipboard)) and len(clipboard.strip()) < 200
+        if sel_is_regex and not clip_is_regex and len(clipboard) > 5:
+            # Selection = regex, clipboard = test data
+            return _Intent(
+                "regex_test", 0.68,
+                "Testuj regex na danych ze schowka", "🔣",
+                options_fn=self._regex_options,
+            )
+        if clip_is_regex and not sel_is_regex and len(text) > 5:
+            # Clipboard = regex, selection = test data
+            return _Intent(
+                "regex_test", 0.68,
+                "Testuj regex ze schowka na zaznaczeniu", "🔣",
+                options_fn=self._regex_options,
+            )
         return None
 
     # ── Option builders ──
@@ -393,6 +605,140 @@ class ClipboardRelationSkill(BaseSkill):
             SkillOption(
                 id="search_pair", label=f"🔍 Szukaj {pkg} online",
                 icon="🔍", data={"extracted": pkg},
+            ),
+        ]
+
+    def _json_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        return [
+            SkillOption(
+                id="show_diff", label="📊 Porównaj JSON",
+                icon="📊", description="Pokaż różnice między obiektami JSON",
+                data={"extracted": text[:100]},
+            ),
+            SkillOption(
+                id="copy_both", label="📋 Kopiuj oba JSON",
+                icon="📋", data={"extracted": text[:100]},
+            ),
+            SkillOption(
+                id="search_pair", label="🔍 Szukaj schematu",
+                icon="🔍", data={"extracted": text[:100]},
+            ),
+        ]
+
+    def _git_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        ref = text.strip()[:40]
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj ref {ref} + diff",
+                icon="📋", data={"extracted": ref},
+            ),
+            SkillOption(
+                id="search_pair", label="🔍 Szukaj commita online",
+                icon="🔍", data={"extracted": ref},
+            ),
+        ]
+
+    def _git_compare_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        ref_a = text.strip()[:20]
+        ref_b = ctx.clipboard_top.strip()[:20]
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj {ref_a}..{ref_b}",
+                icon="📋", data={"extracted": f"{ref_a}..{ref_b}"},
+            ),
+            SkillOption(
+                id="search_pair", label="🔍 Porównaj online",
+                icon="🔍", data={"extracted": f"{ref_a} {ref_b}"},
+            ),
+        ]
+
+    def _ip_error_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        host = text.strip()[:40]
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj {host} + błąd",
+                icon="📋", data={"extracted": host},
+            ),
+            SkillOption(
+                id="search_pair", label="🔍 Diagnozuj połączenie",
+                icon="🔍", data={"extracted": host},
+            ),
+        ]
+
+    def _env_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        var = text.strip().split('=')[0].strip()
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj {var} + kontekst",
+                icon="📋", data={"extracted": var},
+            ),
+            SkillOption(
+                id="search_pair", label=f"🔍 Szukaj {var} w dokumentacji",
+                icon="🔍", data={"extracted": var},
+            ),
+        ]
+
+    def _env_missing_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        var = text.strip()
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj {var} + błąd",
+                icon="📋", data={"extracted": var},
+            ),
+            SkillOption(
+                id="search_pair", label=f"🔍 Jak ustawić {var}",
+                icon="🔍", data={"extracted": f"{var} environment variable"},
+            ),
+        ]
+
+    def _docker_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        container = text.strip()[:12]
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj kontener {container} + logi",
+                icon="📋", data={"extracted": container},
+            ),
+            SkillOption(
+                id="search_pair", label="🔍 Szukaj rozwiązania Docker",
+                icon="🔍", data={"extracted": container},
+            ),
+        ]
+
+    def _config_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        key = text.strip()
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj {key} + config",
+                icon="📋", data={"extracted": key},
+            ),
+            SkillOption(
+                id="search_pair", label=f"🔍 Szukaj {key} w docs",
+                icon="🔍", data={"extracted": key},
+            ),
+        ]
+
+    def _stack_trace_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        symbol = text.strip()
+        return [
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj {symbol} + stack trace",
+                icon="📋", data={"extracted": symbol},
+            ),
+            SkillOption(
+                id="search_pair", label=f"🔍 Szukaj {symbol} + błąd",
+                icon="🔍", data={"extracted": symbol},
+            ),
+        ]
+
+    def _regex_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
+        return [
+            SkillOption(
+                id="copy_both", label="📋 Kopiuj regex + dane testowe",
+                icon="📋", data={"extracted": text[:100]},
+            ),
+            SkillOption(
+                id="search_pair", label="🔍 Testuj regex online",
+                icon="🔍", data={"extracted": text[:100]},
             ),
         ]
 

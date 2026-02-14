@@ -3,6 +3,7 @@ import { BaseComponent } from './base.js';
 const CATEGORY_EMOJI = {
   ide: '💻', terminal: '🖥️', browser: '🌐', email: '📧',
   chat: '💬', office: '📄', media: '🎨', file_manager: '📁',
+  graphics: '🖌️', game: '🎮', utility: '🛠️',
   system: '⚙️', unknown: '📝',
 };
 

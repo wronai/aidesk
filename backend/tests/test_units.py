@@ -83,6 +83,7 @@ class TestAppClassification:
         assert WindowManager._classify_app("electron", "Electron", "Slack", process_name="slack") == AppCategory.CHAT
         assert WindowManager._classify_app("electron", "Electron", "Discord", process_name="discord") == AppCategory.CHAT
         assert WindowManager._classify_app("electron", "Electron", "VSCode", process_name="code") == AppCategory.IDE
+        assert WindowManager._classify_app("electron", "Electron", "Windsurf", process_name="windsurf") == AppCategory.IDE
         assert WindowManager._classify_app("", "", "", process_name="steam") == AppCategory.GAME
 
     def test_cmdline_based_classification(self):
@@ -94,6 +95,35 @@ class TestAppClassification:
         # Electron apps launched via node/electron path
         assert WindowManager._classify_app("electron", "Electron", "Obsidian", cmdline="/app/obsidian/obsidian") == AppCategory.OFFICE
         assert WindowManager._classify_app("electron", "Electron", "Cursor", cmdline="/opt/Cursor/cursor") == AppCategory.IDE
+        assert WindowManager._classify_app("electron", "Electron", "Windsurf", cmdline="/opt/Windsurf/windsurf") == AppCategory.IDE
+
+
+class TestWindowManagerActiveSelection:
+    def test_query_window_id_prefers_cursor_window(self):
+        wm = WindowManager(enable_git=False, cache_ttl=0.0)
+        wm._has_xdotool = True
+
+        with patch.object(wm, "_query_mouse_window_id", return_value=202), \
+             patch.object(wm, "_query_active_window_id", return_value=101), \
+             patch.object(wm, "_is_service_window_id", return_value=False):
+            assert wm._query_window_id() == 202
+
+    def test_query_window_id_falls_back_to_focused_when_cursor_is_service(self):
+        wm = WindowManager(enable_git=False, cache_ttl=0.0)
+        wm._has_xdotool = True
+
+        with patch.object(wm, "_query_mouse_window_id", return_value=202), \
+             patch.object(wm, "_query_active_window_id", return_value=101), \
+             patch.object(wm, "_is_service_window_id", side_effect=lambda wid: wid == 202):
+            assert wm._query_window_id() == 101
+
+    def test_query_mouse_window_id_parses_shell_output(self):
+        wm = WindowManager(enable_git=False, cache_ttl=0.0)
+        wm._has_xdotool = True
+
+        mouse_output = "X=123\nY=456\nSCREEN=0\nWINDOW=0x2a"
+        with patch.object(wm, "_run", return_value=mouse_output):
+            assert wm._query_mouse_window_id() == 42
 
 
 class TestWindowInfo:
@@ -344,6 +374,46 @@ class TestProcessScanner:
 
         assert len(windows) == 1
         assert windows[0].wm_class_name == "jetbrains-pycharm"
+
+    def test_scan_prefers_cursor_window_as_active(self):
+        scanner = ProcessScanner()
+        scanner._has_wmctrl = True
+        scanner._has_xdotool = True
+
+        def _fake_scan(active_wid):
+            return [
+                VisibleWindow(window_id=101, wm_class="jetbrains-pycharm", wm_class_name="jetbrains-pycharm", title="PyCharm", is_active=(active_wid == 101)),
+                VisibleWindow(window_id=202, wm_class="windsurf", wm_class_name="Windsurf", title="Windsurf", is_active=(active_wid == 202)),
+            ]
+
+        with patch.object(scanner, "_query_mouse_window_id", return_value=202), \
+             patch.object(scanner, "_query_active_window_id", return_value=101), \
+             patch.object(scanner, "_is_service_window_id", return_value=False), \
+             patch.object(scanner, "_scan_via_wmctrl", side_effect=_fake_scan):
+            windows = scanner.scan_all_windows()
+
+        assert windows[0].window_id == 202
+        assert windows[0].is_active is True
+
+    def test_scan_falls_back_to_focused_when_cursor_window_is_service(self):
+        scanner = ProcessScanner()
+        scanner._has_wmctrl = True
+        scanner._has_xdotool = True
+
+        def _fake_scan(active_wid):
+            return [
+                VisibleWindow(window_id=101, wm_class="jetbrains-pycharm", wm_class_name="jetbrains-pycharm", title="PyCharm", is_active=(active_wid == 101)),
+                VisibleWindow(window_id=202, wm_class="ai-desktop-assistant-overlay", wm_class_name="ai-desktop-assistant-overlay", title="Overlay", is_active=(active_wid == 202)),
+            ]
+
+        with patch.object(scanner, "_query_mouse_window_id", return_value=202), \
+             patch.object(scanner, "_query_active_window_id", return_value=101), \
+             patch.object(scanner, "_is_service_window_id", side_effect=lambda wid: wid == 202), \
+             patch.object(scanner, "_scan_via_wmctrl", side_effect=_fake_scan):
+            windows = scanner.scan_all_windows()
+
+        assert windows[0].window_id == 101
+        assert windows[0].is_active is True
 
 
 # ===== WindowCropper =====
@@ -1067,3 +1137,81 @@ class TestCropWindowsProfileGating:
             all_windows=[VisibleWindow()],
         )
         assert step.can_run(ctx) is True
+
+
+class TestBuildContextStepCaching:
+    @pytest.mark.asyncio
+    async def test_reuses_cached_context_when_inputs_unchanged(self):
+        from pipeline import BuildContextStep
+
+        class FakeContextMgr:
+            def __init__(self):
+                self.total_items = 1
+                self.calls = 0
+
+            def get_context_string(self, n=5, max_length=500):
+                self.calls += 1
+                return "history"
+
+        class FakeProfiles:
+            @staticmethod
+            def get_prompt_addon(category):
+                return "PROFILE"
+
+        class ActiveWindow:
+            category = AppCategory.IDE
+
+        context_mgr = FakeContextMgr()
+        step = BuildContextStep(
+            context_mgr=context_mgr,
+            profile_mgr=FakeProfiles(),
+            app_state_ref={"latest_transcript": "hej"},
+        )
+        bus = EventBus(enable_store=False)
+
+        ctx1 = PipelineContext(
+            image_b64="img",
+            window_context_str="window",
+            screen_summary="summary",
+            active_window=ActiveWindow(),
+        )
+        await step.execute(ctx1, bus)
+
+        ctx2 = PipelineContext(
+            image_b64="img",
+            window_context_str="window",
+            screen_summary="summary",
+            active_window=ActiveWindow(),
+        )
+        await step.execute(ctx2, bus)
+
+        assert context_mgr.calls == 1
+        assert ctx1.context_str == ctx2.context_str
+        assert ctx1.full_context == ctx2.full_context
+
+    @pytest.mark.asyncio
+    async def test_cache_invalidates_when_context_version_changes(self):
+        from pipeline import BuildContextStep
+
+        class FakeContextMgr:
+            def __init__(self):
+                self.total_items = 1
+                self.calls = 0
+
+            def get_context_string(self, n=5, max_length=500):
+                self.calls += 1
+                return f"history-{self.total_items}"
+
+        context_mgr = FakeContextMgr()
+        step = BuildContextStep(context_mgr=context_mgr)
+        bus = EventBus(enable_store=False)
+
+        ctx1 = PipelineContext(image_b64="img")
+        await step.execute(ctx1, bus)
+
+        context_mgr.total_items += 1
+        ctx2 = PipelineContext(image_b64="img")
+        await step.execute(ctx2, bus)
+
+        assert context_mgr.calls == 2
+        assert ctx1.context_str != ctx2.context_str

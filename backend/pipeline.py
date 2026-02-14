@@ -26,6 +26,7 @@ from enum import Enum
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
+import nfo
 import structlog
 from PIL import Image
 
@@ -382,49 +383,92 @@ class BuildContextStep:
         self._context = context_mgr
         self._profiles = profile_mgr
         self._state = app_state_ref or {}
+        self._cached_key: Optional[tuple] = None
+        self._cached_context_str = ""
+        self._cached_full_context = ""
 
     def can_run(self, ctx: PipelineContext) -> bool:
         return ctx.image_b64 is not None
 
+    def _context_version(self) -> Optional[int]:
+        """Best-effort version marker to detect context history changes."""
+        total_items = getattr(self._context, "total_items", None)
+        if isinstance(total_items, int):
+            return total_items
+
+        history = getattr(self._context, "history", None)
+        if history is None:
+            return None
+        try:
+            return len(history)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _focus_window_prefix(ctx: PipelineContext) -> str:
+        if not (ctx.organized_screen and ctx.organized_screen.focus_window):
+            return ""
+
+        fw = ctx.organized_screen.focus_window
+        return (
+            f"🎯 Fokus pracy (wykryto zmiany): {fw.window.wm_class_name or fw.window.title} "
+            f"({fw.window.category.value}, zmiana: {fw.change_score:.0f})\n"
+            "Skup się na tym oknie — tu użytkownik aktualnie pracuje."
+        )
+
+    @nfo.log_call(level="INFO")
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        # Base context from history
-        ctx.context_str = self._context.get_context_string(n=5, max_length=500)
-
-        # Prepend focus window info (where user is actively working, based on diffs)
-        if ctx.organized_screen and ctx.organized_screen.focus_window:
-            fw = ctx.organized_screen.focus_window
-            ctx.context_str = (
-                f"🎯 Fokus pracy (wykryto zmiany): {fw.window.wm_class_name or fw.window.title} "
-                f"({fw.window.category.value}, zmiana: {fw.change_score:.0f})\n"
-                f"Skup się na tym oknie — tu użytkownik aktualnie pracuje.\n\n"
-                + ctx.context_str
-            )
-
-        # Prepend organized screen summary
-        if ctx.screen_summary:
-            ctx.context_str = f"📊 Ekran: {ctx.screen_summary}\n\n{ctx.context_str}"
-
-        # Prepend window context
-        if ctx.window_context_str:
-            ctx.context_str = f"{ctx.window_context_str}\n\n{ctx.context_str}"
-
-        # Per-app profile prompt
+        prompt_addon = ""
         if self._profiles and ctx.active_window:
-            ctx.prompt_addon = self._profiles.get_prompt_addon(ctx.active_window.category)
+            prompt_addon = self._profiles.get_prompt_addon(ctx.active_window.category)
+        ctx.prompt_addon = prompt_addon
 
-        # Combine
-        ctx.full_context = ctx.context_str
-        if ctx.prompt_addon:
-            ctx.full_context = f"{ctx.prompt_addon}\n\n{ctx.context_str}"
+        latest_transcript = self._state.get("latest_transcript", "") or ""
+        focus_prefix = self._focus_window_prefix(ctx)
+        cache_key = (
+            self._context_version(),
+            ctx.window_context_str or "",
+            ctx.screen_summary or "",
+            focus_prefix,
+            prompt_addon,
+            latest_transcript,
+        )
 
-        # Include latest speech transcript
-        latest_transcript = self._state.get("latest_transcript", "")
-        if latest_transcript:
-            ctx.full_context = f"🎤 Użytkownik powiedział: {latest_transcript}\n\n{ctx.full_context}"
+        cached = False
+        if self._cached_key == cache_key:
+            ctx.context_str = self._cached_context_str
+            ctx.full_context = self._cached_full_context
+            cached = True
+        else:
+            base_context = self._context.get_context_string(n=5, max_length=500)
+
+            context_parts = []
+            if ctx.window_context_str:
+                context_parts.append(ctx.window_context_str)
+            if ctx.screen_summary:
+                context_parts.append(f"📊 Ekran: {ctx.screen_summary}")
+            if focus_prefix:
+                context_parts.append(focus_prefix)
+            if base_context:
+                context_parts.append(base_context)
+
+            ctx.context_str = "\n\n".join(context_parts)
+
+            full_context = ctx.context_str
+            if prompt_addon:
+                full_context = f"{prompt_addon}\n\n{full_context}" if full_context else prompt_addon
+            if latest_transcript:
+                transcript_prefix = f"🎤 Użytkownik powiedział: {latest_transcript}"
+                full_context = f"{transcript_prefix}\n\n{full_context}" if full_context else transcript_prefix
+
+            ctx.full_context = full_context
+            self._cached_key = cache_key
+            self._cached_context_str = ctx.context_str
+            self._cached_full_context = ctx.full_context
 
         await bus.publish(Event(
             type=EventType.CONTEXT_BUILT.value,
-            data={"context_length": len(ctx.full_context)},
+            data={"context_length": len(ctx.full_context), "cached": cached},
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))

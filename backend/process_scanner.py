@@ -143,6 +143,55 @@ class ProcessScanner:
         except Exception:
             return None
 
+    @staticmethod
+    def _parse_window_id(value: Optional[str]) -> int:
+        """Parse decimal/hex window id string safely."""
+        if not value:
+            return 0
+        try:
+            return int(str(value).strip(), 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _query_active_window_id(self) -> int:
+        """Get focused window id from xdotool."""
+        if not self._has_xdotool:
+            return 0
+        return self._parse_window_id(self._run(["xdotool", "getactivewindow"]))
+
+    def _query_mouse_window_id(self) -> int:
+        """Get the window id currently under mouse cursor."""
+        if not self._has_xdotool:
+            return 0
+
+        output = self._run(["xdotool", "getmouselocation", "--shell"])
+        if not output:
+            return 0
+
+        for line in output.splitlines():
+            if line.startswith("WINDOW="):
+                return self._parse_window_id(line.split("=", 1)[1])
+        return 0
+
+    def _is_service_window_id(self, window_id: int) -> bool:
+        """Check whether a window id corresponds to a service/helper window."""
+        if window_id <= 0:
+            return False
+
+        title = self._run(["xdotool", "getwindowname", str(window_id)]) or ""
+        wm_class = ""
+        wm_class_name = ""
+
+        if self._has_xprop:
+            xprop_out = self._run(["xprop", "-id", str(window_id), "WM_CLASS"])
+            if xprop_out and "=" in xprop_out:
+                match = re.search(r'"([^"]*)",\s*"([^"]*)"', xprop_out)
+                if match:
+                    wm_class = match.group(1)
+                    wm_class_name = match.group(2)
+
+        return self._is_service_window_fields(wm_class, wm_class_name, title)
+
     @nfo.log_call(level="INFO")
     def scan_all_windows(self) -> List[VisibleWindow]:
         """
@@ -154,15 +203,16 @@ class ProcessScanner:
 
         windows = []
 
-        # Get active window ID for marking
+        # Get active user-work window ID for marking (cursor preferred over focus).
         active_wid = 0
-        if self._has_xdotool:
-            wid_str = self._run(["xdotool", "getactivewindow"])
-            if wid_str:
-                try:
-                    active_wid = int(wid_str)
-                except ValueError:
-                    pass
+        cursor_wid = self._query_mouse_window_id()
+        focused_wid = self._query_active_window_id()
+        if cursor_wid and cursor_wid != focused_wid and not self._is_service_window_id(cursor_wid):
+            active_wid = cursor_wid
+        elif focused_wid and not self._is_service_window_id(focused_wid):
+            active_wid = focused_wid
+        else:
+            active_wid = cursor_wid or focused_wid or 0
 
         if self._has_wmctrl:
             windows = self._scan_via_wmctrl(active_wid)
@@ -205,6 +255,8 @@ class ProcessScanner:
             "Window scan complete",
             total_windows=len(windows),
             active_wid=active_wid,
+            cursor_wid=cursor_wid,
+            focused_wid=focused_wid,
             filtered_service_windows=filtered_service_windows,
         )
 

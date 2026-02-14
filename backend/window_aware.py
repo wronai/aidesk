@@ -116,6 +116,28 @@ APP_RULES: List[Tuple[str, AppCategory]] = [
 ]
 
 
+SERVICE_WINDOW_CLASS_PATTERNS: Tuple[str, ...] = (
+    r"mutter-x11-frames",
+    r"gnome-shell",
+    r"xwaylandvideobridge",
+    r"jetbrains-toolbox",
+    r"com-jetbrains-toolbox-entry",
+    r"ai-desktop-assistant-overlay",
+    r"kwin_x11",
+    r"kwin_wayland",
+    r"plasmashell",
+    r"dunst",
+    r"notify-osd",
+    r"xfce4-notifyd",
+)
+
+SERVICE_WINDOW_TITLES = {
+    "mutter guard window",
+    "sun-awt-x11-xcanvaspeer",
+    "content window",
+}
+
+
 # Process-based classification rules: (process_name_pattern, category)
 PROCESS_RULES: List[Tuple[str, AppCategory]] = [
     # Electron wrappers often have generic window classes but specific process names
@@ -123,6 +145,7 @@ PROCESS_RULES: List[Tuple[str, AppCategory]] = [
     (r"slack", AppCategory.CHAT),
     (r"discord", AppCategory.CHAT),
     (r"code|vscode", AppCategory.IDE),
+    (r"windsurf", AppCategory.IDE),
     (r"obsidian", AppCategory.OFFICE),
     (r"signal", AppCategory.CHAT),
     (r"steam", AppCategory.GAME),
@@ -268,12 +291,12 @@ class WindowManager:
     def _check_tool(name: str) -> bool:
         """Check if a CLI tool is available."""
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["which", name],
                 capture_output=True,
                 timeout=2,
             )
-            return True
+            return result.returncode == 0
         except Exception:
             return False
 
@@ -337,11 +360,76 @@ class WindowManager:
         return self._cache_and_return(info, now)
 
     def _query_window_id(self) -> int:
-        """Get active window ID via xdotool."""
+        """Get user work window ID (cursor window preferred, focus as fallback)."""
         if not self._has_xdotool:
             return 0
-        wid_str = self._run(["xdotool", "getactivewindow"])
-        return int(wid_str) if wid_str else 0
+
+        cursor_wid = self._query_mouse_window_id()
+        focused_wid = self._query_active_window_id()
+
+        if cursor_wid and cursor_wid != focused_wid and not self._is_service_window_id(cursor_wid):
+            return cursor_wid
+        if focused_wid and not self._is_service_window_id(focused_wid):
+            return focused_wid
+
+        return cursor_wid or focused_wid or 0
+
+    def _query_active_window_id(self) -> int:
+        """Get focused window ID via xdotool."""
+        return self._parse_window_id(self._run(["xdotool", "getactivewindow"]))
+
+    def _query_mouse_window_id(self) -> int:
+        """Get window ID currently under mouse cursor via xdotool."""
+        output = self._run(["xdotool", "getmouselocation", "--shell"])
+        if not output:
+            return 0
+
+        for line in output.splitlines():
+            if line.startswith("WINDOW="):
+                return self._parse_window_id(line.split("=", 1)[1])
+
+        return 0
+
+    @staticmethod
+    def _parse_window_id(value: Optional[str]) -> int:
+        """Parse decimal/hex window id string safely."""
+        if not value:
+            return 0
+
+        try:
+            return int(str(value).strip(), 0)
+        except (TypeError, ValueError):
+            return 0
+
+    @classmethod
+    def _is_service_window_fields(cls, wm_class: str, wm_class_name: str, title: str) -> bool:
+        """Guard for compositor/helper windows that should not be treated as user work windows."""
+        combined = f"{wm_class or ''} {wm_class_name or ''}".lower()
+        title_lower = (title or "").strip().lower()
+
+        if title_lower in SERVICE_WINDOW_TITLES:
+            return True
+
+        return any(re.search(pattern, combined) for pattern in SERVICE_WINDOW_CLASS_PATTERNS)
+
+    def _is_service_window_id(self, window_id: int) -> bool:
+        """Check whether a window id corresponds to compositor/helper overlay windows."""
+        if window_id <= 0:
+            return False
+
+        title = self._run(["xdotool", "getwindowname", str(window_id)]) or ""
+        wm_class = ""
+        wm_class_name = ""
+
+        if self._has_xprop:
+            xprop_out = self._run(["xprop", "-id", str(window_id), "WM_CLASS"])
+            if xprop_out and "=" in xprop_out:
+                match = re.search(r'"([^"]*)",\s*"([^"]*)"', xprop_out)
+                if match:
+                    wm_class = match.group(1)
+                    wm_class_name = match.group(2)
+
+        return self._is_service_window_fields(wm_class, wm_class_name, title)
 
     def _query_window_props(self, info: WindowInfo):
         """Query title, geometry, PID, and WM_CLASS for a window."""
@@ -447,7 +535,7 @@ class WindowManager:
         process_lower = (process_name or "").lower()
 
         # Helper/compositor titles that should never be treated as user apps
-        if title_lower in {"mutter guard window", "sun-awt-x11-xcanvaspeer", "content window"}:
+        if title_lower in SERVICE_WINDOW_TITLES:
             return AppCategory.SYSTEM
 
         # 1. Check WM_CLASS rules (most reliable for native apps)
@@ -479,6 +567,8 @@ class WindowManager:
             if "obsidian" in cmd_lower:
                 return AppCategory.OFFICE
             if "cursor" in cmd_lower:
+                return AppCategory.IDE
+            if "windsurf" in cmd_lower:
                 return AppCategory.IDE
 
         # 4. Fallback: check title for clues

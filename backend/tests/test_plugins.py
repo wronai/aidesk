@@ -43,6 +43,11 @@ class MockBadPlugin:
     pass
 
 
+class MockSyncShutdownPlugin(MockPlugin):
+    def shutdown(self):
+        self.shutdown_called = True
+
+
 # ===== Tests =====
 
 class TestPluginLoader:
@@ -142,6 +147,20 @@ class TestPluginLoader:
 
         assert len(loader.loaded_plugins) == 0
 
+    @patch("plugins.loader.pkgutil.iter_modules")
+    @patch.object(PluginLoader, "_import_module")
+    def test_discover_skips_non_class_plugin_export(self, mock_import, mock_iter_modules):
+        mock_iter_modules.return_value = [(None, "bad_export_plugin", None)]
+
+        mock_module = MagicMock()
+        mock_module.Plugin = MockPlugin()  # instance, not class
+        mock_import.return_value = mock_module
+
+        loader = PluginLoader()
+        loader.discover_and_load()
+
+        assert len(loader.loaded_plugins) == 0
+
     def test_register_duplicate_plugin_name_skipped(self):
         loader = PluginLoader()
         first = MockPlugin()
@@ -185,3 +204,13 @@ class TestPluginLoader:
         # Should not raise
         await loader.shutdown()
         plugin.shutdown.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_shutdown_calls_sync_shutdown_hook(self):
+        loader = PluginLoader()
+        plugin = MockSyncShutdownPlugin()
+        loader.loaded_plugins["mock_sync"] = plugin
+
+        await loader.shutdown()
+
+        assert plugin.shutdown_called is True

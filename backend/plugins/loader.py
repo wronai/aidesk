@@ -86,15 +86,20 @@ class PluginLoader:
         """Find and instantiate the Plugin class in a module."""
         if not hasattr(module, "Plugin"):
             return None
-        
+
         cls = getattr(module, "Plugin")
+        if not isinstance(cls, type):
+            logger.warning("Plugin export is not a class", module=module.__name__)
+            return None
+
         try:
+            instance = cls()
+
             # Check if it looks like a plugin (duck typing sufficient here)
-            if not callable(getattr(cls, "register", None)):
+            if not callable(getattr(instance, "register", None)):
                 logger.warning("Plugin class missing register method", module=module.__name__)
                 return None
-            
-            instance = cls()
+
             return instance
         except Exception as e:
             logger.error("Failed to instantiate Plugin class", module=module.__name__, error=str(e))
@@ -124,7 +129,12 @@ class PluginLoader:
         """Shutdown all plugins."""
         for name, plugin in self.loaded_plugins.items():
             try:
-                if hasattr(plugin, "shutdown") and asyncio.iscoroutinefunction(plugin.shutdown):
-                    await plugin.shutdown()
+                shutdown_fn = getattr(plugin, "shutdown", None)
+                if not callable(shutdown_fn):
+                    continue
+
+                result = shutdown_fn()
+                if asyncio.iscoroutine(result):
+                    await result
             except Exception as e:
                 logger.error("Plugin shutdown failed", name=name, error=str(e))

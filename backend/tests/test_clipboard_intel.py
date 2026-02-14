@@ -432,13 +432,13 @@ class TestClipboardStep:
         ctx.analysis_result = {"text": "test"}
         ctx.active_window = MagicMock()
         ctx.active_window.category = AppCategory.TERMINAL
-        ctx.agent_actions = [{"command": "Error: connection refused", "description": "Show error"}]
+        ctx.agent_actions = [{"command": "pip install flask", "description": "Install flask"}]
 
         bus = EventBus(enable_store=False)
         ctx = await step.execute(ctx, bus)
 
-        # Agent action text matching terminal error pattern should be in clipboard queue
-        assert any("connection refused" in i.text for i in mgr.queue.get_all())
+        # Agent action should be in clipboard queue
+        assert any("pip install flask" in i.text for i in mgr.queue.get_all())
 
 
 # ===== SelectionAnalyzer =====

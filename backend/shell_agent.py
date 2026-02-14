@@ -182,15 +182,15 @@ ACTION_RULES: List[Dict] = [
         "description": "Docker wymaga uprawnień — sprawdź grupę",
         "command": "groups | grep docker && docker info",
         "risk": ActionRisk.SAFE,
-        "categories": [AppCategory.TERMINAL],
+        "categories": [AppCategory.TERMINAL, AppCategory.IDE, AppCategory.SYSTEM],
     },
     # Disk space
     {
-        "pattern": r"No space left on device|ENOSPC",
+        "pattern": r"No space left on device|ENOSPC|brak miejsca",
         "description": "Brak miejsca na dysku — analiza użycia",
         "command": "df -h && du -sh /tmp/* 2>/dev/null | sort -rh | head -10",
         "risk": ActionRisk.SAFE,
-        "categories": [AppCategory.IDE, AppCategory.TERMINAL],
+        "categories": [AppCategory.IDE, AppCategory.TERMINAL, AppCategory.FILE_MANAGER, AppCategory.SYSTEM],
     },
     # Build errors
     {
@@ -206,7 +206,7 @@ ACTION_RULES: List[Dict] = [
         "description": "Połączenie odrzucone — sprawdź usługę",
         "command": "ss -tlnp | grep {match_1:-8000}",
         "risk": ActionRisk.SAFE,
-        "categories": [AppCategory.IDE, AppCategory.TERMINAL, AppCategory.BROWSER],
+        "categories": [AppCategory.IDE, AppCategory.TERMINAL, AppCategory.BROWSER, AppCategory.SYSTEM],
     },
 ]
 

@@ -197,6 +197,94 @@ Priorytet: informacyjny""",
         action_patterns={},
         priority_boost=0.3,
     ),
+
+    AppCategory.GRAPHICS: AppProfile(
+        category=AppCategory.GRAPHICS,
+        name="Grafika / Design",
+        emoji="🖌️",
+        system_prompt_addon="""
+Kontekst: Użytkownik pracuje w programie graficznym lub CAD.
+Dodatkowe instrukcje:
+- Wykrywaj narzędzia, warstwy, palety kolorów
+- Sugeruj skróty klawiszowe dla aktywnego narzędzia
+- Jeśli to CAD/3D, zwracaj uwagę na wymiary i ograniczenia
+- Wykrywaj błędy renderowania lub eksportu
+Priorytet: narzędzia > parametry > podgląd""",
+        focus_keywords=["layer", "tool", "brush", "color", "export", "render"],
+        action_patterns={},
+        priority_boost=0.6,
+    ),
+
+    AppCategory.GAME: AppProfile(
+        category=AppCategory.GAME,
+        name="Gra",
+        emoji="🎮",
+        system_prompt_addon="""
+Kontekst: Użytkownik gra w grę.
+Dodatkowe instrukcje:
+- Podsumuj stan gry (zdrowie, amunicja, cel misji)
+- Jeśli widoczne menu/ekwipunek, opisz dostępne opcje
+- Wykrywaj błędy gry, crashe lub lagi
+- Nie przeszkadzaj w trakcie aktywnej rozgrywki (chyba że użytkownik pyta)
+Priorytet: stan gry > cele > błędy""",
+        focus_keywords=["health", "ammo", "score", "level", "mission", "inventory"],
+        action_patterns={},
+        priority_boost=0.4,
+    ),
+
+    AppCategory.FILE_MANAGER: AppProfile(
+        category=AppCategory.FILE_MANAGER,
+        name="Menedżer plików",
+        emoji="📂",
+        system_prompt_addon="""
+Kontekst: Użytkownik zarządza plikami.
+Dodatkowe instrukcje:
+- Podsumuj bieżący katalog i zaznaczone pliki
+- Wykrywaj operacje (kopiowanie, przenoszenie, usuwanie)
+- Ostrzegaj przed usuwaniem dużej liczby plików
+- Wykrywaj zajętość dysku jeśli widoczna
+Priorytet: operacje > zaznaczenie > struktura""",
+        focus_keywords=["folder", "file", "size", "date", "permissions", "free space"],
+        action_patterns={},
+        priority_boost=0.5,
+    ),
+
+    AppCategory.SYSTEM: AppProfile(
+        category=AppCategory.SYSTEM,
+        name="System / Ustawienia",
+        emoji="⚙️",
+        system_prompt_addon="""
+Kontekst: Użytkownik konfiguruje system lub monitoruje zasoby.
+Dodatkowe instrukcje:
+- Wykrywaj wysokie zużycie CPU/RAM (jeśli widoczny monitor zasobów)
+- Podsumuj zmieniane ustawienia
+- Ostrzegaj przed zmianami zagrażającymi stabilności
+- Jeśli widoczny menedżer pakietów, podsumuj instalację/aktualizację
+Priorytet: zasoby > zmiany ustawień > informacje""",
+        focus_keywords=["cpu", "memory", "ram", "disk", "network", "update", "setting", "config"],
+        action_patterns={
+            r"high cpu|100%": "Wysokie zużycie CPU — sprawdź proces",
+            r"low disk space|brak miejsca": "Brak miejsca na dysku — sugerowane czyszczenie",
+        },
+        priority_boost=0.9,
+    ),
+
+    AppCategory.UTILITY: AppProfile(
+        category=AppCategory.UTILITY,
+        name="Narzędzia",
+        emoji="🛠️",
+        system_prompt_addon="""
+Kontekst: Użytkownik korzysta z narzędzia pomocniczego.
+Dodatkowe instrukcje:
+- Zidentyfikuj cel narzędzia (kalkulator, hasła, screenshot)
+- Sprawdź poprawność wprowadzanych danych
+- Jeśli kalkulator: zweryfikuj wynik jeśli możliwe
+- Jeśli menedżer haseł: NIE czytaj/loguj haseł (privacy)
+Priorytet: poprawność danych > cel""",
+        focus_keywords=["password", "result", "calculation", "copy", "save"],
+        action_patterns={},
+        priority_boost=0.5,
+    ),
 }
 
 # Default profile for unclassified apps

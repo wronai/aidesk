@@ -1,3 +1,43 @@
+## [2.1.13] - 2026-02-14
+
+### Summary
+
+fix(docs): CLI interface improvements
+
+### Docs
+
+- docs: update ARCHITECTURE.md
+- docs: update README
+- docs: update TODO.md
+
+### Other
+
+- update backend/app_profiles.py
+- update backend/pipeline.py
+- update backend/plugins/loader.py
+- update backend/process_scanner.py
+- update backend/shell_agent.py
+- update backend/skills/clipboard_relation.py
+- update backend/tests/test_clipboard_intel.py
+- update backend/tests/test_plugins.py
+- update backend/tests/test_skills.py
+- update backend/tests/test_units.py
+- ... and 4 more
+
+
+# Changelog
+
+## [Unreleased]
+
+### Docs
+
+- docs(readme): zsynchronizowano README z aktualnym kodem i indeksem `project.functions.toon`
+  - aktualny snapshot projektu: 89 modułów, 10 routerów FastAPI, 19 plików testowych
+  - opis pipeline zaktualizowany do 14 kroków + profile FAST/NORMAL/FULL
+  - doprecyzowane endpointy monitoringu (`/stats`, `/events`, `/pipeline`, `/read-model`, `/traces`, `/diagnostics`)
+  - doprecyzowana zależność portu overlay (`8001`) względem backendu (`PORT`)
+- docs(todo): dodano techniczny backlog `TODO.md` na podstawie TODO w kodzie i aktualnego stanu projektu
+
 ## [2.1.12] - 2026-02-14
 
 ### Summary
@@ -14,26 +54,74 @@ feat(tests): deep code analysis engine with 5 supporting modules
 - update backend/window_aware.py
 
 
+## [2.1.12] - 2026-02-14
+
+### Summary
+
+feat(skills): Expanded clipboard-aware intent detection — 16 intent detectors, full documentation
+
+### Clipboard Intent Detection — Expanded (8 → 16 detectors)
+
+- **clipboard_relation.py** — 8 new intent detectors added to ClipboardRelationSkill:
+  - `json_pair` (0.72) — both selection and clipboard are JSON → compare/diff
+  - `git_diff_ref` (0.82) — selection is git ref, clipboard has diff → copy ref + diff
+  - `git_compare` (0.70) — both are git refs/branches → compare commits
+  - `ip_conn_error` (0.85) — selection is IP/host, clipboard has connection error → diagnose
+  - `ip_pair` (0.55) — both are network addresses
+  - `env_var_match` (0.76) — selection is env var definition, clipboard references it
+  - `env_var_missing` (0.84) — selection is env var name, clipboard has "not set" error
+  - `docker_error` (0.83) — selection is container ID, clipboard has docker error
+  - `docker_context` (0.58) — both reference Docker
+  - `config_key_match` (0.73) — selection is config key, clipboard has config block with it
+  - `stack_trace_symbol` (0.86) — selection is function/class name found in clipboard stack trace
+  - `regex_test` (0.68) — one side is regex, other is test data → test online
+- Improved `complement_cmd` specificity — excludes env vars, git hashes, IPs, snake_case, camelCase
+- Improved `error_file_match` — rejects IP addresses that look like filenames with numeric extensions
+
+### Documentation
+
+- **ARCHITECTURE.md** — Added full Skill System section:
+  - `BaseSkill`, `SkillContext`, `SkillRouter` class diagrams
+  - 7 built-in skills with priorities
+  - `ClipboardRelationSkill` with complete 16-intent catalog table
+  - Signal extraction methods (language detection, similarity, domain, 12 regex patterns)
+- **CHANGELOG.md** — Detailed feature description for v2.1.11 and v2.1.12
+
+### Tests
+
+- 27 new tests for expanded intent detectors (755 total, all passing)
+  - `TestClipboardRelationExpandedIntents` — 22 detection tests
+  - `TestExpandedIntentOptions` — 5 option builder tests
+
 ## [2.1.11] - 2026-02-14
 
 ### Summary
 
-fix(build): CLI interface improvements
+feat(skills): Clipboard-aware intent detection — ClipboardRelationSkill with 8 intent detectors
 
-### Other
+### Clipboard Intelligence — Selection ↔ Clipboard Intent Detection
 
-- build: update Makefile
-- update backend/skills/clipboard_relation.py
-- update backend/skills/error_fixer.py
-- update backend/tests/test_skills.py
-- update overlay/app.js
+- **skills/clipboard_relation.py** (NEW) — `ClipboardRelationSkill` (priority 80)
+  - Analyzes the *pair* (selected_text, clipboard_content) to infer user intent
+  - 8 intent detectors: `already_copied`, `error_file_match`, `cross_language`, `complement_cmd`, `url_pair`, `save_to_path`, `code_similarity`, `diff_fragments`
+  - Multi-signal scoring: text similarity (SequenceMatcher), language detection (5 langs + Cyrillic/CJK), URL domain extraction, regex pattern matching
+  - Custom option builders per intent type with contextual labels
+  - Execution handlers: copy_both, show_diff, replace_clipboard, translate_pair, install_package, open_error_file, save_to_file, search_pair
+- **skills/base.py** — Added `clipboard_top: str` and `clipboard_items: List[Dict]` to `SkillContext`
+- **routes/clipboard.py** — Both `/analyze-selection` and `/skill/execute` now populate clipboard context from `ClipboardManager` queue or request body `clipboard_text`
+- **overlay/app.js** — `analyzeSelection()` and `executeSkill()` read system clipboard via `navigator.clipboard.readText()` and send alongside selection
+- **skills/error_fixer.py** — Confidence boost when clipboard has related context (+0.05 for file path in error, +0.03 for causal command)
+- **skills/__init__.py** — `ClipboardRelationSkill` registered in `BUILTIN_SKILLS` at priority 80
 
+### Tests
+
+- 38 new clipboard_relation tests in `test_skills.py` (721 total, all passing)
 
 ## [2.1.10] - 2026-02-14
 
 ### Summary
 
-refactor(goal): CLI interface improvements
+refactor(pipeline): CC reduction + Tier 1 pipeline steps
 
 ### Other
 

@@ -1,27 +1,38 @@
-# AI Desktop Assistant — Real-time Screen + Voice AI (v2.0.9)
+# AI Desktop Assistant — Real-time Screen + Voice Copilot (v2.1.9)
 
 Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym, rozpoznawaniem mowy i świadomością kontekstu okien.
 
+> Ten README został zsynchronizowany z aktualnym kodem oraz indeksem `project.functions.toon` (generated: 2026-02-14T13:13:02.896116).
+
 ## 🚀 Główne funkcje
 
-- ✅ **8-etapowy pipeline analizy** — modularny, SOLID-compliant, event-driven
-- ✅ **Window Awareness** — rozpoznawanie aktywnego okna, kategorii aplikacji, kontekstu git
-- ✅ **Per-app crops** — oddzielne wycinki dla każdego okna na pulpicie
+- ✅ **14-etapowy pipeline analizy** — modularny, SOLID-compliant, event-driven, profile FAST/NORMAL/FULL
+- ✅ **Window Awareness + Process Scanner** — aktywne okno, klasy aplikacji, kontekst git, filtrowanie okien serwisowych
+- ✅ **Per-app crops** — oddzielne wycinki okien + organizacja ekranu według kategorii
 - ✅ **Vision AI** — 100+ providerów via LiteLLM (Gemini, GPT-4o, Claude, Ollama...)
-- ✅ **3 silniki OCR** — PaddleOCR, EasyOCR, Tesseract z hot-swappingiem i benchmarkiem A/B
-- ✅ **4 tryby analizy** — vision_only, ocr_only, hybrid (5-10x taniej), ocr+vision
-- ✅ **Polish STT** — Deepgram Nova-3 streaming z wyborem urządzeń audio
-- ✅ **Shell Agent** — sugeruje i wykonuje bezpieczne komendy (git, pip, npm...)
-- ✅ **Event Sourcing + CQRS** — pełny audit trail w SQLite, materialized views
-- ✅ **Konfiguracja przez przeglądarkę** — `/config/ui` z wykrywaniem urządzeń audio
-- ✅ **Transparent overlay** — Electron, zawsze na wierzchu, click-through
-- ✅ **Inteligentna detekcja zmian** — perceptual hashing (70-90% redukcja kosztów)
-- ✅ **Wayland + X11** — auto-detekcja (PipeWire ScreenCast / mss / grim)
+- ✅ **3 silniki OCR** — PaddleOCR, EasyOCR, Tesseract + benchmark runtime
+- ✅ **4 tryby analizy** — `vision_only`, `ocr_only`, `hybrid`, `ocr_plus_vision`
+- ✅ **Tier 1 Intelligence** — multi-monitor, semantic memory, action templates, OCR post-process, predictive prefetch
+- ✅ **Clipboard Intelligence** — kolejka schowka, sugestie wklejania, snippets, auto-copy z kontekstu
+- ✅ **Skill Router** — analiza zaznaczonego tekstu i wykonywanie akcji per-skill (`/analyze-selection`, `/skill/execute`)
+- ✅ **Shell Agent** — sugeruje i wykonuje bezpieczne komendy (z approval flow)
+- ✅ **Event Sourcing + CQRS** — EventBus + SQLite EventStore + ReadModel
+- ✅ **Plugin Loader** — dynamiczne ładowanie pluginów z `backend/plugins`
+- ✅ **Konfiguracja przez przeglądarkę** — `/config/ui` + discovery urządzeń audio
+- ✅ **Transparent overlay** — Electron, always-on-top, click-through
+- ✅ **Wayland + X11** — auto-detekcja backendu przechwytywania (PipeWire/mss/grim)
+
+## 📌 Snapshot projektu (na podstawie `project.functions.toon`)
+
+- **89 modułów** (backend + overlay + testy)
+- **10 modułów routingu FastAPI** (`backend/routes/*.py`)
+- **19 plików testowych** w `backend/tests`
+- **Rozszerzalność**: `plugins/` (interfejs pluginów) + `skills/` (system umiejętności)
 
 ## 📊 Szacunkowe koszty API
 
 | Komponent | Koszt/miesiąc (8h/dzień) |
-|-----------|--------------------------|
+| ----------- | -------------------------- |
 | **Deepgram Nova-3 STT** | ~$81 |
 | **Gemini 2.0 Flash (hybrid)** | ~$5-15 |
 | **Gemini 2.0 Flash (vision)** | ~$30-60 |
@@ -31,7 +42,7 @@ Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym, rozpoznawaniem
 
 ## 🛠️ Architektura
 
-```
+```text
 ┌───────────────────────────────────────────────┐
 │          ELECTRON OVERLAY (JS)                │
 │  Transparent | Always-on-top | Click-through  │
@@ -46,14 +57,12 @@ Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym, rozpoznawaniem
 │     ↑                                  ↑      │
 │     │      PipelineOrchestrator        │      │
 │     │  ┌─────────────────────────────┐ │      │
-│     │  │ 1. ScanWindows (xdotool)    │ │      │
-│     │  │ 2. DetectActiveWindow       │ │      │
-│     │  │ 3. CaptureScreen (mss/grim) │ │      │
-│     │  │ 4. CropWindows (per-app)    │ │      │
-│     │  │ 5. BuildContext (profiles)  │ │      │
-│     │  │ 6. Analyze (OCR+LLM)        │ │      │
-│     │  │ 7. SuggestActions (agent)   │ │      │
-│     │  │ 8. BuildBroadcast (SSE)     │ │      │
+│     │  │ 14-step adaptive pipeline:  │ │      │
+│     │  │ scan→detect→capture→crop    │ │      │
+│     │  │ →multi-monitor→context      │ │      │
+│     │  │ →analyze→ocr-post→actions   │ │      │
+│     │  │ →templates→memory→predict   │ │      │
+│     │  │ →clipboard→broadcast         │ │      │
 │     │  └─────────────────────────────┘ │      │
 │     │                                  │      │
 │  CommandHandlers (write)  QueryHandlers(read) │
@@ -85,8 +94,11 @@ make run      # uruchamia backend + overlay + otwiera config UI w przeglądarce
 ```
 
 Po starcie automatycznie otwiera się:
+
 - **Config UI** — `http://localhost:PORT/config/ui` — konfiguracja przez przeglądarkę
 - **Screenshot Browser** — `http://localhost:PORT/browser` — podgląd zrzutów
+
+> ⚠️ Uwaga dot. portu: overlay (`overlay/app.js` i `overlay/services/sse.js`) domyślnie łączy się z `http://localhost:8001`. Ustaw `PORT=8001` w `backend/.env` albo zmień `BACKEND_URL` po stronie overlay.
 
 ### Krok 1: Backend (Python)
 
@@ -100,13 +112,15 @@ sudo apt install xdotool xprop xrandr tesseract-ocr tesseract-ocr-pol
 
 ### Krok 2: Konfiguracja
 
-**Opcja A — przez przeglądarkę (zalecane):**
+#### Opcja A — przez przeglądarkę (zalecane)
+
 ```bash
 make run
 # Otwórz http://localhost:8001/config/ui
 ```
 
-**Opcja B — ręcznie:**
+#### Opcja B — ręcznie
+
 ```bash
 cp .env.example .env
 nano .env
@@ -142,12 +156,14 @@ make status   # Sprawdź czy backend działa
 
 ### Opcja 2: Oddzielne terminale (Development)
 
-**Terminal 1 - Backend:**
+#### Terminal 1 - Backend
+
 ```bash
 make run-backend
 ```
 
-**Terminal 2 - Overlay:**
+#### Terminal 2 - Overlay
+
 ```bash
 make run-overlay
 ```
@@ -164,42 +180,53 @@ start.bat    # Windows
 - `Ctrl+Shift+A` - Pokaż/Ukryj overlay
 - `Ctrl+Shift+Q` - Zamknij asystenta
 
-## 🎯 Jak to działa — 8-etapowy Pipeline
+## 🎯 Jak to działa — aktualny pipeline (14 kroków)
 
-1. **ScanWindows** — skanuje wszystkie widoczne okna (`xdotool`), grupuje wg kategorii
-2. **DetectActiveWindow** — wykrywa aktywne okno, ROI, kontekst git
-3. **CaptureScreen** — przechwytuje ekran (mss/grim/PipeWire), detekcja zmian (phash)
-4. **CropWindows** — wycina każdą aplikację osobno z pełnoekranowego zrzutu
-5. **BuildContext** — buduje prompt: profil aplikacji + kontekst okna + transkrypcja STT
-6. **Analyze** — OCR + Vision AI (hybrid/vision_only/ocr_only/ocr+vision)
-7. **SuggestActions** — Shell Agent sugeruje bezpieczne komendy na podstawie tekstu
-8. **BuildBroadcast** — wysyła wyniki SSE do overlay
+Kolejność kroków (z `backend/pipeline.py:create_pipeline`):
 
-Każdy krok emituje typowany event do EventBus, persystencja w SQLite, ReadModel.
+1. **ScanWindows**
+2. **DetectActiveWindow**
+3. **CaptureScreen**
+4. **CropWindows**
+5. **MultiMonitor**
+6. **BuildContext**
+7. **Analyze**
+8. **OCRPostProcess**
+9. **SuggestActions**
+10. **ActionTemplates**
+11. **SemanticMemory**
+12. **Predictive**
+13. **Clipboard**
+14. **BuildBroadcast**
+
+Dodatkowo pipeline używa profili `FAST`, `NORMAL`, `FULL` (adaptacyjny dobór per tick).
+Każdy krok emituje event do EventBus, a dane mogą być projekowane do ReadModel (CQRS).
 
 ## 📁 Struktura projektu
 
-```
-ai-desktop-assistant/
+```text
+aidesk/
 ├── backend/
-│   ├── server.py           # FastAPI główny serwer
-│   ├── capture.py          # Screen capture + change detection
-│   ├── analyzer.py         # Vision AI (Gemini/GPT-4o/Claude)
-│   ├── stt.py             # Deepgram STT streaming
-│   ├── context.py         # Context manager
-│   ├── requirements.txt   # Python dependencies
-│   └── .env              # API keys (NIE commitować!)
+│   ├── server.py              # FastAPI + lifespan + logowanie
+│   ├── bootstrap.py           # Fazy startu/shutdown komponentów
+│   ├── analysis_loop.py       # Główna pętla pipeline
+│   ├── pipeline.py            # Kroki pipeline + profile FAST/NORMAL/FULL
+│   ├── routes/                # 10 modułów API (core/ocr/windows/agent/...)
+│   ├── skills/                # Skill Router i built-in skills
+│   ├── plugins/               # Plugin loader + interfejs pluginów
+│   ├── tests/                 # Testy jednostkowe i e2e
+│   └── .env.example           # Szablon konfiguracji
 ├── overlay/
-│   ├── main.js           # Electron main process
-│   ├── preload.js        # Electron preload
-│   ├── index.html        # Overlay UI
-│   ├── styles.css        # Overlay styling
-│   ├── app.js            # SSE client logic
-│   └── package.json      # Node dependencies
-├── start.sh              # Startup script (Linux/macOS)
-├── start.bat             # Startup script (Windows)
-├── README.md             # Ten plik
-└── LICENSE               # Apache License
+│   ├── main.js               # Electron main process
+│   ├── app.js                # App (web components)
+│   ├── components/           # Komponenty UI overlay
+│   ├── services/sse.js       # SSE service
+│   └── package.json
+├── project.functions.toon     # Indeks modułów/funkcji projektu
+├── README.md
+├── ARCHITECTURE.md
+├── CHANGELOG.md
+└── TODO.md
 ```
 
 ## 🔧 Konfiguracja zaawansowana
@@ -219,6 +246,7 @@ W `.env` ustaw `VISION_MODEL` (format LiteLLM: `provider/model`):
 ### Dostosowanie czułości detekcji zmian
 
 `CHANGE_THRESHOLD` w `.env`:
+
 - `5` = bardzo czuły (więcej API calls, wyższe koszty)
 - `8` = rekomendowane (dobry balans)
 - `15` = mało czuły (mniej API calls, może pominąć drobne zmiany)
@@ -226,6 +254,7 @@ W `.env` ustaw `VISION_MODEL` (format LiteLLM: `provider/model`):
 ### Wyłączenie STT
 
 Jeśli nie potrzebujesz rozpoznawania mowy, ustaw w `.env`:
+
 ```env
 ENABLE_STT=false
 ```
@@ -233,24 +262,27 @@ ENABLE_STT=false
 ## 🐛 Troubleshooting
 
 ### Backend nie startuje
+
 ```bash
-# Sprawdź czy port 8000 jest wolny
-lsof -i :8000  # Linux/macOS
-netstat -ano | findstr :8000  # Windows
+# Sprawdź czy port z backend/.env (PORT) jest wolny
+lsof -i :PORT  # Linux/macOS
+netstat -ano | findstr :PORT  # Windows
 
 # Zainstaluj brakujące biblioteki
 pip install -r backend/requirements.txt --upgrade
 ```
 
 ### Overlay nie łączy się z backendem
+
 ```bash
 # Sprawdź czy backend działa
-curl http://localhost:8000/status
+curl http://localhost:PORT/status
 
 # Sprawdź logi w konsoli Electron (Ctrl+Shift+I)
 ```
 
 ### STT nie działa
+
 ```bash
 # Sprawdź mikrofon
 python -c "import sounddevice as sd; print(sd.query_devices())"
@@ -260,21 +292,28 @@ curl -H "Authorization: Token YOUR_KEY" https://api.deepgram.com/v1/projects
 ```
 
 ### Wysokie zużycie CPU
+
 - Zwiększ `MIN_CAPTURE_INTERVAL` w `.env` (np. 2.0 zamiast 1.0)
 - Zmniejsz rozdzielczość w `capture.py` (np. 960x540 zamiast 1280x720)
 
-## 📊 Monitoring kosztów
+## 📊 Monitoring i observability
 
-Backend loguje statystyki do `logs/usage.log`:
-```
-[2025-02-14 10:30:45] Vision API call: gemini-2.0-flash | tokens: 1548 | cost: $0.00015
-[2025-02-14 10:30:46] STT streaming: 15s | cost: $0.00192
-```
+Najważniejsze endpointy diagnostyczne:
 
-Podgląd dziennych kosztów:
-```bash
-python backend/analyze_costs.py
-```
+- `GET /stats` — statystyki komponentów i uptime
+- `GET /health` — health check komponentów krytycznych
+- `GET /events` i `GET /events/stats` — EventStore (SQLite)
+- `GET /pipeline` — kroki i statystyki pipeline
+- `GET /read-model` / `/read-model/pipeline` / `/read-model/stats` — widoki CQRS
+- `GET /traces` — metryki i ostatnie span-y tracer-a
+- `GET /diagnostics` — automatyczne checki stanu systemu
+
+Pliki logów:
+
+- `logs/assistant.log`
+- `logs/logs.sqlite`
+- `logs/events.db`
+- `logs/nfo_aidesk.md`
 
 ## 🔐 Bezpieczeństwo i prywatność
 
@@ -293,7 +332,7 @@ ENABLE_STT=false
 
 ## 🤝 Contributing
 
-Pull requesty mile widziane! Sprawdź CONTRIBUTING.md dla guidelines.
+Pull requesty mile widziane — opisz kontekst zmiany, kroki reprodukcji i sposób testowania.
 
 ## 📄 Licencja
 
@@ -302,6 +341,7 @@ Apache License - użyj jak chcesz, komercyjnie lub prywatnie.
 ## 🙏 Podziękowania
 
 Projekt inspirowany przez:
+
 - [Screenpipe](https://github.com/mediar-ai/screenpipe) - 24/7 screen + audio capture
 - [MIRIX](https://github.com/acui51/mirix) - Multi-agent memory system
 - [Natively](https://github.com/ShivanshDubey1/natively) - Voice AI assistant

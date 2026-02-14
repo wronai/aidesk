@@ -581,6 +581,85 @@ ContextManager
 - `speech`: STT transcripts
 - `system`: System messages/errors
 
+#### skills/ - Skill System (Selection → Intent → Action)
+```python
+BaseSkill (ABC)
+├── name: str                    # Unique skill identifier
+├── category: SkillCategory      # COMMAND, CLIPBOARD, TRANSLATION, etc.
+├── icon: str                    # Emoji icon
+├── priority: int                # Higher = checked first
+├── detect(text, ctx) → float    # Confidence 0.0–1.0
+├── get_options(text, ctx) → List[SkillOption]
+└── execute(text, option_id, ctx) → SkillResult
+
+SkillContext (dataclass)
+├── text, window_category, window_title, window_class
+├── cwd, locale, latest_transcript, timestamp
+├── clipboard_top: str           # Most recent clipboard content
+└── clipboard_items: List[Dict]  # Recent clipboard queue (up to 5)
+
+SkillRouter
+├── analyze(text, ctx) → List[SkillMatch]  # Ranked by confidence
+├── execute(skill, text, option_id, ctx) → SkillResult
+├── register_skill(cls) / get_skill_names()
+└── Built-in skills (sorted by priority):
+    ├── VoiceCommandSkill    (95) — voice commands via STT
+    ├── ShellCommandSkill    (90) — detect & run shell commands
+    ├── ErrorFixerSkill      (85) — error patterns → fix suggestions
+    ├── ClipboardRelationSkill (80) — selection ↔ clipboard intent
+    ├── URLHandlerSkill      (70) — URL detection & actions
+    ├── TranslationSkill     (60) — language detection & translation
+    └── TTSSkill             (40) — text-to-speech
+```
+
+**API Endpoints:**
+- `POST /analyze-selection` — analyze text with all skills, return ranked matches
+- `POST /skill/execute` — execute a specific skill option
+- `GET /skills` — list registered skills
+
+#### skills/clipboard_relation.py - Clipboard-Aware Intent Detection
+```python
+ClipboardRelationSkill (priority 80)
+├── Analyzes the *pair* (selected_text, clipboard_content)
+├── 16 intent detectors with confidence scoring
+├── Custom option builders per intent type
+└── Execution handlers: copy_both, show_diff, replace_clipboard,
+    translate_pair, install_package, open_error_file, save_to_file, search_pair
+```
+
+**Intent Catalog (16 detectors):**
+
+| # | Intent | Score | Selection | Clipboard | Action |
+|---|--------|-------|-----------|-----------|--------|
+| 1 | `already_copied` | 0.95 | Any text | Same text (>90% similar) | Replace clipboard |
+| 2 | `error_file_match` | 0.92 | `app.py` | Traceback mentioning `app.py` | Open file at error line |
+| 3 | `complement_cmd` | 0.88 | `flask` | `ModuleNotFoundError: flask` | `pip install flask` |
+| 4 | `stack_trace_symbol` | 0.86 | `handle_request` | Stack trace with `handle_request` | Search symbol + error |
+| 5 | `ip_conn_error` | 0.85 | `192.168.1.100` | `connection refused` | Diagnose connection |
+| 6 | `env_var_missing` | 0.84 | `API_KEY` | `API_KEY is not set` | How to set env var |
+| 7 | `docker_error` | 0.83 | Container ID | Docker error for that container | Docker troubleshoot |
+| 8 | `git_diff_ref` | 0.82 | `abc1234` | `diff --git ...` | Copy ref + diff |
+| 9 | `cross_language` | 0.78 | Polish text | English text | Translation pair |
+| 10 | `env_var_match` | 0.76 | `DB_URL=...` | Config referencing `DB_URL` | Copy var + context |
+| 11 | `config_key_match` | 0.73 | `server.port` | Config block with `server.port` | Copy key + config |
+| 12 | `json_pair` | 0.72 | `{"a": 1}` | `{"b": 2}` | Compare/diff JSON |
+| 13 | `url_pair` | 0.70 | URL (github.com) | URL (github.com) | Compare pages |
+| 14 | `git_compare` | 0.70 | `main` | `develop` | Compare branches |
+| 15 | `regex_test` | 0.68 | `^\d{3}-\d{4}$` | Test data | Test regex online |
+| 16 | `save_to_path` | 0.65 | `/tmp/out.txt` | Long content | Save clipboard to file |
+
+Additional low-priority intents (always available as fallback):
+- `code_similarity` (0.6–0.8) — both are similar code fragments → show diff
+- `diff_fragments` (0.4–0.7) — both are similar text → show diff
+- `ip_pair` (0.55) — both are IP/host addresses
+- `docker_context` (0.58) — both reference Docker
+
+**Signal extraction:**
+- Language detection: 5 languages (en/pl/de/fr/es) + Cyrillic/CJK script detection
+- Text similarity: `SequenceMatcher` ratio (0.0–1.0)
+- Domain extraction: URL parsing for same-domain detection
+- Pattern matching: 12 compiled regexes (URL, path, package, error, code, JSON, git, IP, env, docker, config, stack frame)
+
 #### server.py - FastAPI Application (v2.0)
 ```python
 FastAPI App
