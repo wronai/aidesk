@@ -1,3 +1,16 @@
+## [2.0.11] - 2026-02-14
+
+### Summary
+
+refactor(tests): deep code analysis engine with 4 supporting modules
+
+### Other
+
+- update backend/command_handlers.py
+- update backend/tests/conftest.py
+- update backend/tests/test_e2e.py
+
+
 ## [2.0.10] - 2026-02-14
 
 ### Summary
