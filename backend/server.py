@@ -163,7 +163,15 @@ async def broadcast(event_type: str, data: Dict):
 
 async def screen_analysis_loop():
     """
-    Main loop: capture → window detect → per-app profile → analyze → agent suggest → broadcast.
+    Main loop: scan processes → detect windows → crop per-app → organize → analyze → TTS respond.
+
+    Pipeline order (per user requirement):
+    1. Analyze processes on the computer and window positions
+    2. Capture fullscreen screenshot
+    3. Map screenshot regions to specific applications
+    4. Crop each application separately
+    5. Organize visual data (active app first, then by category)
+    6. Only then — in context of audio/TTS data — respond with analysis
     """
     capture = app_state["capture"]
     analyzer = app_state["analyzer"]
@@ -171,21 +179,34 @@ async def screen_analysis_loop():
     window_mgr = app_state.get("window_manager")
     profile_mgr = app_state.get("profile_manager")
     shell_agent = app_state.get("shell_agent")
+    process_scanner = app_state.get("process_scanner")
+    window_cropper = app_state.get("window_cropper")
 
     # Window-aware capture mode
     use_window_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
 
     logger.info("Screen analysis loop started",
                 window_aware=window_mgr is not None,
+                process_scanner=process_scanner is not None,
+                window_cropper=window_cropper is not None,
                 capture_mode="window" if use_window_roi else "fullscreen")
 
     while True:
         try:
-            # Step 1: Detect active window
+            # ──────────────────────────────────────────────────────────
+            # Phase 1: ANALYZE PROCESSES & WINDOW POSITIONS
+            # ──────────────────────────────────────────────────────────
             window_info = None
             window_context = ""
             roi = None
+            all_windows = []
+            organized_screen = None
 
+            # 1a. Scan all visible windows with process info
+            if process_scanner:
+                all_windows = process_scanner.scan_all_windows()
+
+            # 1b. Detect active window (for compatibility with existing flow)
             if window_mgr:
                 window_info = window_mgr.get_active_window()
                 app_state["latest_window"] = window_info.to_dict()
@@ -198,25 +219,81 @@ async def screen_analysis_loop():
                 # Broadcast window info to overlay
                 await broadcast("window", window_info.to_dict())
 
-            # Step 2: Capture screen (with optional ROI)
+            # Broadcast all-windows layout
+            if all_windows:
+                await broadcast("windows_layout", {
+                    "total": len(all_windows),
+                    "windows": [w.to_dict() for w in all_windows],
+                })
+
+            # ──────────────────────────────────────────────────────────
+            # Phase 2: CAPTURE FULLSCREEN SCREENSHOT
+            # ──────────────────────────────────────────────────────────
             result = capture.capture(roi=roi)
 
             if result:
-                # Step 3: Build context with window awareness
+                # ──────────────────────────────────────────────────────
+                # Phase 3+4: MAP & CROP EACH APPLICATION SEPARATELY
+                # ──────────────────────────────────────────────────────
+                if window_cropper and all_windows:
+                    try:
+                        # Decode fullscreen image for cropping
+                        import base64 as b64mod
+                        from PIL import Image
+                        from io import BytesIO
+
+                        img_bytes = b64mod.b64decode(result["image_b64"])
+                        fullscreen_img = Image.open(BytesIO(img_bytes))
+
+                        # Crop each visible app and organize
+                        organized_screen = window_cropper.organize_screen(
+                            fullscreen_img, all_windows
+                        )
+                        app_state["latest_organized_screen"] = organized_screen.to_dict()
+
+                        # Broadcast organized screen data to overlay
+                        await broadcast("organized_screen", {
+                            "total_windows": organized_screen.total_windows,
+                            "summary": organized_screen.screen_summary,
+                            "active_app": (
+                                organized_screen.active_app.window.to_dict()
+                                if organized_screen.active_app else None
+                            ),
+                            "categories": list(organized_screen.by_category.keys()),
+                        })
+                    except Exception as e:
+                        logger.warning("Window cropping failed, continuing with fullscreen", error=str(e))
+
+                # ──────────────────────────────────────────────────────
+                # Phase 5: ORGANIZE WHAT'S VISIBLE (build rich context)
+                # ──────────────────────────────────────────────────────
                 context_str = context_mgr.get_context_string(n=5, max_length=500)
+
+                # Prepend organized screen summary if available
+                if organized_screen:
+                    screen_summary = organized_screen.screen_summary
+                    context_str = f"📊 Ekran: {screen_summary}\n\n{context_str}"
+
                 if window_context:
                     context_str = f"{window_context}\n\n{context_str}"
 
-                # Step 4: Get per-app prompt addon
+                # Add per-app profile prompt
                 prompt_addon = ""
                 if profile_mgr and window_info:
                     prompt_addon = profile_mgr.get_prompt_addon(window_info.category)
 
-                # Step 5: Analyze screen (with enriched context)
                 full_context = context_str
                 if prompt_addon:
                     full_context = f"{prompt_addon}\n\n{context_str}"
 
+                # Include latest speech transcript for TTS-aware response
+                latest_transcript = app_state.get("latest_transcript", "")
+                if latest_transcript:
+                    full_context = f"🎤 Użytkownik powiedział: {latest_transcript}\n\n{full_context}"
+
+                # ──────────────────────────────────────────────────────
+                # Phase 6: ANALYZE & RESPOND (TTS-aware context)
+                # ──────────────────────────────────────────────────────
                 analysis = await analyzer.analyze(result["image_b64"], full_context)
 
                 # Store in state
@@ -233,14 +310,14 @@ async def screen_analysis_loop():
                         "provider": analysis.get("provider", "unknown"),
                         "window": window_info.title if window_info else None,
                         "category": window_info.category.value if window_info else None,
+                        "organized_windows": organized_screen.total_windows if organized_screen else 0,
                     },
                 )
 
-                # Step 6: Shell agent — suggest actions based on analysis
+                # Shell agent — suggest actions based on analysis
                 agent_actions = []
                 if shell_agent and window_info:
                     analysis_text = analysis.get("text", "")
-                    # Also check OCR text if available
                     ocr_text = ""
                     if analysis.get("ocr") and analysis["ocr"].get("text"):
                         ocr_text = analysis["ocr"]["text"]
@@ -255,7 +332,7 @@ async def screen_analysis_loop():
                         agent_actions = [a.to_dict() for a in actions]
                         await broadcast("agent_actions", {"actions": agent_actions})
 
-                # Step 7: Broadcast to overlay
+                # Broadcast to overlay
                 broadcast_data = {
                     "text": analysis["text"],
                     "timestamp": result["timestamp"],
@@ -274,6 +351,14 @@ async def screen_analysis_loop():
                         "category": window_info.category.value,
                         "app": window_info.wm_class_name,
                         "git_branch": window_info.git_branch,
+                    }
+
+                # Enrich with organized screen data
+                if organized_screen:
+                    broadcast_data["organized_screen"] = {
+                        "total_windows": organized_screen.total_windows,
+                        "summary": organized_screen.screen_summary,
+                        "categories": list(organized_screen.by_category.keys()),
                     }
 
                 if agent_actions:
@@ -467,6 +552,11 @@ async def root():
             "agent_execute": "/agent/execute/{id} - Execute action (POST)",
             "agent_run": "/agent/run - Run safe command (POST)",
             "agent_history": "/agent/history - Action history (GET)",
+            "processes": "/processes - All visible windows with process info (GET)",
+            "windows_all": "/windows/all - All visible windows with geometry (GET)",
+            "screen_organized": "/screen/organized - Latest organized screen data (GET)",
+            "screen_stats": "/screen/stats - Process scanner & cropper stats (GET)",
+            "nfo_validation": "/nfo/validation - nfo startup validation (GET)",
         },
     }
 
@@ -568,6 +658,12 @@ async def stats():
     if app_state["shell_agent"]:
         stats_data["shell_agent"] = app_state["shell_agent"].get_stats()
 
+    if app_state.get("process_scanner"):
+        stats_data["process_scanner"] = app_state["process_scanner"].get_stats()
+
+    if app_state.get("window_cropper"):
+        stats_data["window_cropper"] = app_state["window_cropper"].get_stats()
+
     stats_data["context"] = app_state["context"].get_stats()
 
     return stats_data
@@ -592,6 +688,8 @@ async def health():
                 "window_manager": app_state["window_manager"] is not None,
                 "profile_manager": app_state["profile_manager"] is not None,
                 "shell_agent": app_state["shell_agent"] is not None,
+                "process_scanner": app_state["process_scanner"] is not None,
+                "window_cropper": app_state["window_cropper"] is not None,
             },
         },
     )
@@ -806,6 +904,61 @@ async def window_stats():
     if not wm:
         return JSONResponse(status_code=503, content={"error": "Window awareness not enabled"})
     return wm.get_stats()
+
+
+# ===== Process Scanner & Window Cropper Endpoints =====
+
+@app.get("/processes")
+async def get_all_processes():
+    """
+    Scan all visible windows with process info.
+    Returns organized layout grouped by category.
+    """
+    scanner = app_state.get("process_scanner")
+    if not scanner:
+        return JSONResponse(status_code=503, content={"error": "Process scanner not initialized"})
+    return scanner.get_window_layout()
+
+
+@app.get("/windows/all")
+async def get_all_windows():
+    """Get all visible windows with geometry and process details."""
+    scanner = app_state.get("process_scanner")
+    if not scanner:
+        return JSONResponse(status_code=503, content={"error": "Process scanner not initialized"})
+    windows = scanner.scan_all_windows()
+    return {
+        "total": len(windows),
+        "windows": [w.to_dict() for w in windows],
+    }
+
+
+@app.get("/screen/organized")
+async def get_organized_screen():
+    """Get latest organized screen data (per-app crops + categories)."""
+    data = app_state.get("latest_organized_screen")
+    if not data:
+        return JSONResponse(status_code=404, content={"error": "No organized screen data yet"})
+    return data
+
+
+@app.get("/screen/stats")
+async def get_screen_stats():
+    """Get process scanner and window cropper statistics."""
+    result = {}
+    scanner = app_state.get("process_scanner")
+    if scanner:
+        result["process_scanner"] = scanner.get_stats()
+    cropper = app_state.get("window_cropper")
+    if cropper:
+        result["window_cropper"] = cropper.get_stats()
+    return result
+
+
+@app.get("/nfo/validation")
+async def get_nfo_validation():
+    """Get latest nfo startup validation result."""
+    return _nfo_validate_startup(app_state)
 
 
 # ===== App Profiles Endpoints =====

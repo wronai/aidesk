@@ -1,3 +1,21 @@
+## [2.0.1] - 2026-02-14
+
+### Summary
+
+feat(tests): deep code analysis engine with 2 supporting modules
+
+### Other
+
+- build: update Makefile
+- update backend/capture.py
+- update backend/process_scanner.py
+- update backend/requirements.txt
+- update backend/server.py
+- update backend/test_setup.py
+- update backend/tests/test_e2e.py
+- update backend/window_cropper.py
+
+
 ## [1.0.5] - 2026-02-14
 
 ### Summary

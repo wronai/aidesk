@@ -43,7 +43,7 @@ def main():
     packages = [
         "fastapi", "uvicorn", "mss", "imagehash", "PIL",
         "google.generativeai", "openai", "anthropic",
-        "deepgram", "sounddevice", "structlog"
+        "deepgram", "sounddevice", "structlog", "nfo"
     ]
     
     missing = []
@@ -88,14 +88,14 @@ def main():
     deepgram_key = os.getenv("DEEPGRAM_API_KEY", "")
     all_passed &= check(
         "Deepgram API key",
-        deepgram_key and deepgram_key != "your_deepgram_api_key_here",
+        bool(deepgram_key and deepgram_key != "your_deepgram_api_key_here"),
         "Required for STT"
     )
     
     gemini_key = os.getenv("GEMINI_API_KEY", "")
     all_passed &= check(
         "Gemini API key",
-        gemini_key and gemini_key != "your_gemini_api_key_here",
+        bool(gemini_key and gemini_key != "your_gemini_api_key_here"),
         "Required for Vision (recommended provider)"
     )
     

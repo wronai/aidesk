@@ -21,14 +21,6 @@ from window_aware import AppCategory, WindowInfo, WindowManager
 
 logger = structlog.get_logger()
 
-# Configure nfo for this module
-nfo_logger = nfo.configure(
-    name="aidesk.process_scanner",
-    level="DEBUG",
-    sinks=["sqlite:logs/nfo_aidesk.db", "md:logs/nfo_aidesk.md"],
-    force=True,
-)
-
 
 @dataclass
 class ProcessInfo:
@@ -121,8 +113,8 @@ class ProcessScanner:
     @staticmethod
     def _check_tool(name: str) -> bool:
         try:
-            subprocess.run(["which", name], capture_output=True, timeout=2)
-            return True
+            result = subprocess.run(["which", name], capture_output=True, timeout=2)
+            return result.returncode == 0
         except Exception:
             return False
 

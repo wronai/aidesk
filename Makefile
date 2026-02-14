@@ -85,7 +85,8 @@ status: ## Check if backend is running
 	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"
 
 stop: ## Stop backend and overlay applications
-	@-fuser -k $(PORT)/tcp 2>/dev/null && echo "🛑 Backend stopped (port $(PORT))" || true
+	@-fuser -k -9 $(PORT)/tcp 2>/dev/null && echo "🛑 Backend stopped (port $(PORT))" || true
+	@-pkill -f "python.*backend/server.py" 2>/dev/null || true
 	@-pkill -f "electron.*overlay" 2>/dev/null || true
 	@echo "🛑 Overlay stopped"
 

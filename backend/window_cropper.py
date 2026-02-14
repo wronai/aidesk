@@ -24,14 +24,6 @@ from window_aware import AppCategory
 
 logger = structlog.get_logger()
 
-# Configure nfo for this module
-nfo_logger = nfo.configure(
-    name="aidesk.window_cropper",
-    level="DEBUG",
-    sinks=["sqlite:logs/nfo_aidesk.db", "md:logs/nfo_aidesk.md"],
-    force=True,
-)
-
 
 @dataclass
 class CroppedWindow:

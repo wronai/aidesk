@@ -20,14 +20,27 @@ logger = structlog.get_logger()
 
 
 def _detect_backend() -> str:
-    """Detect whether to use mss (X11) or grim (Wayland)."""
+    """Detect whether to use mss (X11), grim (wlroots Wayland), or scrot (fallback)."""
     session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
     wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
 
     if session_type == "wayland" or wayland_display:
+        # Try grim first (wlroots compositors like Sway)
         if shutil.which("grim"):
-            return "grim"
-        logger.warning("Wayland detected but grim not found, falling back to mss")
+            # Verify grim actually works (fails on GNOME Wayland)
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
+                    result = subprocess.run(
+                        ["grim", tmp.name], capture_output=True, timeout=3
+                    )
+                    if result.returncode == 0:
+                        return "grim"
+            except Exception:
+                pass
+        # Fallback: scrot works via XWayland on GNOME Wayland
+        if shutil.which("scrot"):
+            return "scrot"
+        logger.warning("Wayland detected but no working screenshot tool found, falling back to mss")
     return "mss"
 
 
@@ -125,6 +138,7 @@ class SmartScreenCapture:
             current_hash = imagehash.phash(img_resized, hash_size=8)
 
             # Check for changes
+            hash_diff = 0
             if self.last_hash is not None:
                 hash_diff = current_hash - self.last_hash
                 if hash_diff < self.change_threshold:
@@ -172,7 +186,7 @@ class SmartScreenCapture:
                 "timestamp": now,
                 "resolution": (self.screen_width, self.screen_height),
                 "size_kb": size_kb,
-                "hash_diff": 0 if self.last_hash is None else hash_diff,
+                "hash_diff": hash_diff,
                 "monitor_index": monitor_index,
                 "roi": roi,
             }
@@ -202,6 +216,8 @@ class SmartScreenCapture:
         """
         if self.backend == "grim":
             return self._grab_grim(roi=roi)
+        elif self.backend == "scrot":
+            return self._grab_scrot(roi=roi)
         else:
             return self._grab_mss(monitor_index=monitor_index, roi=roi)
 
@@ -223,7 +239,7 @@ class SmartScreenCapture:
         return Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
 
     def _grab_grim(self, roi: Optional[Dict] = None) -> Image.Image:
-        """Capture using grim (Wayland)."""
+        """Capture using grim (wlroots Wayland)."""
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             tmp_path = tmp.name
 
@@ -236,6 +252,27 @@ class SmartScreenCapture:
 
             subprocess.run(cmd, check=True, capture_output=True, timeout=5)
             img = Image.open(tmp_path).convert("RGB")
+            return img
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def _grab_scrot(self, roi: Optional[Dict] = None) -> Image.Image:
+        """Capture using scrot (works via XWayland on GNOME Wayland)."""
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            cmd = ["scrot", "-o", tmp_path]
+            subprocess.run(cmd, check=True, capture_output=True, timeout=5)
+            img = Image.open(tmp_path).convert("RGB")
+
+            # Apply ROI crop if specified
+            if roi:
+                box = (roi["left"], roi["top"],
+                       roi["left"] + roi["width"], roi["top"] + roi["height"])
+                img = img.crop(box)
+
             return img
         finally:
             if os.path.exists(tmp_path):
