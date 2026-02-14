@@ -161,11 +161,16 @@ function updateConnectionStatus(status) {
  * Handle screen analysis event
  */
 function handleAnalysis(data) {
-  const { text, timestamp, size_kb, tokens, cost, provider, mode, ocr, window: windowData, agent_actions } = data;
+  const { text, timestamp, size_kb, tokens, cost, provider, mode, ocr, window: windowData, agent_actions, organized_screen } = data;
 
   // Update window context bar if window data is present
   if (windowData) {
     handleWindowUpdate(windowData);
+  }
+
+  // Update organized screen summary if present
+  if (organized_screen) {
+    handleOrganizedScreen(organized_screen);
   }
 
   // Update agent actions if present

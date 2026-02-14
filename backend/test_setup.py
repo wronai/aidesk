@@ -29,7 +29,7 @@ def main():
     all_passed = True
     
     # 1. Python version
-    print(f"{YELLOW}[1/10] Checking Python version...{RESET}")
+    print(f"{YELLOW}[1/12] Checking Python version...{RESET}")
     version = sys.version_info
     passed = version.major == 3 and version.minor >= 11
     all_passed &= check(
@@ -39,11 +39,11 @@ def main():
     )
     
     # 2. Python packages
-    print(f"\n{YELLOW}[2/10] Checking Python packages...{RESET}")
+    print(f"\n{YELLOW}[2/12] Checking Python packages...{RESET}")
     packages = [
         "fastapi", "uvicorn", "mss", "imagehash", "PIL",
         "google.generativeai", "openai", "anthropic",
-        "deepgram", "sounddevice", "structlog", "nfo"
+        "deepgram", "sounddevice", "structlog", "nfo", "loguru"
     ]
     
     missing = []
@@ -61,7 +61,7 @@ def main():
         print(f"  pip install -r backend/requirements.txt")
     
     # 3. Environment file
-    print(f"\n{YELLOW}[3/10] Checking .env file...{RESET}")
+    print(f"\n{YELLOW}[3/12] Checking .env file...{RESET}")
     env_path = "backend/.env"
     env_exists = os.path.exists(env_path)
     all_passed &= check(".env file exists", env_exists)
@@ -72,7 +72,7 @@ def main():
         return False
     
     # 4. Load environment
-    print(f"\n{YELLOW}[4/10] Loading environment variables...{RESET}")
+    print(f"\n{YELLOW}[4/12] Loading environment variables...{RESET}")
     try:
         from dotenv import load_dotenv
         load_dotenv(env_path)
@@ -83,7 +83,7 @@ def main():
         return False
     
     # 5. API Keys
-    print(f"\n{YELLOW}[5/10] Checking API keys...{RESET}")
+    print(f"\n{YELLOW}[5/12] Checking API keys...{RESET}")
     
     deepgram_key = os.getenv("DEEPGRAM_API_KEY", "")
     all_passed &= check(
@@ -114,7 +114,7 @@ def main():
     )
     
     # 6. Screen capture
-    print(f"\n{YELLOW}[6/10] Testing screen capture...{RESET}")
+    print(f"\n{YELLOW}[6/12] Testing screen capture...{RESET}")
     try:
         import mss
         sct = mss.mss()
@@ -126,7 +126,7 @@ def main():
         all_passed = False
     
     # 7. Image processing
-    print(f"\n{YELLOW}[7/10] Testing image processing...{RESET}")
+    print(f"\n{YELLOW}[7/12] Testing image processing...{RESET}")
     try:
         from PIL import Image
         import imagehash
@@ -138,7 +138,7 @@ def main():
         all_passed = False
     
     # 8. Audio devices
-    print(f"\n{YELLOW}[8/10] Checking audio devices...{RESET}")
+    print(f"\n{YELLOW}[8/12] Checking audio devices...{RESET}")
     try:
         import sounddevice as sd
         devices = sd.query_devices()
@@ -153,7 +153,7 @@ def main():
         all_passed = False
     
     # 9. Deepgram connection
-    print(f"\n{YELLOW}[9/10] Testing Deepgram API...{RESET}")
+    print(f"\n{YELLOW}[9/12] Testing Deepgram API...{RESET}")
     if deepgram_key and deepgram_key != "your_deepgram_api_key_here":
         try:
             from deepgram import DeepgramClient
@@ -168,7 +168,7 @@ def main():
         all_passed = False
     
     # 10. Gemini connection
-    print(f"\n{YELLOW}[10/10] Testing Gemini API...{RESET}")
+    print(f"\n{YELLOW}[10/12] Testing Gemini API...{RESET}")
     if gemini_key and gemini_key != "your_gemini_api_key_here":
         try:
             import google.generativeai as genai
@@ -181,6 +181,37 @@ def main():
     else:
         check("Gemini API", False, "API key not configured")
         all_passed = False
+    
+    # 11. System tools for window awareness
+    import shutil
+    print(f"\n{YELLOW}[11/12] Checking system tools (window awareness)...{RESET}")
+    tools = {
+        "xdotool": "Active window detection",
+        "xprop": "WM_CLASS detection",
+        "xrandr": "Monitor detection",
+        "wmctrl": "Window listing (optional)",
+    }
+    for tool, desc in tools.items():
+        found = shutil.which(tool) is not None
+        check(f"Tool: {tool}", found, desc + (" — installed" if found else " — not found"))
+        if not found and tool != "wmctrl":
+            all_passed = False
+    
+    # 12. Backend modules
+    print(f"\n{YELLOW}[12/12] Checking backend modules...{RESET}")
+    backend_modules = [
+        ("window_aware", "Window awareness"),
+        ("app_profiles", "Per-app analysis profiles"),
+        ("shell_agent", "Shell agent"),
+        ("process_scanner", "Process scanner"),
+        ("window_cropper", "Window cropper"),
+    ]
+    for mod, desc in backend_modules:
+        try:
+            __import__(mod)
+            check(f"Module: {mod}", True, desc)
+        except Exception as e:
+            check(f"Module: {mod}", False, f"{desc} — {e}")
     
     # Summary
     print(f"\n{BLUE}{'='*50}{RESET}")

@@ -1,3 +1,17 @@
+## [2.0.3] - 2026-02-14
+
+### Summary
+
+feat(docs): deep code analysis engine with 4 supporting modules
+
+### Other
+
+- build: update Makefile
+- update backend/test_setup.py
+- update backend/wayland_screencast.py
+- update overlay/app.js
+
+
 ## [2.0.2] - 2026-02-14
 
 ### Summary
@@ -295,17 +309,29 @@ refactor(docs): code analysis engine
 - [ ] Local STT with Faster-Whisper
 - [ ] Prompt caching for Anthropic API
 - [ ] Cost dashboard in overlay
-- [ ] Multi-monitor support
+- [x] Multi-monitor support *(done in v2.0)*
 - [ ] Custom prompt templates
 
 **v1.2 (Planned)**
 - [ ] Ollama integration for local Vision AI
-- [ ] Screenshot history browser
+- [x] Screenshot history browser *(done in v1.0.4)*
 - [ ] Export conversation logs
 - [ ] Plugins system
 - [ ] Voice commands (actions, not just transcription)
 
-**v2.0 (Planned)**
+**v2.0 (Done)**
+- [x] Window awareness (xdotool/xprop/xrandr) — active window detection + git context
+- [x] Per-app analysis profiles (IDE, Terminal, Browser, Email, Chat, Office, Media)
+- [x] Shell agent — safe command suggestions + execution with approval
+- [x] Process scanner — scan all visible windows with /proc enrichment
+- [x] Window cropper — per-app screenshot cropping + organized screen data
+- [x] Multi-monitor + ROI capture (mss, grim, scrot backends)
+- [x] nfo structured function logging (SQLite + Markdown)
+- [x] 6-phase analysis pipeline (scan → capture → crop → organize → analyze → respond)
+- [x] TTS-aware context (speech transcript in analysis prompt)
+- [x] 47 automated tests (40 unit + 7 e2e)
+
+**v2.1 (Planned)**
 - [ ] MCP (Model Context Protocol) support
 - [ ] Multi-agent workflows
 - [ ] Screen recording mode
