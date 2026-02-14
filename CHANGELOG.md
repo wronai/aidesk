@@ -1,3 +1,20 @@
+## [2.0.5] - 2026-02-14
+
+### Summary
+
+refactor(backend): deep code analysis engine with 6 supporting modules
+
+### Other
+
+- update backend/capture.py
+- update backend/command_handlers.py
+- update backend/event_bus.py
+- update backend/pipeline.py
+- update backend/protocols.py
+- update backend/query_handlers.py
+- update backend/server.py
+
+
 ## [2.0.4] - 2026-02-14
 
 ### Summary

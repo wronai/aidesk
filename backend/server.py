@@ -29,6 +29,10 @@ from app_profiles import ProfileManager, create_profile_manager
 from shell_agent import ShellAgent, create_shell_agent_from_env
 from process_scanner import ProcessScanner, create_process_scanner
 from window_cropper import WindowCropper, create_window_cropper
+from event_bus import EventBus, EventStore, Event, EventType, create_event_bus
+from pipeline import PipelineOrchestrator, PipelineContext, create_pipeline
+from command_handlers import CommandHandlers
+from query_handlers import QueryHandlers, ReadModel
 
 # Lazy STT import - sounddevice may not be available
 def _import_stt():
@@ -134,6 +138,11 @@ app_state = {
     "shell_agent": None,
     "process_scanner": None,
     "window_cropper": None,
+    "event_bus": None,
+    "pipeline": None,
+    "read_model": None,
+    "command_handlers": None,
+    "query_handlers": None,
     "latest_window": None,
     "latest_organized_screen": None,
     "stats": {
@@ -174,144 +183,73 @@ async def broadcast(event_type: str, data: Dict):
 
 async def screen_analysis_loop():
     """
-    Main loop: scan processes → detect windows → crop per-app → organize → analyze → TTS respond.
+    Main loop: delegates to PipelineOrchestrator (SOLID/CQRS/Event Sourcing).
 
-    Pipeline order (per user requirement):
-    1. Analyze processes on the computer and window positions
-    2. Capture fullscreen screenshot
-    3. Map screenshot regions to specific applications
-    4. Crop each application separately
-    5. Organize visual data (active app first, then by category)
-    6. Only then — in context of audio/TTS data — respond with analysis
+    Pipeline order (composable steps, each emits events to EventBus):
+    1. ScanWindows        → scan all visible windows with process info
+    2. DetectActiveWindow  → detect active window, build window context, ROI
+    3. CaptureScreen       → capture fullscreen or ROI screenshot
+    4. CropWindows         → crop each visible app from fullscreen
+    5. BuildContext        → build rich context from window info + profiles + TTS
+    6. Analyze             → OCR + LLM analysis
+    7. SuggestActions      → shell agent suggests commands
+    8. BuildBroadcast      → assemble SSE broadcast payload
+
+    Each step is independently testable, swappable, and emits typed events.
     """
+    pipeline: PipelineOrchestrator = app_state["pipeline"]
+    bus: EventBus = app_state["event_bus"]
     capture = app_state["capture"]
-    analyzer = app_state["analyzer"]
     context_mgr = app_state["context"]
-    window_mgr = app_state.get("window_manager")
-    profile_mgr = app_state.get("profile_manager")
-    shell_agent = app_state.get("shell_agent")
-    process_scanner = app_state.get("process_scanner")
-    window_cropper = app_state.get("window_cropper")
 
-    # Window-aware capture mode
-    use_window_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
-
-    logger.info("Screen analysis loop started",
-                window_aware=window_mgr is not None,
-                process_scanner=process_scanner is not None,
-                window_cropper=window_cropper is not None,
-                capture_mode="window" if use_window_roi else "fullscreen")
+    logger.info(
+        "Screen analysis loop started (pipeline-based)",
+        steps=pipeline.get_step_names(),
+        total_steps=len(pipeline.steps),
+    )
 
     while True:
         try:
-            # ──────────────────────────────────────────────────────────
-            # Phase 1: ANALYZE PROCESSES & WINDOW POSITIONS
-            # ──────────────────────────────────────────────────────────
-            window_info = None
-            window_context = ""
-            roi = None
-            all_windows = []
-            organized_screen = None
+            # Create fresh context for this pipeline run
+            ctx = PipelineContext()
 
-            # 1a. Scan all visible windows with process info
-            if process_scanner:
-                all_windows = process_scanner.scan_all_windows()
+            # Execute all pipeline steps (skip if can_run() is False)
+            ctx = await pipeline.run(ctx)
 
-            # 1b. Detect active window (for compatibility with existing flow)
-            if window_mgr:
-                window_info = window_mgr.get_active_window()
-                app_state["latest_window"] = window_info.to_dict()
-                window_context = window_info.to_context_string()
+            # ── Post-pipeline: update shared state & SSE broadcasts ──
 
-                # Optional: capture only the active window region
-                if use_window_roi and window_info.width > 0:
-                    roi = window_mgr.get_window_roi(window_info)
-
-                # Broadcast window info to overlay
-                await broadcast("window", window_info.to_dict())
+            # Update latest window state
+            if ctx.active_window:
+                app_state["latest_window"] = ctx.active_window.to_dict()
+                await broadcast("window", ctx.active_window.to_dict())
 
             # Broadcast all-windows layout
-            if all_windows:
+            if ctx.all_windows:
                 await broadcast("windows_layout", {
-                    "total": len(all_windows),
-                    "windows": [w.to_dict() for w in all_windows],
+                    "total": len(ctx.all_windows),
+                    "windows": [w.to_dict() for w in ctx.all_windows],
                 })
 
-            # ──────────────────────────────────────────────────────────
-            # Phase 2: CAPTURE FULLSCREEN SCREENSHOT
-            # ──────────────────────────────────────────────────────────
-            result = capture.capture(roi=roi)
+            # Broadcast organized screen
+            if ctx.organized_screen:
+                app_state["latest_organized_screen"] = ctx.organized_screen.to_dict()
+                await broadcast("organized_screen", {
+                    "total_windows": ctx.organized_screen.total_windows,
+                    "summary": ctx.organized_screen.screen_summary,
+                    "active_app": (
+                        ctx.organized_screen.active_app.window.to_dict()
+                        if ctx.organized_screen.active_app else None
+                    ),
+                    "categories": list(ctx.organized_screen.by_category.keys()),
+                })
 
-            if result:
-                # ──────────────────────────────────────────────────────
-                # Phase 3+4: MAP & CROP EACH APPLICATION SEPARATELY
-                # ──────────────────────────────────────────────────────
-                if window_cropper and all_windows:
-                    try:
-                        # Decode fullscreen image for cropping
-                        import base64 as b64mod
-                        from PIL import Image
-                        from io import BytesIO
-
-                        img_bytes = b64mod.b64decode(result["image_b64"])
-                        fullscreen_img = Image.open(BytesIO(img_bytes))
-
-                        # Crop each visible app and organize
-                        organized_screen = window_cropper.organize_screen(
-                            fullscreen_img, all_windows
-                        )
-                        app_state["latest_organized_screen"] = organized_screen.to_dict()
-
-                        # Broadcast organized screen data to overlay
-                        await broadcast("organized_screen", {
-                            "total_windows": organized_screen.total_windows,
-                            "summary": organized_screen.screen_summary,
-                            "active_app": (
-                                organized_screen.active_app.window.to_dict()
-                                if organized_screen.active_app else None
-                            ),
-                            "categories": list(organized_screen.by_category.keys()),
-                        })
-                    except Exception as e:
-                        logger.warning("Window cropping failed, continuing with fullscreen", error=str(e))
-
-                # ──────────────────────────────────────────────────────
-                # Phase 5: ORGANIZE WHAT'S VISIBLE (build rich context)
-                # ──────────────────────────────────────────────────────
-                context_str = context_mgr.get_context_string(n=5, max_length=500)
-
-                # Prepend organized screen summary if available
-                if organized_screen:
-                    screen_summary = organized_screen.screen_summary
-                    context_str = f"📊 Ekran: {screen_summary}\n\n{context_str}"
-
-                if window_context:
-                    context_str = f"{window_context}\n\n{context_str}"
-
-                # Add per-app profile prompt
-                prompt_addon = ""
-                if profile_mgr and window_info:
-                    prompt_addon = profile_mgr.get_prompt_addon(window_info.category)
-
-                full_context = context_str
-                if prompt_addon:
-                    full_context = f"{prompt_addon}\n\n{context_str}"
-
-                # Include latest speech transcript for TTS-aware response
-                latest_transcript = app_state.get("latest_transcript", "")
-                if latest_transcript:
-                    full_context = f"🎤 Użytkownik powiedział: {latest_transcript}\n\n{full_context}"
-
-                # ──────────────────────────────────────────────────────
-                # Phase 6: ANALYZE & RESPOND (TTS-aware context)
-                # ──────────────────────────────────────────────────────
-                analysis = await analyzer.analyze(result["image_b64"], full_context)
-
-                # Store in state
+            # Store analysis and broadcast
+            if ctx.analysis_result:
+                analysis = ctx.analysis_result
                 app_state["latest_analysis"] = analysis["text"]
                 app_state["stats"]["total_screen_analyses"] += 1
 
-                # Add to context
+                # Add to context history
                 context_mgr.add(
                     content=analysis["text"][:200],
                     context_type="screen",
@@ -319,63 +257,27 @@ async def screen_analysis_loop():
                         "tokens": analysis.get("tokens", 0),
                         "cost": analysis.get("cost", 0.0),
                         "provider": analysis.get("provider", "unknown"),
-                        "window": window_info.title if window_info else None,
-                        "category": window_info.category.value if window_info else None,
-                        "organized_windows": organized_screen.total_windows if organized_screen else 0,
+                        "window": ctx.active_window.title if ctx.active_window else None,
+                        "category": ctx.active_window.category.value if ctx.active_window else None,
+                        "organized_windows": ctx.organized_screen.total_windows if ctx.organized_screen else 0,
+                        "pipeline_run_id": ctx.run_id,
+                        "steps_executed": ctx.steps_executed,
+                        "step_timings": ctx.step_timings,
                     },
                 )
 
-                # Shell agent — suggest actions based on analysis
-                agent_actions = []
-                if shell_agent and window_info:
-                    analysis_text = analysis.get("text", "")
-                    ocr_text = ""
-                    if analysis.get("ocr") and analysis["ocr"].get("text"):
-                        ocr_text = analysis["ocr"]["text"]
-                    combined_text = f"{analysis_text}\n{ocr_text}"
+                # Broadcast agent actions
+                if ctx.agent_actions:
+                    await broadcast("agent_actions", {"actions": ctx.agent_actions})
 
-                    actions = shell_agent.suggest_actions(
-                        detected_text=combined_text,
-                        category=window_info.category,
-                        cwd=window_info.cwd,
-                    )
-                    if actions:
-                        agent_actions = [a.to_dict() for a in actions]
-                        await broadcast("agent_actions", {"actions": agent_actions})
+                # Broadcast main analysis payload
+                if ctx.broadcast_data:
+                    await broadcast("analysis", ctx.broadcast_data)
 
-                # Broadcast to overlay
-                broadcast_data = {
-                    "text": analysis["text"],
-                    "timestamp": result["timestamp"],
-                    "size_kb": result["size_kb"],
-                    "tokens": analysis.get("tokens", 0),
-                    "cost": round(analysis.get("cost", 0.0), 6),
-                    "provider": analysis.get("provider", "unknown"),
-                    "mode": analysis.get("mode", "vision_only"),
-                    "ocr": analysis.get("ocr"),
-                }
-
-                # Enrich with window info
-                if window_info:
-                    broadcast_data["window"] = {
-                        "title": window_info.title,
-                        "category": window_info.category.value,
-                        "app": window_info.wm_class_name,
-                        "git_branch": window_info.git_branch,
-                    }
-
-                # Enrich with organized screen data
-                if organized_screen:
-                    broadcast_data["organized_screen"] = {
-                        "total_windows": organized_screen.total_windows,
-                        "summary": organized_screen.screen_summary,
-                        "categories": list(organized_screen.by_category.keys()),
-                    }
-
-                if agent_actions:
-                    broadcast_data["agent_actions"] = agent_actions
-
-                await broadcast("analysis", broadcast_data)
+            # Log pipeline metrics
+            if ctx.errors:
+                for err in ctx.errors:
+                    logger.warning("Pipeline step error", **err)
 
             # Adaptive sleep based on capture interval
             await asyncio.sleep(capture.adaptive_interval)
@@ -486,6 +388,40 @@ async def lifespan(app: FastAPI):
 
     # nfo startup validation — log all initialized components
     _nfo_validate_startup(app_state)
+
+    # Initialize Event Bus (Event Sourcing + CQRS)
+    app_state["event_bus"] = create_event_bus(
+        enable_store=True,
+        db_path=os.getenv("EVENT_STORE_DB", "logs/events.db"),
+    )
+
+    # Initialize Pipeline Orchestrator (SOLID composable steps)
+    app_state["pipeline"] = create_pipeline(
+        bus=app_state["event_bus"],
+        capture=app_state["capture"],
+        analyzer=app_state["analyzer"],
+        context_mgr=app_state["context"],
+        window_mgr=app_state.get("window_manager"),
+        profile_mgr=app_state.get("profile_manager"),
+        shell_agent=app_state.get("shell_agent"),
+        process_scanner=app_state.get("process_scanner"),
+        window_cropper=app_state.get("window_cropper"),
+        app_state_ref=app_state,
+    )
+
+    # Emit startup event
+    await app_state["event_bus"].publish(Event(
+        type=EventType.SYSTEM_STARTUP.value,
+        data={
+            "version": APP_VERSION,
+            "pipeline_steps": app_state["pipeline"].get_step_names(),
+            "components": {k: v is not None for k, v in app_state.items()
+                          if k not in ("stats", "subscribers", "latest_analysis",
+                                       "latest_transcript", "latest_window",
+                                       "latest_organized_screen")},
+        },
+        source="lifespan",
+    ))
 
     # Start screen analysis loop
     screen_task = asyncio.create_task(screen_analysis_loop())

@@ -1,6 +1,7 @@
 """
 Screen capture module with intelligent change detection.
-Supports X11 (mss) and Wayland (grim) backends.
+Supports X11 (mss), Wayland portal (PipeWire/GStreamer), and grim backends.
+Preserves native aspect ratio regardless of screen orientation.
 """
 import mss
 import imagehash
@@ -8,26 +9,32 @@ import numpy as np
 from PIL import Image
 from io import BytesIO
 import base64
+import json
 import time
 import subprocess
 import shutil
 import tempfile
+import signal as sig
+import re
 from typing import Optional, Dict, List
 import structlog
 import os
 
 logger = structlog.get_logger()
 
+# Path where wayland_screencast.py saves frames
+WAYLAND_FRAME_PATH = "/tmp/aidesk_wayland_frame.jpg"
+WAYLAND_STATUS_PATH = WAYLAND_FRAME_PATH + ".status"
+
 
 def _detect_backend() -> str:
-    """Detect whether to use mss (X11), grim (wlroots Wayland), or scrot (fallback)."""
+    """Detect the best screen capture backend for the current session."""
     session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
     wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
 
     if session_type == "wayland" or wayland_display:
-        # Try grim first (wlroots compositors like Sway)
+        # Option 1: grim (wlroots compositors like Sway)
         if shutil.which("grim"):
-            # Verify grim actually works (fails on GNOME Wayland)
             try:
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
                     result = subprocess.run(
@@ -37,11 +44,42 @@ def _detect_backend() -> str:
                         return "grim"
             except Exception:
                 pass
-        # Fallback: scrot works via XWayland on GNOME Wayland
-        if shutil.which("scrot"):
-            return "scrot"
-        logger.warning("Wayland detected but no working screenshot tool found, falling back to mss")
+
+        # Option 2: Wayland portal (GNOME, KDE — uses PipeWire + GStreamer)
+        try:
+            result = subprocess.run(
+                ["python3", "-c", "import gi; gi.require_version('Gst','1.0')"],
+                capture_output=True, timeout=3,
+            )
+            if result.returncode == 0:
+                return "wayland_portal"
+        except Exception:
+            pass
+
+        logger.warning(
+            "Wayland detected but no working capture backend found, falling back to mss"
+        )
     return "mss"
+
+
+def _resize_preserve_aspect(img: Image.Image, max_dim: int) -> Image.Image:
+    """
+    Resize image so longest side = max_dim, preserving aspect ratio.
+    Works correctly for any orientation (landscape, portrait, square).
+    """
+    w, h = img.size
+    if max(w, h) <= max_dim:
+        return img
+    if w >= h:
+        new_w = max_dim
+        new_h = int(h * max_dim / w)
+    else:
+        new_h = max_dim
+        new_w = int(w * max_dim / h)
+    # Ensure dimensions are at least 2 and even
+    new_w = max(2, new_w - (new_w % 2))
+    new_h = max(2, new_h - (new_h % 2))
+    return img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
 
 class SmartScreenCapture:
@@ -55,8 +93,7 @@ class SmartScreenCapture:
         min_interval: float = 1.0,
         idle_threshold: int = 30,
         idle_interval: float = 10.0,
-        screen_width: int = 1280,
-        screen_height: int = 720,
+        max_dimension: int = 1280,
         jpeg_quality: int = 60,
         captures_dir: str = "/tmp/aidesk_captures",
     ):
@@ -68,8 +105,7 @@ class SmartScreenCapture:
             min_interval: Minimum seconds between captures
             idle_threshold: Number of unchanged frames before entering idle mode
             idle_interval: Capture interval when idle (seconds)
-            screen_width: Target width for resized screenshots
-            screen_height: Target height for resized screenshots
+            max_dimension: Max pixels for longest side (aspect ratio preserved)
             jpeg_quality: JPEG compression quality (1-100)
             captures_dir: Directory to save debug screenshots
         """
@@ -81,24 +117,33 @@ class SmartScreenCapture:
         self.min_interval = min_interval
         self.idle_threshold = idle_threshold
         self.idle_interval = idle_interval
-        self.screen_width = screen_width
-        self.screen_height = screen_height
+        self.max_dimension = max_dimension
         self.jpeg_quality = jpeg_quality
         self.captures_dir = captures_dir
         self.consecutive_unchanged = 0
         self.total_captures = 0
         self.changes_detected = 0
+        self._screencast_proc = None
+        self._native_size = (0, 0)
+
+        # Legacy compat
+        self.screen_width = max_dimension
+        self.screen_height = max_dimension
 
         # Ensure captures directory exists
         if self.captures_dir:
             os.makedirs(self.captures_dir, exist_ok=True)
+
+        # Start wayland screencast daemon if needed
+        if self.backend == "wayland_portal":
+            self._start_screencast_daemon()
 
         logger.info(
             "Screen capture initialized",
             backend=self.backend,
             threshold=change_threshold,
             interval=min_interval,
-            resolution=f"{screen_width}x{screen_height}",
+            max_dimension=max_dimension,
             captures_dir=captures_dir,
         )
 
@@ -129,10 +174,11 @@ class SmartScreenCapture:
         try:
             img = self._grab_screen(monitor_index=monitor_index, roi=roi)
 
-            # Resize for cheaper AI processing
-            img_resized = img.resize(
-                (self.screen_width, self.screen_height), Image.Resampling.LANCZOS
-            )
+            # Track native resolution
+            self._native_size = img.size
+
+            # Resize preserving aspect ratio (works for any orientation)
+            img_resized = _resize_preserve_aspect(img, self.max_dimension)
 
             # Perceptual hash for change detection
             current_hash = imagehash.phash(img_resized, hash_size=8)
@@ -172,11 +218,13 @@ class SmartScreenCapture:
 
             b64 = base64.b64encode(buffer.getvalue()).decode()
             size_kb = len(buffer.getvalue()) / 1024
+            resized_w, resized_h = img_resized.size
 
             logger.info(
                 "Screen change detected",
                 size_kb=round(size_kb, 1),
-                resolution=f"{self.screen_width}x{self.screen_height}",
+                native=f"{img.size[0]}x{img.size[1]}",
+                resized=f"{resized_w}x{resized_h}",
                 idle_frames=prev_unchanged,
                 detection_rate=f"{(self.changes_detected / self.total_captures * 100):.1f}%",
             )
@@ -184,7 +232,8 @@ class SmartScreenCapture:
             return {
                 "image_b64": b64,
                 "timestamp": now,
-                "resolution": (self.screen_width, self.screen_height),
+                "resolution": (resized_w, resized_h),
+                "native_resolution": img.size,
                 "size_kb": size_kb,
                 "hash_diff": hash_diff,
                 "monitor_index": monitor_index,
@@ -207,17 +256,83 @@ class SmartScreenCapture:
             return self.idle_interval  # Idle mode
         return self.min_interval  # Active mode
 
+    # ── Screencast daemon management ──────────────────────────────────
+
+    def _start_screencast_daemon(self):
+        """Start the wayland_screencast.py daemon (uses system python3 + gi)."""
+        helper_path = os.path.join(os.path.dirname(__file__), "wayland_screencast.py")
+        if not os.path.exists(helper_path):
+            logger.error("wayland_screencast.py not found", path=helper_path)
+            self.backend = "mss"
+            self.sct = mss.mss()
+            return
+
+        env = os.environ.copy()
+        env["AIDESK_FRAME_PATH"] = WAYLAND_FRAME_PATH
+        env["AIDESK_FRAME_QUALITY"] = str(self.jpeg_quality)
+        env["AIDESK_MAX_FPS"] = str(max(0.5, 1.0 / self.min_interval))
+
+        self._screencast_proc = subprocess.Popen(
+            ["python3", helper_path],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            preexec_fn=os.setpgrp,
+        )
+        logger.info(
+            "Wayland screencast daemon started",
+            pid=self._screencast_proc.pid,
+            frame_path=WAYLAND_FRAME_PATH,
+        )
+
+        # Wait for first frame (user may need to grant permission via dialog)
+        for _ in range(60):
+            time.sleep(1)
+            if os.path.exists(WAYLAND_FRAME_PATH):
+                age = time.time() - os.path.getmtime(WAYLAND_FRAME_PATH)
+                if age < 5:
+                    logger.info("Wayland screencast producing frames")
+                    return
+            if self._screencast_proc.poll() is not None:
+                stdout = self._screencast_proc.stdout.read().decode(errors="replace")[-500:]
+                logger.error("Wayland screencast daemon died", output=stdout)
+                self._screencast_proc = None
+                self.backend = "mss"
+                self.sct = mss.mss()
+                return
+
+        logger.warning("Wayland screencast timed out, falling back to mss")
+        self._stop_screencast_daemon()
+        self.backend = "mss"
+        self.sct = mss.mss()
+
+    def _stop_screencast_daemon(self):
+        """Stop the wayland screencast daemon."""
+        if self._screencast_proc and self._screencast_proc.poll() is None:
+            try:
+                os.killpg(os.getpgid(self._screencast_proc.pid), sig.SIGTERM)
+                self._screencast_proc.wait(timeout=5)
+            except Exception:
+                try:
+                    self._screencast_proc.kill()
+                except Exception:
+                    pass
+            logger.info("Wayland screencast daemon stopped")
+        self._screencast_proc = None
+
+    # ── Backend-specific grab methods ─────────────────────────────────
+
     def _grab_screen(self, monitor_index: Optional[int] = None, roi: Optional[Dict] = None) -> Image.Image:
         """
-        Grab screen using the detected backend (mss or grim).
+        Grab screen using the detected backend.
 
         Returns:
             PIL Image of the captured screen
         """
-        if self.backend == "grim":
+        if self.backend == "wayland_portal":
+            return self._grab_wayland_portal(roi=roi)
+        elif self.backend == "grim":
             return self._grab_grim(roi=roi)
-        elif self.backend == "scrot":
-            return self._grab_scrot(roi=roi)
         else:
             return self._grab_mss(monitor_index=monitor_index, roi=roi)
 
@@ -257,31 +372,35 @@ class SmartScreenCapture:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
-    def _grab_scrot(self, roi: Optional[Dict] = None) -> Image.Image:
-        """Capture using scrot (works via XWayland on GNOME Wayland)."""
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp_path = tmp.name
+    def _grab_wayland_portal(self, roi: Optional[Dict] = None) -> Image.Image:
+        """Read latest frame from wayland_screencast.py daemon."""
+        if not os.path.exists(WAYLAND_FRAME_PATH):
+            raise RuntimeError("Wayland frame not available (screencast daemon not running?)")
 
-        try:
-            cmd = ["scrot", "-o", tmp_path]
-            subprocess.run(cmd, check=True, capture_output=True, timeout=5)
-            img = Image.open(tmp_path).convert("RGB")
+        age = time.time() - os.path.getmtime(WAYLAND_FRAME_PATH)
+        if age > 10:
+            logger.warning("Wayland frame is stale", age_seconds=round(age, 1))
 
-            # Apply ROI crop if specified
-            if roi:
-                box = (roi["left"], roi["top"],
-                       roi["left"] + roi["width"], roi["top"] + roi["height"])
-                img = img.crop(box)
+        img = Image.open(WAYLAND_FRAME_PATH).convert("RGB")
 
-            return img
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+        # Apply ROI crop if specified
+        if roi:
+            box = (
+                roi["left"], roi["top"],
+                roi["left"] + roi["width"], roi["top"] + roi["height"],
+            )
+            img = img.crop(box)
+
+        return img
+
+    # ── Monitor detection ─────────────────────────────────────────────
 
     def get_monitors(self) -> List[Dict]:
         """Get list of available monitors."""
-        if self.backend == "grim":
-            return self._get_monitors_wayland()
+        if self.backend in ("grim", "wayland_portal"):
+            return self._get_monitors_xrandr()
+        if not self.sct:
+            return []
         monitors = []
         for i, mon in enumerate(self.sct.monitors):
             monitors.append({
@@ -294,10 +413,30 @@ class SmartScreenCapture:
             })
         return monitors
 
-    def _get_monitors_wayland(self) -> List[Dict]:
-        """Get monitors via wlr-randr or swaymsg."""
-        # Fallback: return a single "unknown" monitor
-        return [{"index": 0, "left": 0, "top": 0, "width": 0, "height": 0, "is_combined": True}]
+    def _get_monitors_xrandr(self) -> List[Dict]:
+        """Get monitors via xrandr (works on both X11 and Wayland)."""
+        try:
+            result = subprocess.run(
+                ["xrandr", "--query"], capture_output=True, text=True, timeout=3
+            )
+            monitors = []
+            for line in result.stdout.splitlines():
+                m = re.match(r"(\S+) connected.*?(\d+)x(\d+)\+(\d+)\+(\d+)", line)
+                if m:
+                    monitors.append({
+                        "index": len(monitors),
+                        "name": m.group(1),
+                        "width": int(m.group(2)),
+                        "height": int(m.group(3)),
+                        "left": int(m.group(4)),
+                        "top": int(m.group(5)),
+                        "is_combined": False,
+                    })
+            return monitors if monitors else [{"index": 0}]
+        except Exception:
+            return [{"index": 0}]
+
+    # ── ROI capture ───────────────────────────────────────────────────
 
     def capture_roi_image(self, roi: Dict) -> Optional[str]:
         """
@@ -312,9 +451,7 @@ class SmartScreenCapture:
         """
         try:
             img = self._grab_screen(roi=roi)
-            img_resized = img.resize(
-                (self.screen_width, self.screen_height), Image.Resampling.LANCZOS
-            )
+            img_resized = _resize_preserve_aspect(img, self.max_dimension)
             buffer = BytesIO()
             img_resized.save(buffer, format="JPEG", quality=self.jpeg_quality, optimize=True)
             return base64.b64encode(buffer.getvalue()).decode()
@@ -322,9 +459,23 @@ class SmartScreenCapture:
             logger.error("ROI capture failed", error=str(e), roi=roi)
             return None
 
+    # ── Stats & lifecycle ─────────────────────────────────────────────
+
+    def get_screencast_status(self) -> Optional[Dict]:
+        """Get wayland screencast daemon status (if running)."""
+        if self.backend != "wayland_portal":
+            return None
+        try:
+            if os.path.exists(WAYLAND_STATUS_PATH):
+                with open(WAYLAND_STATUS_PATH) as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return None
+
     def get_stats(self) -> Dict:
         """Get capture statistics."""
-        return {
+        stats = {
             "total_captures": self.total_captures,
             "changes_detected": self.changes_detected,
             "detection_rate": (
@@ -336,8 +487,21 @@ class SmartScreenCapture:
             "current_interval": self.adaptive_interval,
             "is_idle": self.consecutive_unchanged > self.idle_threshold,
             "backend": self.backend,
+            "native_resolution": f"{self._native_size[0]}x{self._native_size[1]}",
+            "max_dimension": self.max_dimension,
             "monitors": len(self.sct.monitors) if self.sct else 0,
         }
+        sc_status = self.get_screencast_status()
+        if sc_status:
+            stats["screencast"] = sc_status
+        return stats
+
+    def __del__(self):
+        """Cleanup screencast daemon on garbage collection."""
+        try:
+            self._stop_screencast_daemon()
+        except Exception:
+            pass
 
 
 # Configuration from environment
@@ -352,8 +516,7 @@ def create_capture_from_env() -> SmartScreenCapture:
         min_interval=float(os.getenv("MIN_CAPTURE_INTERVAL", "1.0")),
         idle_threshold=int(os.getenv("IDLE_THRESHOLD", "30")),
         idle_interval=float(os.getenv("IDLE_INTERVAL", "10.0")),
-        screen_width=int(os.getenv("SCREEN_WIDTH", "1280")),
-        screen_height=int(os.getenv("SCREEN_HEIGHT", "720")),
+        max_dimension=int(os.getenv("MAX_DIMENSION", "1280")),
         jpeg_quality=int(os.getenv("JPEG_QUALITY", "60")),
         captures_dir=os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures"),
     )
