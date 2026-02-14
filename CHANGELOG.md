@@ -1,3 +1,18 @@
+## [1.0.4] - 2026-02-14
+
+### Summary
+
+feat(build): deep code analysis engine with 4 supporting modules
+
+### Other
+
+- build: update Makefile
+- update backend/capture.py
+- update backend/requirements.txt
+- update backend/screenshots.html
+- update backend/server.py
+
+
 ## [1.0.3] - 2026-02-14
 
 ### Summary

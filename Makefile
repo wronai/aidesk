@@ -51,13 +51,16 @@ env: ## Create .env from .env.example (if missing)
 
 # ---- Run ----
 
-run: stop ## Run backend + overlay (backend in background)
+run: stop ## Run backend + overlay + open browser windows
 	@if [ ! -f $(BACKEND_DIR)/.env ]; then \
 		echo "❌ backend/.env not found. Run 'make setup' first."; exit 1; \
 	fi
 	@echo "🚀 Starting backend on port $(PORT)..."
 	$(PYTHON) $(BACKEND_DIR)/server.py &
 	@sleep 2
+	@echo "🌐 Opening browser windows..."
+	@xdg-open http://127.0.0.1:$(PORT)/browser 2>/dev/null || open http://127.0.0.1:$(PORT)/browser 2>/dev/null || true
+	@xdg-open http://127.0.0.1:$(PORT)/status 2>/dev/null || open http://127.0.0.1:$(PORT)/status 2>/dev/null || true
 	@echo "🖥️  Starting overlay..."
 	$(NPM) start --prefix $(OVERLAY_DIR)
 
@@ -82,8 +85,9 @@ status: ## Check if backend is running
 	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"
 
 stop: ## Stop backend and overlay applications
-	@-fuser -k $(PORT)/tcp 2>/dev/null && sleep 1 && echo "🛑 Backend stopped (port $(PORT))" || true
-	@-pkill -f "electron.*main.js" 2>/dev/null && sleep 1 && echo "🛑 Overlay stopped" || true
+	@-fuser -k $(PORT)/tcp 2>/dev/null && echo "🛑 Backend stopped (port $(PORT))" || true
+	@-pkill -f "electron.*overlay" 2>/dev/null || true
+	@echo "🛑 Overlay stopped"
 
 clean: ## Remove venv and node_modules
 	rm -rf $(VENV_DIR)

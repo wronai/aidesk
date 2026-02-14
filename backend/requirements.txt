@@ -16,8 +16,8 @@ numpy==2.2.2
 litellm>=1.55.0
 
 # OCR Engines (install the ones you need)
-paddleocr>=2.9.1
-paddlepaddle>=3.0.0b1  # CPU version; use paddlepaddle-gpu for GPU
+paddleocr>=2.9.1,<3.0  # 3.x has broken langchain dep; use paddlepaddle-gpu for GPU
+paddlepaddle>=3.0.0
 easyocr>=1.7.2
 pytesseract>=0.3.13
 
@@ -47,3 +47,4 @@ pydantic-settings==2.7.1
 # Logging
 structlog==24.4.0
 python-json-logger==3.2.1
+loguru==0.7.3

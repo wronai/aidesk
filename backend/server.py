@@ -5,14 +5,17 @@ import asyncio
 import json
 import os
 import time
+import sqlite3
 from contextlib import asynccontextmanager
 from typing import Dict, List
 
 import structlog
+from loguru import logger as loguru_logger
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from capture import create_capture_from_env
 from analyzer import create_analyzer_from_env
@@ -24,13 +27,58 @@ from context import ContextManager
 load_dotenv()
 
 # Configure structured logging
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.add_log_level,
-        structlog.processors.JSONRenderer(),
-    ]
-)
+def setup_logging():
+    log_file = os.getenv("LOG_FILE", "logs/assistant.log")
+    db_file = os.getenv("LOG_DB", "logs/logs.sqlite")
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+
+    # Ensure logs directory exists
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+    # Loguru configuration
+    loguru_logger.remove() # Remove default handler
+    
+    # Console handler
+    loguru_logger.add(lambda msg: print(msg, end=""), level=log_level)
+    
+    # File handler
+    loguru_logger.add(log_file, rotation="10 MB", level=log_level, format="{time} | {level} | {message}")
+
+    # SQLite handler
+    def sqlite_sink(message):
+        record = message.record
+        try:
+            conn = sqlite3.connect(db_file)
+            cursor = conn.cursor()
+            cursor.execute(
+                "CREATE TABLE IF NOT EXISTS logs (timestamp TEXT, level TEXT, message TEXT, module TEXT)"
+            )
+            cursor.execute(
+                "INSERT INTO logs VALUES (?, ?, ?, ?)",
+                (record["time"].isoformat(), record["level"].name, record["message"], record["module"])
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Failed to log to SQLite: {e}")
+
+    loguru_logger.add(sqlite_sink, level=log_level)
+
+    # Structlog configuration to use loguru
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.add_log_level,
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer(),
+        ],
+        logger_factory=lambda *args: loguru_logger,
+        wrapper_class=structlog.make_filtering_bound_logger(20), # INFO
+        cache_logger_on_first_use=True,
+    )
+
+setup_logging()
 logger = structlog.get_logger()
 
 # Global application state
@@ -399,23 +447,43 @@ async def ocr_benchmark():
     if not app_state["capture"]:
         return JSONResponse(status_code=503, content={"error": "Capture not initialized"})
 
-    # Force a fresh capture for benchmark
-    capture = app_state["capture"]
-    import mss
     from PIL import Image
     from io import BytesIO
     import base64
 
-    sct = capture.sct
-    monitor = sct.monitors[1]
-    raw = sct.grab(monitor)
-    img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
-    img_resized = img.resize(
-        (capture.screen_width, capture.screen_height), Image.Resampling.LANCZOS
-    )
-    buffer = BytesIO()
-    img_resized.save(buffer, format="JPEG", quality=capture.jpeg_quality, optimize=True)
-    image_b64 = base64.b64encode(buffer.getvalue()).decode()
+    image_b64 = None
+    capture = app_state["capture"]
+
+    # Try to grab a fresh screenshot
+    try:
+        sct = capture.sct
+        monitor = sct.monitors[1]
+        raw = sct.grab(monitor)
+        img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+        img_resized = img.resize(
+            (capture.screen_width, capture.screen_height), Image.Resampling.LANCZOS
+        )
+        buffer = BytesIO()
+        img_resized.save(buffer, format="JPEG", quality=capture.jpeg_quality, optimize=True)
+        image_b64 = base64.b64encode(buffer.getvalue()).decode()
+    except Exception as e:
+        logger.warning("Benchmark: screen capture failed, using test image", error=str(e))
+        # Fallback: generate a test image with sample text for benchmarking
+        img = Image.new("RGB", (capture.screen_width, capture.screen_height), color=(30, 30, 35))
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(img)
+        sample_texts = [
+            (50, 30, "AI Desktop Assistant - Benchmark Test"),
+            (50, 80, "Analiza zrzutu ekranu w trybie testowym"),
+            (50, 130, "def analyze(image): return ocr.extract(image)"),
+            (50, 180, "Status: Connected | Mode: hybrid | OCR: active"),
+            (50, 230, "Polskie znaki: ąćęłńóśźż ĄĆĘŁŃÓŚŹŻ"),
+        ]
+        for x, y, text in sample_texts:
+            draw.text((x, y), text, fill=(220, 220, 220))
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG", quality=capture.jpeg_quality, optimize=True)
+        image_b64 = base64.b64encode(buffer.getvalue()).decode()
 
     # Run benchmark
     result = app_state["ocr_manager"].benchmark(image_b64)
@@ -472,6 +540,54 @@ async def set_analysis_mode(mode_name: str):
     await broadcast("mode_changed", {"mode": mode_name})
 
     return {"mode": mode_name, "status": "active"}
+
+
+# ===== Screenshot Browser Endpoints =====
+
+@app.get("/screenshots")
+async def list_screenshots():
+    """List all saved screenshots."""
+    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures")
+    if not os.path.exists(captures_dir):
+        return []
+    
+    files = []
+    for f in os.listdir(captures_dir):
+        if f.endswith(".jpg"):
+            path = os.path.join(captures_dir, f)
+            stats = os.stat(path)
+            files.append({
+                "name": f,
+                "timestamp": stats.st_mtime,
+                "size": stats.st_size,
+                "url": f"/screenshots/{f}"
+            })
+    
+    # Sort by timestamp descending
+    files.sort(key=lambda x: x["timestamp"], reverse=True)
+    return files
+
+
+@app.get("/screenshots/{filename}")
+async def get_screenshot(filename: str):
+    """Serve a specific screenshot file."""
+    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures")
+    file_path = os.path.join(captures_dir, filename)
+    
+    # Security check: prevent directory traversal
+    if not os.path.abspath(file_path).startswith(os.path.abspath(captures_dir)):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    return FileResponse(file_path)
+
+
+@app.get("/browser", response_class=FileResponse)
+async def screenshot_browser():
+    """Serve the screenshot browser UI."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "screenshots.html"))
 
 
 if __name__ == "__main__":

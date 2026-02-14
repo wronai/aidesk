@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Desk - Przeglądarka Zrzutów</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .screenshot-card { transition: transform 0.2s; }
+        .screenshot-card:hover { transform: scale(1.02); }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-8 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-blue-400">Przeglądarka Zrzutów Ekranu</h1>
+            <button onclick="loadScreenshots()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition">Odśwież</button>
+        </header>
+
+        <div id="gallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Screenshots will be loaded here -->
+            <div class="col-span-full text-center py-20 text-gray-400">Ładowanie obrazów...</div>
+        </div>
+    </div>
+
+    <!-- Modal for full size view -->
+    <div id="modal" class="fixed inset-0 bg-black/90 hidden flex items-center justify-center z-50 p-4" onclick="closeModal()">
+        <img id="modal-img" src="" class="max-w-full max-h-full rounded-lg shadow-2xl">
+    </div>
+
+    <script>
+        const API_URL = ''; // Same origin
+
+        async function loadScreenshots() {
+            const gallery = document.getElementById('gallery');
+            try {
+                const response = await fetch('/screenshots');
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    gallery.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Brak zapisanych zrzutów ekranu.</div>';
+                    return;
+                }
+
+                gallery.innerHTML = data.map(s => `
+                    <div class="screenshot-card bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-lg cursor-pointer" onclick="openModal('${s.url}')">
+                        <div class="aspect-video bg-slate-900 flex items-center justify-center overflow-hidden">
+                            <img src="${s.url}" class="w-full h-full object-cover" loading="lazy">
+                        </div>
+                        <div class="p-4">
+                            <div class="text-sm font-medium truncate">${s.name}</div>
+                            <div class="text-xs text-gray-400 mt-1">${new Date(s.timestamp * 1000).toLocaleString('pl-PL')}</div>
+                            <div class="text-xs text-blue-400 mt-1">${(s.size / 1024).toFixed(1)} KB</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                gallery.innerHTML = '<div class="col-span-full text-center py-20 text-red-400">Błąd podczas ładowania: ' + error.message + '</div>';
+            }
+        }
+
+        function openModal(url) {
+            const modal = document.getElementById('modal');
+            const modalImg = document.getElementById('modal-img');
+            modalImg.src = url;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        // Initial load
+        loadScreenshots();
+    </script>
+</body>
+</html>

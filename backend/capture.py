@@ -29,6 +29,7 @@ class SmartScreenCapture:
         screen_width: int = 1280,
         screen_height: int = 720,
         jpeg_quality: int = 60,
+        captures_dir: str = "/tmp/aidesk_captures",
     ):
         """
         Initialize screen capture.
@@ -41,6 +42,7 @@ class SmartScreenCapture:
             screen_width: Target width for resized screenshots
             screen_height: Target height for resized screenshots
             jpeg_quality: JPEG compression quality (1-100)
+            captures_dir: Directory to save debug screenshots
         """
         self.sct = mss.mss()
         self.last_hash = None
@@ -52,15 +54,21 @@ class SmartScreenCapture:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.jpeg_quality = jpeg_quality
+        self.captures_dir = captures_dir
         self.consecutive_unchanged = 0
         self.total_captures = 0
         self.changes_detected = 0
+
+        # Ensure captures directory exists
+        if self.captures_dir:
+            os.makedirs(self.captures_dir, exist_ok=True)
 
         logger.info(
             "Screen capture initialized",
             threshold=change_threshold,
             interval=min_interval,
             resolution=f"{screen_width}x{screen_height}",
+            captures_dir=captures_dir,
         )
 
     def capture(self) -> Optional[Dict]:
@@ -116,6 +124,15 @@ class SmartScreenCapture:
             # Encode as JPEG
             buffer = BytesIO()
             img_resized.save(buffer, format="JPEG", quality=self.jpeg_quality, optimize=True)
+            
+            # Save to disk if directory is configured
+            if self.captures_dir:
+                filename = f"capture_{int(now)}.jpg"
+                filepath = os.path.join(self.captures_dir, filename)
+                with open(filepath, "wb") as f:
+                    f.write(buffer.getvalue())
+                logger.debug("Screenshot saved to disk", path=filepath)
+
             b64 = base64.b64encode(buffer.getvalue()).decode()
             size_kb = len(buffer.getvalue()) / 1024
 
@@ -182,4 +199,5 @@ def create_capture_from_env() -> SmartScreenCapture:
         screen_width=int(os.getenv("SCREEN_WIDTH", "1280")),
         screen_height=int(os.getenv("SCREEN_HEIGHT", "720")),
         jpeg_quality=int(os.getenv("JPEG_QUALITY", "60")),
+        captures_dir=os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures"),
     )
