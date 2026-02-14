@@ -13,7 +13,7 @@
 
 version: '1.0'
 project:
-  name: aidesk
+  name: proxeen
   type: []
   description: ''
 versioning:
@@ -28,7 +28,7 @@ versioning:
 git:
   commit:
     strategy: conventional
-    scope: aidesk
+    scope: proxeen
     abstraction_level: auto
     abstraction_levels:
       high: '{type}({domain}): {benefit}'

@@ -106,7 +106,7 @@ class Settings(BaseSettings):
     agent_timeout: float = Field(10.0, ge=1.0)
 
     # ===== Process Scanner & Window Cropper =====
-    crops_dir: str = "/tmp/aidesk_crops"
+    crops_dir: str = "/tmp/proxeen_crops"
     min_window_size: int = Field(100, ge=10)
     max_crop_windows: int = Field(0, ge=0)
     crop_change_threshold: float = Field(3.0, ge=0.1)
@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     # ===== Disk I/O =====
     save_captures: bool = True
     save_crops: bool = True
-    captures_dir: str = Field("/tmp/aidesk_captures", description="Directory for screenshots")
+    captures_dir: str = Field("/tmp/proxeen_captures", description="Directory for screenshots")
 
     # ===== Rate Limiting =====
     max_vision_calls_per_minute: int = Field(30, ge=1)

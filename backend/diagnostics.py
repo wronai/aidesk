@@ -126,7 +126,7 @@ class AutoDiagnostics:
 
     def _check_captures_dir(self) -> Dict:
         """Check if screenshot files are being generated in CAPTURES_DIR."""
-        captures_dir = os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures")
+        captures_dir = os.getenv("CAPTURES_DIR", "/tmp/proxeen_captures")
 
         if not os.path.exists(captures_dir):
             return {"name": "captures_dir", "ok": False, "detail": f"Directory does not exist: {captures_dir}"}

@@ -191,9 +191,9 @@ class TestSessionManagement:
         t2 = capture._next_token()
         t3 = capture._next_token()
 
-        assert t1 == "aidesk_1"
-        assert t2 == "aidesk_2"
-        assert t3 == "aidesk_3"
+        assert t1 == "proxeen_1"
+        assert t2 == "proxeen_2"
+        assert t3 == "proxeen_3"
 
     def test_on_session_created_success(self):
         capture = ScreenCastCapture()

@@ -111,7 +111,7 @@ class VoiceCommandSkill(BaseSkill):
 
         if option_id == "save":
             import tempfile, os
-            path = os.path.join(tempfile.gettempdir(), "aidesk_saved.txt")
+            path = os.path.join(tempfile.gettempdir(), "proxeen_saved.txt")
             with open(path, "w") as f:
                 f.write(text)
             return SkillResult(success=True, message=f"💾 Zapisano: {path}", clipboard_text=path)

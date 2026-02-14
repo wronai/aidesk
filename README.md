@@ -223,7 +223,7 @@ Każdy krok emituje event do EventBus, a dane mogą być projekowane do ReadMode
 ## 📁 Struktura projektu
 
 ```text
-aidesk/
+proxeen/
 ├── backend/
 │   ├── server.py              # FastAPI + lifespan + logowanie
 │   ├── bootstrap.py           # Fazy startu/shutdown komponentów
@@ -332,7 +332,7 @@ Pliki logów:
 - `logs/assistant.log`
 - `logs/logs.sqlite`
 - `logs/events.db`
-- `logs/nfo_aidesk.md`
+- `logs/nfo_proxeen.md`
 
 ## 🔐 Bezpieczeństwo i prywatność
 

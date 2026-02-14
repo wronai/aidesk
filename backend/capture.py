@@ -24,7 +24,7 @@ import os
 logger = structlog.get_logger()
 
 # Path where wayland_screencast.py saves frames
-WAYLAND_FRAME_PATH = "/tmp/aidesk_wayland_frame.jpg"
+WAYLAND_FRAME_PATH = "/tmp/proxeen_wayland_frame.jpg"
 WAYLAND_STATUS_PATH = WAYLAND_FRAME_PATH + ".status"
 
 # System python3 — must bypass conda/venv to reach system PyGObject (gi)
@@ -99,7 +99,7 @@ class SmartScreenCapture:
         idle_interval: float = 10.0,
         max_dimension: int = 1280,
         jpeg_quality: int = 60,
-        captures_dir: str = "/tmp/aidesk_captures",
+        captures_dir: str = "/tmp/proxeen_captures",
         save_to_disk: bool = True,
     ):
         """
@@ -285,9 +285,9 @@ class SmartScreenCapture:
             return
 
         env = os.environ.copy()
-        env["AIDESK_FRAME_PATH"] = WAYLAND_FRAME_PATH
-        env["AIDESK_FRAME_QUALITY"] = str(self.jpeg_quality)
-        env["AIDESK_MAX_FPS"] = str(max(0.5, 1.0 / self.min_interval))
+        env["PROXEEN_FRAME_PATH"] = WAYLAND_FRAME_PATH
+        env["PROXEEN_FRAME_QUALITY"] = str(self.jpeg_quality)
+        env["PROXEEN_MAX_FPS"] = str(max(0.5, 1.0 / self.min_interval))
 
         self._screencast_proc = subprocess.Popen(
             [SYSTEM_PYTHON3, helper_path],

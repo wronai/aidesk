@@ -133,7 +133,7 @@ class TestWindowInfo:
         defaults = dict(
             window_id=12345, title="test.py - VSCode", wm_class="code",
             wm_class_name="Code", pid=1234, x=100, y=200, width=1920,
-            height=1080, category=AppCategory.IDE, git_repo="aidesk",
+            height=1080, category=AppCategory.IDE, git_repo="proxeen",
             git_branch="main", git_status="2 changed", cwd="/home/tom",
             process_name="code", cmdline="/usr/bin/code",
         )
@@ -147,7 +147,7 @@ class TestWindowInfo:
         assert d["title"] == "test.py - VSCode"
         assert d["geometry"]["w"] == 1920
         assert d["git"]["branch"] == "main"
-        assert d["git"]["repo"] == "aidesk"
+        assert d["git"]["repo"] == "proxeen"
         assert d["process_name"] == "code"
         assert d["cmdline"] == "/usr/bin/code"
 
@@ -356,7 +356,7 @@ class TestProcessScanner:
             "Content window",
         )
         assert not ProcessScanner._is_service_window_fields(
-            "jetbrains-pycharm", "jetbrains-pycharm", "aidesk - process_scanner.py"
+            "jetbrains-pycharm", "jetbrains-pycharm", "proxeen - process_scanner.py"
         )
 
     def test_scan_filters_service_windows(self):
@@ -366,7 +366,7 @@ class TestProcessScanner:
 
         wmctrl_output = "\n".join([
             "0x01000001 0 100 0 0 490 750 mutter-x11-frames.mutter-x11-frames host Toolbox",
-            "0x01000002 0 200 23 490 2112 1602 jetbrains-pycharm.jetbrains-pycharm host aidesk - process_scanner.py",
+            "0x01000002 0 200 23 490 2112 1602 jetbrains-pycharm.jetbrains-pycharm host proxeen - process_scanner.py",
         ])
 
         with patch.object(scanner, "_run", return_value=wmctrl_output):
@@ -439,7 +439,7 @@ class TestWindowCropper:
 
     def test_crop_all_windows(self):
         scanner = ProcessScanner()
-        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/aidesk_test_crops")
+        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/proxeen_test_crops")
         img = self._make_test_image()
         windows = self._make_test_windows()
 
@@ -451,7 +451,7 @@ class TestWindowCropper:
 
     def test_organize_screen(self):
         scanner = ProcessScanner()
-        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/aidesk_test_crops")
+        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/proxeen_test_crops")
         img = self._make_test_image()
         windows = self._make_test_windows()
 
@@ -465,7 +465,7 @@ class TestWindowCropper:
 
     def test_organize_screen_to_dict(self):
         scanner = ProcessScanner()
-        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/aidesk_test_crops")
+        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/proxeen_test_crops")
         img = self._make_test_image()
         windows = self._make_test_windows()
 
@@ -523,7 +523,7 @@ class TestWindowCropper:
     def test_clamp_to_screen_bounds(self):
         """Windows partially off-screen should be clamped."""
         scanner = ProcessScanner()
-        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/aidesk_test_crops")
+        cropper = WindowCropper(process_scanner=scanner, crops_dir="/tmp/proxeen_test_crops")
         img = self._make_test_image(1920, 1080)
         windows = [
             VisibleWindow(

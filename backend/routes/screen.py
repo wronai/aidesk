@@ -43,7 +43,7 @@ async def get_screen_stats():
 @router.get("/screenshots")
 async def list_screenshots():
     """List all saved screenshots."""
-    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures")
+    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/proxeen_captures")
     if not os.path.exists(captures_dir):
         return []
 
@@ -61,7 +61,7 @@ async def list_screenshots():
 @router.get("/screenshots/{filename}")
 async def get_screenshot(filename: str):
     """Serve a specific screenshot file."""
-    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures")
+    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/proxeen_captures")
     file_path = os.path.join(captures_dir, filename)
     if not os.path.abspath(file_path).startswith(os.path.abspath(captures_dir)):
         raise HTTPException(status_code=403, detail="Access denied")
@@ -73,7 +73,7 @@ async def get_screenshot(filename: str):
 @router.get("/crops")
 async def list_crops():
     """List all saved per-app crop files."""
-    crops_dir = "/tmp/aidesk_crops"
+    crops_dir = "/tmp/proxeen_crops"
     if not os.path.exists(crops_dir):
         return []
 
@@ -91,7 +91,7 @@ async def list_crops():
 @router.get("/crops/{filename}")
 async def get_crop(filename: str):
     """Serve a specific crop file."""
-    crops_dir = "/tmp/aidesk_crops"
+    crops_dir = "/tmp/proxeen_crops"
     file_path = os.path.join(crops_dir, filename)
     if not os.path.abspath(file_path).startswith(os.path.abspath(crops_dir)):
         raise HTTPException(status_code=403, detail="Access denied")

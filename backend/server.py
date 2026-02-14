@@ -41,9 +41,9 @@ APP_VERSION = _read_version()
 # Configure nfo structured function logging (SQLite + Markdown)
 os.makedirs("logs", exist_ok=True)
 nfo_logger = nfo.configure(
-    name="aidesk",
+    name="proxeen",
     level=os.getenv("LOG_LEVEL", "INFO"),
-    sinks=["sqlite:logs/nfo_aidesk.db", "md:logs/nfo_aidesk.md"],
+    sinks=["sqlite:logs/nfo_proxeen.db", "md:logs/nfo_proxeen.md"],
     bridge_stdlib=True,
     force=True,
 )

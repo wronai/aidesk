@@ -165,7 +165,7 @@ class WindowCropper:
     def __init__(
         self,
         process_scanner: ProcessScanner,
-        crops_dir: str = "/tmp/aidesk_crops",
+        crops_dir: str = "/tmp/proxeen_crops",
         jpeg_quality: int = 70,
         min_window_size: int = 100,
         max_crop_dimension: int = 1280,

@@ -7,8 +7,8 @@ Kompletny przewodnik uruchomienia AI Desktop Assistant w 5 minut.
 ### 1. Pobierz projekt
 
 ```bash
-git clone https://github.com/wronai/aidesk.git
-cd aidesk
+git clone https://github.com/wronai/proxeen.git
+cd proxeen
 ```
 
 ### 2. Zainstaluj wymagania

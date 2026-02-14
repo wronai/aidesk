@@ -3,14 +3,14 @@
 ## Pobierz projekt
 
 ```bash
-git clone https://github.com/wronai/aidesk.git
-cd aidesk
+git clone https://github.com/wronai/proxeen.git
+cd proxeen
 ```
 
 ## Struktura projektu
 
 ```
-aidesk/
+proxeen/
 ├── backend/                     # Python backend (FastAPI)
 │   ├── server.py               # Główny serwer + API endpointy
 │   ├── capture.py              # Screen capture (mss/grim/PipeWire)
@@ -156,7 +156,7 @@ make run      # Uruchamia backend + overlay + otwiera config UI
 
 **Opcja B — ręcznie:**
 ```bash
-cd aidesk/backend
+cd proxeen/backend
 cp .env.example .env
 nano .env     # Linux/macOS
 notepad .env  # Windows

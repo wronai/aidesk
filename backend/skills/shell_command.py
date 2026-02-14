@@ -202,7 +202,7 @@ class ShellCommandSkill(BaseSkill):
 
         if option_id == "save_script":
             import tempfile, os
-            path = os.path.join(tempfile.gettempdir(), "aidesk_script.sh")
+            path = os.path.join(tempfile.gettempdir(), "proxeen_script.sh")
             with open(path, "w") as f:
                 f.write("#!/bin/bash\n" + text.strip() + "\n")
             os.chmod(path, 0o755)

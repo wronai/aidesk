@@ -1,3 +1,34 @@
+## [2.1.21] - 2026-02-14
+
+### Summary
+
+refactor(docs): configuration management system
+
+### Docs
+
+- docs: update INSTALL.md
+- docs: update QUICKSTART.md
+- docs: update README
+
+### Config
+
+- config: update goal.yaml
+
+### Other
+
+- update backend/capture.py
+- update backend/diagnostics.py
+- update backend/observability.py
+- update backend/routes/screen.py
+- update backend/server.py
+- update backend/settings.py
+- update backend/skills/shell_command.py
+- update backend/skills/voice_command.py
+- update backend/tests/test_units.py
+- update backend/tests/test_wayland_screencast.py
+- ... and 4 more
+
+
 ## [2.1.20] - 2026-02-14
 
 ### Summary

@@ -95,7 +95,7 @@ class Tracer:
     Keeps a rolling buffer of recent spans for debugging.
     """
 
-    def __init__(self, service_name: str = "aidesk", max_spans: int = 500):
+    def __init__(self, service_name: str = "proxeen", max_spans: int = 500):
         self.service_name = service_name
         self._max_spans = max_spans
         self._spans: List[Span] = []
@@ -188,7 +188,7 @@ class Tracer:
 _tracer: Optional[Tracer] = None
 
 
-def get_tracer(service_name: str = "aidesk") -> Tracer:
+def get_tracer(service_name: str = "proxeen") -> Tracer:
     """Get or create the global tracer instance."""
     global _tracer
     if _tracer is None:

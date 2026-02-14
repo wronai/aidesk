@@ -27,7 +27,7 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.aidesktop.assistant",
+    "appId": "com.proxeentop.assistant",
     "productName": "AI Desktop Assistant",
     "directories": {
       "output": "dist"

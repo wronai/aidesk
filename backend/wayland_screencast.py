@@ -10,9 +10,9 @@ Usage:
     python3 wayland_screencast.py
 
 Environment:
-    AIDESK_FRAME_PATH   - Output file path (default: /tmp/aidesk_wayland_frame.jpg)
-    AIDESK_FRAME_QUALITY - JPEG quality 1-100 (default: 80)
-    AIDESK_MAX_FPS       - Max frames per second (default: 1.0)
+    PROXEEN_FRAME_PATH   - Output file path (default: /tmp/proxeen_wayland_frame.jpg)
+    PROXEEN_FRAME_QUALITY - JPEG quality 1-100 (default: 80)
+    PROXEEN_MAX_FPS       - Max frames per second (default: 1.0)
 """
 import os
 import sys
@@ -25,13 +25,13 @@ gi.require_version('Gst', '1.0')
 gi.require_version('Gio', '2.0')
 from gi.repository import Gst, GLib, Gio
 
-OUTPUT_PATH = os.environ.get('AIDESK_FRAME_PATH', '/tmp/aidesk_wayland_frame.jpg')
-QUALITY = int(os.environ.get('AIDESK_FRAME_QUALITY', '80'))
-MAX_FPS = float(os.environ.get('AIDESK_MAX_FPS', '1.0'))
+OUTPUT_PATH = os.environ.get('PROXEEN_FRAME_PATH', '/tmp/proxeen_wayland_frame.jpg')
+QUALITY = int(os.environ.get('PROXEEN_FRAME_QUALITY', '80'))
+MAX_FPS = float(os.environ.get('PROXEEN_MAX_FPS', '1.0'))
 STATUS_PATH = OUTPUT_PATH + '.status'
 TOKEN_PATH = os.path.join(
     os.environ.get('XDG_DATA_HOME', os.path.expanduser('~/.local/share')),
-    'aidesk', 'screencast_restore_token'
+    'proxeen', 'screencast_restore_token'
 )
 
 SCREENCAST_IFACE = 'org.freedesktop.portal.ScreenCast'
@@ -64,7 +64,7 @@ class ScreenCastCapture:
 
     def _next_token(self):
         self.request_count += 1
-        return f'aidesk_{self.request_count}'
+        return f'proxeen_{self.request_count}'
 
     def _subscribe_response(self, token, callback):
         """Subscribe to portal Response signal for a specific request."""
@@ -121,7 +121,7 @@ class ScreenCastCapture:
             'CreateSession',
             GLib.Variant('(a{sv})', [{
                 'handle_token': GLib.Variant('s', token),
-                'session_handle_token': GLib.Variant('s', 'aidesk_capture'),
+                'session_handle_token': GLib.Variant('s', 'proxeen_capture'),
             }]),
         )
         self._log("CreateSession called, waiting for user permission...")
