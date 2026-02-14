@@ -79,8 +79,11 @@ class App {
 
     // Selection Panel events
     this.selectionPanel.addEventListener('analyze', (e) => this.analyzeSelection(e.detail.text));
+    this.selectionPanel.addEventListener('execute-skill', (e) => this.executeSkill(e.detail));
     this.selectionPanel.addEventListener('input-focus', () => this.setFocus(true));
     this.selectionPanel.addEventListener('input-blur', () => this.setFocus(false));
+    this.selectionPanel.addEventListener('panel-opened', () => this.setInteractive(true));
+    this.selectionPanel.addEventListener('panel-closed', () => this.setInteractive(false));
 
     // Header buttons
     if (this.btnMoveScreen) {
@@ -186,6 +189,21 @@ class App {
     }
   }
 
+  async executeSkill(detail) {
+    const { skill, option_id, text } = detail;
+    try {
+      const res = await fetch(`${BACKEND_URL}/skill/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill, option_id, text }),
+      });
+      const data = await res.json();
+      this.selectionPanel.showSkillResult(data);
+    } catch (e) {
+      this.selectionPanel.showSkillResult({ success: false, error: e.message });
+    }
+  }
+
   copyToClipboard(text) {
     navigator.clipboard.writeText(text);
   }
@@ -197,20 +215,38 @@ class App {
     }
   }
 
+  /**
+   * Make entire overlay interactive (for selection panel, popups) or restore click-through.
+   * This is the KEY fix: when panel is open, the whole window catches clicks.
+   */
+  setInteractive(interactive) {
+    if (!window.electron) return;
+    if (interactive) {
+      window.electron.setIgnoreMouseEvents(false);
+      window.electron.setFocusable(true);
+    } else {
+      window.electron.setIgnoreMouseEvents(true, { forward: true });
+      window.electron.setFocusable(false);
+    }
+  }
+
   setupMouseForwarding() {
     if (!window.electron || !window.electron.setIgnoreMouseEvents) return;
     
-    // Components handle their own interactivity, but we need global forwarding logic
-    // Actually, css :hover based forwarding is easiest
-    const interactiveSelectors = 'select, button, input, textarea, ocr-controls, agent-actions, selection-panel, .header, .resize-handle';
+    // When mouse enters any interactive area, disable click-through
+    const interactiveSelectors = 'select, button, input, textarea, ocr-controls, agent-actions, selection-panel, .header, .footer, .resize-handle, .skill-option-btn, .btn-agent, .btn-analyze, .btn-close-panel, .btn-header';
 
     document.addEventListener('mouseover', (e) => {
+      // If selection panel is visible, always interactive
+      if (this.selectionPanel && this.selectionPanel.style.display !== 'none') return;
       if (e.target.closest(interactiveSelectors)) {
         window.electron.setIgnoreMouseEvents(false);
       }
     });
 
     document.addEventListener('mouseout', (e) => {
+      // If selection panel is visible, stay interactive
+      if (this.selectionPanel && this.selectionPanel.style.display !== 'none') return;
       if (e.target.closest(interactiveSelectors)) {
         window.electron.setIgnoreMouseEvents(true, { forward: true });
       }

@@ -29,6 +29,8 @@ class TestAppClassification:
         assert WindowManager._classify_app("jetbrains-idea", "JetBrains", "Project") == AppCategory.IDE
         assert WindowManager._classify_app("sublime_text", "Sublime", "file.py") == AppCategory.IDE
         assert WindowManager._classify_app("windsurf", "Windsurf", "project") == AppCategory.IDE
+        # Test title fallback for Windsurf (often shows as generic Electron app)
+        assert WindowManager._classify_app("electron", "Electron", "c2004 - Windsurf Settings") == AppCategory.IDE
 
     def test_terminal_detection(self):
         assert WindowManager._classify_app("alacritty", "Alacritty", "~") == AppCategory.TERMINAL

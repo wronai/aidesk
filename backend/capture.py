@@ -530,8 +530,8 @@ def create_capture_from_env(settings=None) -> SmartScreenCapture:
     return SmartScreenCapture(
         change_threshold=settings.change_threshold,
         min_interval=settings.min_capture_interval,
-        idle_threshold=30,  # Default, add to Settings if needed
-        idle_interval=10.0,  # Default, add to Settings if needed
+        idle_threshold=settings.idle_threshold,
+        idle_interval=settings.idle_interval,
         max_dimension=settings.max_dimension,
         jpeg_quality=settings.jpeg_quality,
         captures_dir=settings.captures_dir,

@@ -426,6 +426,85 @@ class BuildContextStep:
         # Base context from history
         ctx.context_str = self._context.get_context_string(n=5, max_length=500)
 
+        latest_transcript = self._state.get("latest_transcript", "")
+
+        tier1_blocks: List[str] = []
+        if ctx.monitor_description:
+            tier1_blocks.append(f"🖥️ Monitory: {ctx.monitor_description}")
+
+        sm = self._state.get("semantic_memory")
+        if sm:
+            try:
+                query_parts: List[str] = []
+                if ctx.active_window:
+                    title = getattr(ctx.active_window, "title", "") or ""
+                    if title:
+                        query_parts.append(title)
+                if ctx.window_context_str:
+                    query_parts.append(ctx.window_context_str)
+                if ctx.screen_summary:
+                    query_parts.append(ctx.screen_summary)
+                if latest_transcript:
+                    query_parts.append(latest_transcript)
+
+                query = "\n".join([p for p in query_parts if p]).strip()
+                recalled = sm.recall_relevant(query[:500], k=3) if query else sm.recall_recent(n=3)
+                ctx.recalled_memories = recalled or []
+
+                if ctx.recalled_memories:
+                    lines = ["🧠 Pamięć (podobne sytuacje):"]
+                    for item in ctx.recalled_memories[:3]:
+                        content = getattr(item, "content", "") or ""
+                        if len(content) > 220:
+                            content = content[:217] + "..."
+
+                        ts_val = getattr(item, "timestamp", 0.0) or 0.0
+                        ts = time.strftime("%H:%M", time.localtime(ts_val)) if ts_val else ""
+                        score = float(getattr(item, "relevance_score", 0.0) or 0.0)
+                        if score > 0:
+                            lines.append(f"- [{ts}] ({score:.2f}) {content}")
+                        else:
+                            lines.append(f"- [{ts}] {content}")
+
+                    tier1_blocks.append("\n".join(lines))
+            except Exception as e:
+                logger.warning("Semantic memory recall failed", error=str(e))
+
+        lib = self._state.get("action_library")
+        if lib and getattr(lib, "enabled", False) and ctx.active_window is not None:
+            try:
+                cat = (
+                    ctx.active_window.category.value
+                    if hasattr(ctx.active_window.category, "value")
+                    else str(ctx.active_window.category)
+                )
+                templates = [
+                    t for t in getattr(lib, "_templates", {}).values()
+                    if getattr(t, "app_category", "") == cat
+                ]
+                templates.sort(
+                    key=lambda t: (
+                        float(getattr(t, "confidence", 0.0) or 0.0),
+                        int(getattr(t, "times_approved", 0) or 0),
+                        float(getattr(t, "last_used", 0.0) or 0.0),
+                    ),
+                    reverse=True,
+                )
+                top_templates = templates[:5]
+                if top_templates:
+                    ctx.template_actions = [t.to_dict() for t in top_templates]
+                    lines = ["🧩 Szablony działań (sprawdzone):"]
+                    for t in top_templates:
+                        desc = (getattr(t, "description", "") or "").strip() or getattr(t, "template_id", "")
+                        cmd = getattr(t, "command_template", "") or ""
+                        risk = getattr(t, "risk_level", "") or ""
+                        conf = float(getattr(t, "confidence", 0.0) or 0.0)
+                        auto = " AUTO" if bool(getattr(t, "should_auto_execute", False)) else ""
+                        lines.append(f"- ({conf:.2f}, {risk}{auto}) {desc}: `{cmd}`")
+                    tier1_blocks.append("\n".join(lines))
+            except Exception as e:
+                logger.warning("Action template hinting failed", error=str(e))
+
         # Prepend focus window info (where user is actively working, based on diffs)
         if ctx.organized_screen and ctx.organized_screen.focus_window:
             fw = ctx.organized_screen.focus_window
@@ -453,8 +532,10 @@ class BuildContextStep:
         if ctx.prompt_addon:
             ctx.full_context = f"{ctx.prompt_addon}\n\n{ctx.context_str}"
 
+        if tier1_blocks:
+            ctx.full_context = f"{'\n\n'.join(tier1_blocks)}\n\n{ctx.full_context}"
+
         # Include latest speech transcript
-        latest_transcript = self._state.get("latest_transcript", "")
         if latest_transcript:
             ctx.full_context = f"🎤 Użytkownik powiedział: {latest_transcript}\n\n{ctx.full_context}"
 

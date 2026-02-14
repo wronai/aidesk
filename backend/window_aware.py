@@ -345,7 +345,7 @@ class WindowManager:
 
         # Fallback: check title for clues
         title_lower = title.lower()
-        if any(kw in title_lower for kw in ["vim", "nvim", "nano", "helix"]):
+        if any(kw in title_lower for kw in ["vim", "nvim", "nano", "helix", "windsurf", "cursor"]):
             return AppCategory.IDE
         if any(kw in title_lower for kw in ["bash", "zsh", "fish", "sh -"]):
             return AppCategory.TERMINAL

@@ -287,6 +287,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve overlay static files
+overlay_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "overlay")
+if os.path.exists(overlay_dir):
+    app.mount("/overlay", StaticFiles(directory=overlay_dir, html=True), name="overlay")
+    logger.info(f"Serving overlay at /overlay from {overlay_dir}")
+else:
+    logger.warning(f"Overlay directory not found at {overlay_dir}")
+
 
 # ===== Register all route modules =====
 from routes import register_all_routes

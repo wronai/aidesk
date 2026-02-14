@@ -23,6 +23,9 @@ class PluginLoader:
     """
 
     def __init__(self, plugin_dir: str = "plugins", bus: EventBus = None, app_state: Dict[str, Any] = None):
+        # Resolve default relative path to backend/plugins regardless of process CWD.
+        if plugin_dir == "plugins":
+            plugin_dir = os.path.dirname(__file__)
         self.plugin_dir = plugin_dir
         self.bus = bus
         self.app_state = app_state
