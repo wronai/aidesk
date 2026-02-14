@@ -60,8 +60,15 @@ Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym i rozpoznawanie
 
 - Python 3.11+
 - Node.js 18+
-- Konto API: [Deepgram](https://deepgram.com) (darmowe $200 kredytu)
-- Konto API: [Google AI Studio](https://makersuite.google.com/app/apikey) (darmowy Gemini)
+- **Opcjonalnie:** [Ollama](https://ollama.ai) (lokalne modele AI — zero kosztów)
+- **Opcjonalnie:** klucze API do zdalnych providerów (Gemini, OpenAI, Claude itd.)
+
+### Szybka instalacja (Makefile)
+
+```bash
+make setup    # tworzy venv, instaluje deps, kopiuje .env
+make run      # uruchamia backend + overlay
+```
 
 ### Krok 1: Backend (Python)
 
@@ -70,33 +77,25 @@ cd backend
 pip install -r requirements.txt
 ```
 
-### Krok 2: Konfiguracja API
+### Krok 2: Konfiguracja modelu AI
 
-Skopiuj `.env.example` do `.env` i wypełnij swoimi kluczami:
+Skopiuj `.env.example` do `.env` i wybierz model:
 
 ```bash
 cp .env.example .env
-nano .env  # lub notepad .env na Windows
+nano .env
 ```
 
 ```env
-# Backend API Keys
-DEEPGRAM_API_KEY=your_deepgram_key_here
-GEMINI_API_KEY=your_gemini_key_here
-OPENAI_API_KEY=your_openai_key_here  # opcjonalnie
+# Lokalny model (zero kosztów, wymaga Ollama):
+VISION_MODEL=ollama/llava
 
-# Vision Provider (gemini | openai | claude)
-VISION_PROVIDER=gemini
-
-# STT Language
-STT_LANGUAGE=pl
-
-# Change Detection Sensitivity (1-20, lower = more sensitive)
-CHANGE_THRESHOLD=8
-
-# Capture Interval (seconds)
-MIN_CAPTURE_INTERVAL=1.0
+# Lub zdalny (wymaga klucza API):
+# VISION_MODEL=gemini/gemini-2.0-flash
+# GEMINI_API_KEY=twój_klucz
 ```
+
+> 📖 Pełna lista providerów i modeli: **[PROVIDERS.md](PROVIDERS.md)**
 
 ### Krok 3: Frontend (Electron)
 
@@ -173,11 +172,15 @@ ai-desktop-assistant/
 
 ### Zmiana modelu Vision AI
 
-W `.env` ustaw `VISION_PROVIDER`:
+W `.env` ustaw `VISION_MODEL` (format LiteLLM: `provider/model`):
 
-- `gemini` - Gemini 2.0 Flash (najtańszy, $0.10/1M tokens)
-- `openai` - GPT-4o-mini (balans cena/jakość)
-- `claude` - Claude Sonnet 4.5 (najlepsza jakość, najdroższy)
+- `ollama/llava` - Lokalne, zero kosztów (domyślne)
+- `gemini/gemini-2.0-flash` - Gemini (najtańszy cloud, $0.10/1M tokens)
+- `gpt-4o-mini` - OpenAI (balans cena/jakość)
+- `anthropic/claude-sonnet-4-20250514` - Claude (najlepsza jakość)
+- `groq/llava-v1.5-7b-4096-preview` - Groq (najszybszy, darmowy tier)
+
+> Pełna dokumentacja: **[PROVIDERS.md](PROVIDERS.md)**
 
 ### Dostosowanie czułości detekcji zmian
 
@@ -248,11 +251,10 @@ python backend/analyze_costs.py
 
 ### Wersja lokalna (zero cloud API calls)
 
-Zamień w `analyzer.py`:
-```python
-# Użyj Ollama z lokalnym LLaVA
-provider = "ollama"
-model = "llava:13b"
+W `backend/.env` ustaw model Ollama:
+```env
+VISION_MODEL=ollama/llava:13b
+ENABLE_STT=false
 ```
 
 ## 🤝 Contributing

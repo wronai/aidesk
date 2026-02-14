@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 
 from capture import create_capture_from_env
 from analyzer import create_analyzer_from_env
+from ocr_engines import create_ocr_manager_from_env
 from stt import create_stt_from_env
 from context import ContextManager
 
@@ -40,6 +41,7 @@ app_state = {
     "subscribers": [],
     "capture": None,
     "analyzer": None,
+    "ocr_manager": None,
     "stt": None,
     "stats": {
         "start_time": time.time(),
@@ -124,6 +126,8 @@ async def screen_analysis_loop():
                         "tokens": analysis.get("tokens", 0),
                         "cost": round(analysis.get("cost", 0.0), 6),
                         "provider": analysis.get("provider", "unknown"),
+                        "mode": analysis.get("mode", "vision_only"),
+                        "ocr": analysis.get("ocr"),
                     },
                 )
 
@@ -166,7 +170,8 @@ async def lifespan(app: FastAPI):
 
     # Initialize components
     app_state["capture"] = create_capture_from_env()
-    app_state["analyzer"] = create_analyzer_from_env()
+    app_state["ocr_manager"] = create_ocr_manager_from_env()
+    app_state["analyzer"] = create_analyzer_from_env(ocr_manager=app_state["ocr_manager"])
 
     # Start screen analysis loop
     screen_task = asyncio.create_task(screen_analysis_loop())
@@ -314,6 +319,9 @@ async def stats():
     if app_state["analyzer"]:
         stats_data["analyzer"] = app_state["analyzer"].get_stats()
 
+    if app_state["ocr_manager"]:
+        stats_data["ocr"] = app_state["ocr_manager"].get_stats()
+
     if app_state["stt"]:
         stats_data["stt"] = app_state["stt"].get_stats()
 
@@ -336,10 +344,134 @@ async def health():
             "components": {
                 "capture": app_state["capture"] is not None,
                 "analyzer": app_state["analyzer"] is not None,
+                "ocr": app_state["ocr_manager"] is not None,
                 "stt": app_state["stt"] is not None,
             },
         },
     )
+
+
+# ===== OCR Management Endpoints =====
+
+@app.get("/ocr/engines")
+async def ocr_engines():
+    """List available OCR engines and their status."""
+    if not app_state["ocr_manager"]:
+        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
+    return {
+        "engines": app_state["ocr_manager"].get_available_engines(),
+        "active": app_state["ocr_manager"].active_engine_name,
+    }
+
+
+@app.post("/ocr/engine/{engine_name}")
+async def set_ocr_engine(engine_name: str):
+    """Switch active OCR engine at runtime."""
+    if not app_state["ocr_manager"]:
+        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
+
+    success = app_state["ocr_manager"].set_engine(engine_name)
+    if not success:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f"Engine '{engine_name}' not available",
+                "available": list(app_state["ocr_manager"].engines.keys()),
+            },
+        )
+
+    await broadcast("ocr_engine_changed", {
+        "engine": engine_name,
+        "available": list(app_state["ocr_manager"].engines.keys()),
+    })
+
+    return {"engine": engine_name, "status": "active"}
+
+
+@app.post("/ocr/benchmark")
+async def ocr_benchmark():
+    """
+    Run benchmark: all OCR engines on current screen capture.
+    Returns comparative results for A/B testing.
+    """
+    if not app_state["ocr_manager"]:
+        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
+    if not app_state["capture"]:
+        return JSONResponse(status_code=503, content={"error": "Capture not initialized"})
+
+    # Force a fresh capture for benchmark
+    capture = app_state["capture"]
+    import mss
+    from PIL import Image
+    from io import BytesIO
+    import base64
+
+    sct = capture.sct
+    monitor = sct.monitors[1]
+    raw = sct.grab(monitor)
+    img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+    img_resized = img.resize(
+        (capture.screen_width, capture.screen_height), Image.Resampling.LANCZOS
+    )
+    buffer = BytesIO()
+    img_resized.save(buffer, format="JPEG", quality=capture.jpeg_quality, optimize=True)
+    image_b64 = base64.b64encode(buffer.getvalue()).decode()
+
+    # Run benchmark
+    result = app_state["ocr_manager"].benchmark(image_b64)
+
+    await broadcast("ocr_benchmark", result)
+
+    return result
+
+
+@app.get("/ocr/stats")
+async def ocr_stats():
+    """Get OCR engine statistics."""
+    if not app_state["ocr_manager"]:
+        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
+    return app_state["ocr_manager"].get_stats()
+
+
+# ===== Analysis Mode Endpoints =====
+
+@app.get("/mode")
+async def get_analysis_mode():
+    """Get current analysis mode."""
+    analyzer = app_state["analyzer"]
+    if not analyzer:
+        return JSONResponse(status_code=503, content={"error": "Analyzer not initialized"})
+    return {
+        "mode": analyzer.analysis_mode,
+        "available_modes": [
+            {"id": "vision_only", "name": "Vision Only", "desc": "Pure VLM – obraz → LLM"},
+            {"id": "ocr_only", "name": "OCR Only", "desc": "Tylko OCR – najszybszy, bez LLM"},
+            {"id": "hybrid", "name": "Hybrid (OCR→LLM)", "desc": "OCR tekst → LLM (rekomendowany)"},
+            {"id": "ocr_plus_vision", "name": "OCR + Vision", "desc": "OCR tekst + obraz → VLM (najdokładniejszy)"},
+        ],
+    }
+
+
+@app.post("/mode/{mode_name}")
+async def set_analysis_mode(mode_name: str):
+    """Switch analysis mode at runtime."""
+    analyzer = app_state["analyzer"]
+    if not analyzer:
+        return JSONResponse(status_code=503, content={"error": "Analyzer not initialized"})
+
+    success = analyzer.set_mode(mode_name)
+    if not success:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f"Invalid mode '{mode_name}'",
+                "valid_modes": ["vision_only", "ocr_only", "hybrid", "ocr_plus_vision"],
+            },
+        )
+
+    await broadcast("mode_changed", {"mode": mode_name})
+
+    return {"mode": mode_name, "status": "active"}
 
 
 if __name__ == "__main__":

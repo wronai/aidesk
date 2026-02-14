@@ -16,6 +16,12 @@ NPM         := $(shell which npm 2>/dev/null || echo "source $(NVM_DIR)/nvm.sh &
 # Fix miniconda libstdc++ conflict with system portaudio/JACK
 export LD_PRELOAD := /usr/lib/x86_64-linux-gnu/libstdc++.so.6
 
+# Read PORT from .env (default 8000)
+PORT := $(shell grep -s '^PORT=' $(BACKEND_DIR)/.env | cut -d= -f2 | tr -d ' ')
+ifeq ($(PORT),)
+  PORT := 8000
+endif
+
 .PHONY: help setup setup-backend setup-overlay env install run run-backend run-overlay stop clean test status
 
 help: ## Show this help
@@ -45,17 +51,17 @@ env: ## Create .env from .env.example (if missing)
 
 # ---- Run ----
 
-run: ## Run backend + overlay (backend in background)
+run: stop ## Run backend + overlay (backend in background)
 	@if [ ! -f $(BACKEND_DIR)/.env ]; then \
 		echo "❌ backend/.env not found. Run 'make setup' first."; exit 1; \
 	fi
-	@echo "🚀 Starting backend..."
+	@echo "🚀 Starting backend on port $(PORT)..."
 	$(PYTHON) $(BACKEND_DIR)/server.py &
 	@sleep 2
 	@echo "🖥️  Starting overlay..."
 	$(NPM) start --prefix $(OVERLAY_DIR)
 
-run-backend: ## Run backend only
+run-backend: stop ## Run backend only
 	@if [ ! -f $(BACKEND_DIR)/.env ]; then \
 		echo "❌ backend/.env not found. Run 'make setup' first."; exit 1; \
 	fi
@@ -73,10 +79,10 @@ test: ## Run backend test_setup.py
 	$(PYTHON) $(BACKEND_DIR)/test_setup.py
 
 status: ## Check if backend is running
-	@curl -s http://127.0.0.1:8000/health 2>/dev/null && echo "" || echo "❌ Backend not running"
+	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"
 
-stop: ## Stop backend (kill uvicorn on port 8000)
-	@-lsof -ti :8000 | xargs kill -9 2>/dev/null && echo "🛑 Backend stopped" || echo "ℹ️  No backend process found"
+stop: ## Stop backend (kill uvicorn on configured port)
+	@-fuser -k $(PORT)/tcp 2>/dev/null && sleep 1 && echo "🛑 Backend stopped (port $(PORT))" || true
 
 clean: ## Remove venv and node_modules
 	rm -rf $(VENV_DIR)

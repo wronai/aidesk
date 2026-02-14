@@ -179,29 +179,28 @@ SmartScreenCapture
 - JPEG compression (jakość 60 = 40% mniej danych)
 - Resize do 1280x720 (30-50% mniej tokenów)
 
-#### analyzer.py - Vision AI
+#### analyzer.py - Vision AI (LiteLLM)
 ```python
 ScreenAnalyzer
-├── __init__() - Initialize provider (gemini/openai/claude)
+├── __init__(model, api_base, api_key, ...) - Initialize LiteLLM
 ├── analyze(image_b64, context) → Dict
 │   ├── Acquire rate limit token
-│   ├── Build prompt with context
-│   ├── Call provider API
-│   │   ├── _analyze_gemini()
-│   │   ├── _analyze_openai()
-│   │   └── _analyze_claude()
-│   ├── Track tokens + cost
+│   ├── Build OpenAI-compatible vision messages
+│   ├── litellm.acompletion() → unified call
+│   │   (routes to: Ollama, Gemini, OpenAI, Claude, Groq, etc.)
+│   ├── litellm.completion_cost() → auto cost tracking
 │   └── Return response
+├── _detect_provider(model) → str
 └── TokenBucketLimiter
     ├── Max tokens: 5
     ├── Refill rate: 1 token/second
     └── acquire() - Wait if no tokens
 ```
 
-**Pricing (per 1000 requests, 1280x720 images):**
-- Gemini 2.0 Flash: ~$2.00
-- GPT-4o-mini: ~$3.50
-- Claude Sonnet: ~$60.00
+**Obsługiwane providery (via LiteLLM):**
+- Lokalne: Ollama, LM Studio, vLLM, llama.cpp (zero kosztów)
+- Zdalne: Gemini, OpenAI, Claude, Groq, DeepSeek, Mistral
+- Pełna dokumentacja: [PROVIDERS.md](PROVIDERS.md)
 
 #### stt.py - Speech-to-Text
 ```python
@@ -411,10 +410,9 @@ Python Backend
 ├── mss (screen capture)
 ├── imagehash (perceptual hashing)
 │   └── PIL (image processing)
-├── Vision AI
-│   ├── google-generativeai (Gemini)
-│   ├── openai (GPT-4)
-│   └── anthropic (Claude)
+├── litellm (unified AI gateway → 100+ providers)
+│   ├── Local: Ollama, LM Studio, vLLM, llama.cpp
+│   └── Cloud: Gemini, OpenAI, Claude, Groq, DeepSeek, Mistral
 ├── deepgram-sdk (STT)
 │   └── websockets
 └── sounddevice (audio input)

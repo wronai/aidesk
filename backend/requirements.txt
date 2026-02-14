@@ -12,10 +12,13 @@ imagehash==4.3.1
 opencv-python-headless==4.10.0.84
 numpy==2.2.2
 
-# AI/ML APIs
-google-generativeai==0.8.3
-openai==1.59.8
-anthropic==0.42.0
+# AI/ML - LiteLLM unified gateway (supports 100+ providers)
+litellm>=1.55.0
+
+# Provider SDKs (installed by litellm as needed, pinned for stability)
+google-generativeai>=0.8.3
+openai>=1.59.8
+anthropic>=0.42.0
 
 # Speech-to-Text
 deepgram-sdk==3.11.0
