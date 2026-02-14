@@ -1,3 +1,17 @@
+## [2.1.24] - 2026-02-14
+
+### Summary
+
+feat(tests): deep code analysis engine
+
+### Other
+
+- update backend/.env.example
+- update backend/tests/test_multi_monitor.py
+- update backend/tests/test_semantic_memory.py
+- update backend/tests/test_window_aware.py
+
+
 ## [2.1.23] - 2026-02-14
 
 ### Summary
