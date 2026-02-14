@@ -61,6 +61,13 @@
         .section-collapse.collapsed { max-height: 0; }
         .chevron { transition: transform 0.3s; display: inline-block; }
         .chevron.rotated { transform: rotate(-90deg); }
+        .alt-combo { display: flex; gap: 0.5rem; align-items: stretch; }
+        .alt-combo select { flex: 0 0 auto; max-width: 55%; min-width: 120px; font-size: 0.8rem; }
+        .alt-combo input { flex: 1 1 auto; min-width: 0; }
+        .alt-badge {
+            display: inline-block; font-size: 0.6rem; padding: 1px 6px; border-radius: 4px;
+            background: #1e3a5f; color: #93c5fd; margin-left: 0.5rem; vertical-align: middle;
+        }
         @keyframes pulse-save { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); } 50% { box-shadow: 0 0 0 8px rgba(59,130,246,0); } }
         .save-pulse { animation: pulse-save 1.5s infinite; }
     </style>
@@ -134,6 +141,7 @@
     let configData = {};
     let pendingChanges = {};
     let audioDevices = {};
+    let alternatives = {};
 
     // ─── Load config ─────────────────────────────────────────
     async function loadConfig() {
@@ -141,6 +149,7 @@
             const res = await fetch('/config');
             configData = await res.json();
             audioDevices = configData.audio || {};
+            alternatives = configData.alternatives || {};
             renderAudioDevices();
             renderConfigGroups();
             pendingChanges = {};
@@ -246,10 +255,12 @@
 
             for (const f of group.fields) {
                 const val = values[f.key] !== undefined ? values[f.key] : '';
+                const altCount = (alternatives[f.key] || []).length;
+                const altBadge = altCount > 0 ? `<span class="alt-badge">${altCount} presetów</span>` : '';
                 html += `
                     <div class="field-row px-5 py-3 flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                         <div class="md:w-1/3">
-                            <label class="text-sm font-medium text-gray-300">${escHtml(f.label)}</label>
+                            <label class="text-sm font-medium text-gray-300">${escHtml(f.label)}${altBadge}</label>
                             <div class="text-xs text-gray-500 mt-0.5">${escHtml(f.help || '')}</div>
                         </div>
                         <div class="md:w-2/3">
@@ -307,8 +318,62 @@
             return `<input type="text" value="${escAttr(val)}" onchange="markChanged('${key}', this.value)" placeholder="(wybierz w sekcji Audio powyżej)" class="opacity-60">`;
         }
 
-        // Default: text
+        // Default: text — with alternatives combo if available
+        if (alternatives[key] && alternatives[key].length > 0) {
+            return renderAltCombo(key, val, alternatives[key]);
+        }
         return `<input type="text" value="${escAttr(val)}" onchange="markChanged('${key}', this.value)">`;
+    }
+
+    // ─── Alternatives combo (select + editable input) ────────
+    function renderAltCombo(key, currentVal, alts) {
+        // Build select options: "Własna wartość..." + all alternatives
+        const currentInAlts = alts.some(a => a.value === currentVal);
+        let opts = `<option value="__custom__" ${!currentInAlts ? 'selected' : ''}>✏️ Własna wartość...</option>`;
+        for (const a of alts) {
+            const sel = a.value === currentVal ? 'selected' : '';
+            opts += `<option value="${escAttr(a.value)}" ${sel}>${escHtml(a.label)}</option>`;
+        }
+
+        return `
+            <div class="alt-combo">
+                <select onchange="altSelect('${key}', this)" id="alt-sel-${key}">
+                    ${opts}
+                </select>
+                <input type="text" value="${escAttr(currentVal)}" 
+                       onchange="markChanged('${key}', this.value)" 
+                       oninput="altInputSync('${key}', this)"
+                       id="alt-inp-${key}"
+                       placeholder="wpisz lub wybierz z listy">
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                <span class="alt-badge">${alts.length} preset${alts.length > 1 ? 'ów' : ''}</span>
+                Wybierz z listy lub wpisz własną wartość
+            </div>
+        `;
+    }
+
+    function altSelect(key, selectEl) {
+        const inp = document.getElementById('alt-inp-' + key);
+        if (selectEl.value === '__custom__') {
+            // Focus the input for manual editing, don't change value
+            inp.focus();
+            return;
+        }
+        inp.value = selectEl.value;
+        markChanged(key, selectEl.value);
+    }
+
+    function altInputSync(key, inputEl) {
+        // When user types manually, switch select to "Własna wartość..."
+        const sel = document.getElementById('alt-sel-' + key);
+        const alts = alternatives[key] || [];
+        const match = alts.find(a => a.value === inputEl.value);
+        if (match) {
+            sel.value = match.value;
+        } else {
+            sel.value = '__custom__';
+        }
     }
 
     // ─── Change tracking ─────────────────────────────────────

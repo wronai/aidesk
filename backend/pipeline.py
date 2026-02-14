@@ -248,6 +248,16 @@ class BuildContextStep:
         # Base context from history
         ctx.context_str = self._context.get_context_string(n=5, max_length=500)
 
+        # Prepend focus window info (where user is actively working, based on diffs)
+        if ctx.organized_screen and ctx.organized_screen.focus_window:
+            fw = ctx.organized_screen.focus_window
+            ctx.context_str = (
+                f"🎯 Fokus pracy (wykryto zmiany): {fw.window.wm_class_name or fw.window.title} "
+                f"({fw.window.category.value}, zmiana: {fw.change_score:.0f})\n"
+                f"Skup się na tym oknie — tu użytkownik aktualnie pracuje.\n\n"
+                + ctx.context_str
+            )
+
         # Prepend organized screen summary
         if ctx.screen_summary:
             ctx.context_str = f"📊 Ekran: {ctx.screen_summary}\n\n{ctx.context_str}"
@@ -377,10 +387,20 @@ class BuildBroadcastStep:
             }
 
         if ctx.organized_screen:
+            org = ctx.organized_screen
             data["organized_screen"] = {
-                "total_windows": ctx.organized_screen.total_windows,
-                "summary": ctx.organized_screen.screen_summary,
-                "categories": list(ctx.organized_screen.by_category.keys()),
+                "total_windows": org.total_windows,
+                "summary": org.screen_summary,
+                "categories": list(org.by_category.keys()),
+                "focus_window": (
+                    {
+                        "app": org.focus_window.window.wm_class_name or org.focus_window.window.title,
+                        "category": org.focus_window.window.category.value,
+                        "change_score": round(org.focus_window.change_score, 1),
+                    }
+                    if org.focus_window else None
+                ),
+                "changed_count": len(org.changed_windows),
             }
 
         if ctx.agent_actions:

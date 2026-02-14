@@ -1,41 +1,53 @@
-# 📦 Instalacja AI Desktop Assistant
+# 📦 Instalacja AI Desktop Assistant (v2.0.9)
 
-## Pobierz paczkę
-
-Pobierz `ai-desktop-assistant-v1.0.0.zip` i rozpakuj w wybranym miejscu.
+## Pobierz projekt
 
 ```bash
-unzip ai-desktop-assistant-v1.0.0.zip
-cd ai-desktop-assistant
+git clone https://github.com/wronai/aidesk.git
+cd aidesk
 ```
 
 ## Struktura projektu
 
 ```
-ai-desktop-assistant/
-├── backend/                 # Python backend (FastAPI)
-│   ├── server.py           # Główny serwer
-│   ├── capture.py          # Screen capture
-│   ├── analyzer.py         # Vision AI
-│   ├── stt.py             # Speech-to-text
-│   ├── context.py         # Context manager
-│   ├── requirements.txt   # Python dependencies
-│   ├── .env.example       # Szablon konfiguracji
-│   └── test_setup.py      # Weryfikacja instalacji
-├── overlay/                # Electron overlay (UI)
-│   ├── main.js            # Electron main process
-│   ├── preload.js         # Preload script
-│   ├── index.html         # UI template
-│   ├── styles.css         # Stylowanie
-│   ├── app.js             # Frontend logic
-│   └── package.json       # Node dependencies
-├── logs/                   # Logi (tworzone automatycznie)
-├── start.sh               # Skrypt startowy (Linux/macOS)
-├── start.bat              # Skrypt startowy (Windows)
-├── README.md              # Pełna dokumentacja
-├── QUICKSTART.md          # Szybki start
-├── CHANGELOG.md           # Historia zmian
-└── LICENSE                # Licencja MIT
+aidesk/
+├── backend/                     # Python backend (FastAPI)
+│   ├── server.py               # Główny serwer + API endpointy
+│   ├── capture.py              # Screen capture (mss/grim/PipeWire)
+│   ├── analyzer.py             # Vision AI (LiteLLM → 100+ providerów)
+│   ├── ocr_engines.py          # OCR Manager (PaddleOCR/EasyOCR/Tesseract)
+│   ├── stt.py                  # Deepgram STT streaming
+│   ├── context.py              # Context Manager
+│   ├── window_aware.py         # Window Awareness (xdotool/xprop)
+│   ├── app_profiles.py         # Per-app analysis profiles
+│   ├── shell_agent.py          # Shell Agent (suggest + execute)
+│   ├── process_scanner.py      # Skanowanie okien + procesów
+│   ├── window_cropper.py       # Per-app wycinki ze screenshota
+│   ├── event_bus.py            # EventBus + EventStore (Event Sourcing)
+│   ├── pipeline.py             # 8-step Pipeline (SOLID)
+│   ├── command_handlers.py     # CQRS write side
+│   ├── query_handlers.py       # CQRS read side + ReadModel
+│   ├── protocols.py            # 11 Protocol interfaces
+│   ├── config_service.py       # .env read/write + audio devices
+│   ├── diagnostics.py          # Auto-diagnostics (15 checks)
+│   ├── wayland_screencast.py   # PipeWire ScreenCast (Wayland)
+│   ├── config.html             # Web UI konfiguracji
+│   ├── screenshots.html        # Screenshot browser
+│   ├── requirements.txt        # Python dependencies
+│   ├── .env.example            # Szablon konfiguracji
+│   ├── test_setup.py           # Weryfikacja instalacji (12 checks)
+│   └── tests/                  # 75 testów (68 unit + 7 e2e)
+├── overlay/                     # Electron overlay (UI)
+│   ├── main.js / app.js / index.html / styles.css
+│   └── package.json
+├── Makefile                     # setup, run, stop, test, status, clean
+├── logs/                        # Logi (tworzone automatycznie)
+├── README.md                    # Główna dokumentacja
+├── ARCHITECTURE.md              # Architektura szczegółowo
+├── PROVIDERS.md                 # Konfiguracja providerów AI
+├── QUICKSTART.md                # Szybki start
+├── CHANGELOG.md                 # Historia zmian
+└── LICENSE                      # Apache License
 ```
 
 ## Krok po kroku
@@ -51,6 +63,8 @@ ai-desktop-assistant/
 - **Python 3.11+** - https://www.python.org/downloads/
 - **Node.js 18+** - https://nodejs.org/
 - **Git** (opcjonalnie) - https://git-scm.com/
+- **Linux:** `xdotool`, `xprop`, `xrandr` (Window Awareness)
+- **Opcjonalnie:** `tesseract-ocr` (OCR)
 
 #### Sprzęt
 - CPU: Dowolny nowoczesny procesor (2+ rdzenie)
@@ -78,12 +92,13 @@ brew install python@3.11
 # Ubuntu/Debian
 sudo apt update
 sudo apt install python3.11 python3-pip python3-venv
+sudo apt install xdotool xprop xrandr tesseract-ocr tesseract-ocr-pol
 
 # Fedora
-sudo dnf install python3.11
+sudo dnf install python3.11 xdotool xprop xrandr tesseract
 
 # Arch
-sudo pacman -S python
+sudo pacman -S python xdotool xorg-xprop xorg-xrandr tesseract
 ```
 
 ### 3. Instalacja Node.js (jeśli nie masz)
@@ -398,6 +413,3 @@ print(model.generate_content("test"))
 - 💬 Community: Discord (link w README)
 - 📧 Kontakt: support@example.com
 
----
-
-Powodzenia! 🚀

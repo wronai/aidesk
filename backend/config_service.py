@@ -20,34 +20,88 @@ logger = structlog.get_logger()
 ENV_PATH = os.path.join(os.path.dirname(__file__), ".env")
 
 
-def _parse_env_file(path: str) -> Tuple[List[str], Dict[str, str]]:
+def _parse_env_file(path: str) -> Tuple[List[str], Dict[str, str], Dict[str, List[dict]]]:
     """
-    Parse .env file into raw lines + key→value dict.
+    Parse .env file into raw lines + key→value dict + commented-out alternatives.
     Preserves comments and blank lines for faithful rewrite.
+
+    Alternatives are commented-out lines like:
+        #   VISION_MODEL=ollama/llava              ← Ollama (domyślne)
+        # Przykład: STT_INPUT_DEVICE=alsa_input.usb-Generic_USB_Audio-00.iec958-stereo
     """
     lines: List[str] = []
     values: Dict[str, str] = {}
+    alternatives: Dict[str, List[dict]] = {}  # key → [{value, label}, ...]
 
     if not os.path.exists(path):
-        return lines, values
+        return lines, values, alternatives
 
     with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
+    # Regex for commented-out KEY=VALUE with optional description
+    # Matches: #   KEY=value  ← description
+    #          #   KEY=value  — description
+    #          #   KEY=value  # description
+    #          #   KEY=value
+    re_commented = re.compile(
+        r'^#\s+([A-Za-z_][A-Za-z0-9_]*)=([^←—#\n]*?)'
+        r'(?:\s*[←—#]\s*(.+?))?\s*$'
+    )
+    # Matches: # Przykład: KEY=value
+    re_example = re.compile(
+        r'^#\s*Przykład:\s*([A-Za-z_][A-Za-z0-9_]*)=(.+?)\s*$'
+    )
+
     for line in lines:
         stripped = line.strip()
+
+        # Active (uncommented) key=value
         if stripped and not stripped.startswith("#"):
             match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)", stripped)
             if match:
                 values[match.group(1)] = match.group(2)
+            continue
 
-    return lines, values
+        # Commented-out alternative: #   KEY=value ← description
+        m = re_commented.match(stripped)
+        if m:
+            key, val, desc = m.group(1), m.group(2).strip(), (m.group(3) or '').strip()
+            if key not in alternatives:
+                alternatives[key] = []
+            # Avoid duplicates
+            if not any(a['value'] == val for a in alternatives[key]):
+                alternatives[key].append({
+                    'value': val,
+                    'label': f"{val}  ({desc})" if desc else val,
+                })
+            continue
+
+        # Example line: # Przykład: KEY=value
+        m = re_example.match(stripped)
+        if m:
+            key, val = m.group(1), m.group(2).strip()
+            if key not in alternatives:
+                alternatives[key] = []
+            if not any(a['value'] == val for a in alternatives[key]):
+                alternatives[key].append({
+                    'value': val,
+                    'label': f"{val}  (przykład)",
+                })
+
+    return lines, values, alternatives
 
 
 def read_env() -> Dict[str, str]:
     """Read current .env values as dict."""
-    _, values = _parse_env_file(ENV_PATH)
+    _, values, _ = _parse_env_file(ENV_PATH)
     return values
+
+
+def read_env_with_alternatives() -> Tuple[Dict[str, str], Dict[str, List[dict]]]:
+    """Read current .env values + commented-out alternatives."""
+    _, values, alternatives = _parse_env_file(ENV_PATH)
+    return values, alternatives
 
 
 def update_env(updates: Dict[str, str]) -> Dict[str, str]:
@@ -57,7 +111,7 @@ def update_env(updates: Dict[str, str]) -> Dict[str, str]:
 
     Returns the full config after update.
     """
-    lines, current = _parse_env_file(ENV_PATH)
+    lines, current, _ = _parse_env_file(ENV_PATH)
 
     updated_keys = set()
 
@@ -338,13 +392,14 @@ CONFIG_SCHEMA = [
 
 def get_config_with_schema() -> dict:
     """
-    Return full config: current values + schema for UI rendering + audio devices.
+    Return full config: current values + schema + alternatives + audio devices.
     """
-    values = read_env()
+    values, alternatives = read_env_with_alternatives()
     audio = discover_audio_devices()
 
     return {
         "values": values,
+        "alternatives": alternatives,
         "schema": CONFIG_SCHEMA,
         "audio": audio,
         "env_path": ENV_PATH,

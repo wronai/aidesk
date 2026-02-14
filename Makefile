@@ -94,10 +94,9 @@ status: ## Check if backend is running
 
 stop: ## Stop backend and overlay applications
 	@echo "🛑 Stopping AIDesk..."
-	@-pkill -9 -f "wayland_screencast\.py" 2>/dev/null && echo "  ✓ Wayland screencast stopped" || true
-	@-pkill -9 -f "python.*backend/server\.py" 2>/dev/null && echo "  ✓ Backend stopped" || true
-	@-pkill -9 -f "node.*overlay/node_modules" 2>/dev/null && echo "  ✓ Node overlay stopped" || true
-	@-pkill -9 -f "overlay/node_modules/electron" 2>/dev/null && echo "  ✓ Electron processes stopped" || true
+	@-pkill -9 -f "wayland_screencast[.]py" 2>/dev/null && echo "  ✓ Wayland screencast stopped" || true
+	@-pkill -9 -f "python.*backend/server[.]py" 2>/dev/null && echo "  ✓ Backend stopped" || true
+	@ps aux | grep 'overlay/node_modules' | grep -v grep | grep -v make | awk '{print $$2}' | xargs -r kill -9 2>/dev/null && echo "  ✓ Overlay processes stopped" || true
 	@sleep 0.3
 	@-fuser -k $(PORT)/tcp 2>/dev/null && echo "  ✓ Port $(PORT) freed" || true
 	@echo "🛑 AIDesk stopped"

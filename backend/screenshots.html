@@ -181,19 +181,26 @@
                     </div>
                 </div>`;
 
-                // Active app (highlighted)
-                if (data.active_app) {
-                    const a = data.active_app;
+                // Focus window (detected work area) or Active app
+                const hero = data.focus_window || data.active_app;
+                if (hero) {
+                    const a = hero;
                     const cropUrl = cropUrlFromFilepath(a.filepath);
+                    const isFocus = a.is_focus;
+                    const borderColor = isFocus ? 'border-amber-500/50' : 'border-green-500/50';
+                    const bgColor = isFocus ? 'bg-amber-500/10 border-amber-500/30' : 'bg-green-500/10 border-green-500/30';
+                    const dotColor = isFocus ? 'bg-amber-500' : 'bg-green-500';
+                    const textColor = isFocus ? 'text-amber-400' : 'text-green-400';
+                    const label = isFocus ? `🎯 Fokus pracy (Δ${a.change_score})` : 'Aktywna';
                     html += `
-                    <div class="bg-slate-800 rounded-xl border-2 border-green-500/50 overflow-hidden">
-                        <div class="px-4 py-2 bg-green-500/10 border-b border-green-500/30 flex items-center gap-2">
-                            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                            <span class="font-semibold text-green-400">Aktywna: ${a.window.wm_class_name || a.window.title}</span>
+                    <div class="bg-slate-800 rounded-xl border-2 ${borderColor} overflow-hidden">
+                        <div class="px-4 py-2 ${bgColor} border-b flex items-center gap-2">
+                            <span class="w-3 h-3 ${dotColor} rounded-full animate-pulse"></span>
+                            <span class="font-semibold ${textColor}">${label}: ${a.window.wm_class_name || a.window.title}</span>
                             <span class="text-xs text-gray-400 ml-auto">${a.width}×${a.height} · ${a.size_kb} KB</span>
                         </div>
                         <div class="flex flex-col md:flex-row">
-                            <div class="md:w-2/3 bg-slate-900 flex items-center justify-center p-2 cursor-pointer" onclick="openModal('${cropUrl}', 'Aktywna: ${esc(a.window.title)}')">
+                            <div class="md:w-2/3 bg-slate-900 flex items-center justify-center p-2 cursor-pointer" onclick="openModal('${cropUrl}', '${esc(a.window.title)}')">
                                 ${cropUrl ? `<img src="${cropUrl}" class="max-w-full max-h-[400px] object-contain rounded">` : `<div class="text-gray-600 py-12">Brak podglądu</div>`}
                             </div>
                             <div class="md:w-1/3 p-4 space-y-2 text-sm">
@@ -201,9 +208,21 @@
                                 <div><span class="text-gray-400">Klasa:</span> <span class="text-white">${a.window.wm_class || '—'}</span></div>
                                 <div><span class="text-gray-400">Kategoria:</span> <span class="text-yellow-400">${a.window.category || '—'}</span></div>
                                 <div><span class="text-gray-400">Geometria:</span> <span class="text-white">${fmtGeo(a.window.geometry)}</span></div>
+                                <div><span class="text-gray-400">Zmiana:</span> <span class="${a.change_score > 0 ? 'text-amber-400' : 'text-gray-500'}">${a.change_score || 0}</span></div>
                                 <div><span class="text-gray-400">PID:</span> <span class="text-white">${a.window.pid || '—'}</span></div>
                                 ${cropUrl ? `<div class="pt-2"><a href="${cropUrl}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">📎 otwórz oryginał</a><div class="text-[10px] text-gray-600 url-link mt-1 select-all">${location.origin}${cropUrl}</div></div>` : ''}
                             </div>
+                        </div>
+                    </div>`;
+                }
+
+                // Changed windows summary
+                if (data.changed_windows && data.changed_windows.length > 0) {
+                    html += `
+                    <div class="bg-slate-800 rounded-xl p-3 border border-amber-500/30">
+                        <div class="text-sm text-amber-400 font-medium mb-1">⚡ Zmienione okna (${data.changed_windows.length})</div>
+                        <div class="flex flex-wrap gap-2">
+                            ${data.changed_windows.map(c => `<span class="text-xs bg-amber-500/10 text-amber-300 px-2 py-1 rounded">${c.window.wm_class_name || c.window.title} (Δ${c.change_score})</span>`).join('')}
                         </div>
                     </div>`;
                 }
@@ -223,13 +242,17 @@
                             ${crops.map(c => {
                                 const url = cropUrlFromFilepath(c.filepath);
                                 const isActive = c.window.is_active;
+                                const isFocus = c.is_focus;
+                                const borderCls = isFocus ? 'border-amber-500' : isActive ? 'border-green-500' : 'border-slate-700';
+                                const changeBadge = c.change_score > 0 ? `<span class="text-[10px] bg-amber-500/20 text-amber-300 px-1 rounded">Δ${c.change_score}</span>` : '';
+                                const focusBadge = isFocus ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-1 rounded">🎯 fokus</span>' : '';
                                 return `
-                                <div class="bg-slate-900 rounded-lg overflow-hidden crop-border ${isActive ? 'active-window' : 'border-slate-700'} border">
+                                <div class="bg-slate-900 rounded-lg overflow-hidden crop-border ${borderCls} border">
                                     <div class="aspect-video flex items-center justify-center overflow-hidden cursor-pointer bg-black/30" onclick="openModal('${url}', '${esc(c.window.title)}')">
                                         ${url ? `<img src="${url}" class="w-full h-full object-contain" loading="lazy">` : '<div class="text-gray-700 text-xs">—</div>'}
                                     </div>
                                     <div class="p-2 space-y-1">
-                                        <div class="text-xs font-medium truncate">${esc(c.window.wm_class_name || c.window.title)}</div>
+                                        <div class="text-xs font-medium truncate flex items-center gap-1">${esc(c.window.wm_class_name || c.window.title)} ${focusBadge} ${changeBadge}</div>
                                         <div class="text-[10px] text-gray-500 truncate">${esc(c.window.title)}</div>
                                         <div class="text-[10px] text-gray-500">${c.width}×${c.height} · ${c.size_kb} KB · ${fmtGeo(c.window.geometry)}</div>
                                         ${url ? `<a href="${url}" target="_blank" class="text-[10px] text-blue-400 hover:text-blue-300 block truncate">📎 ${location.origin}${url}</a>` : ''}

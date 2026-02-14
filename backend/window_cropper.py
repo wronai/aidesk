@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
+import imagehash
 import structlog
 from PIL import Image
 import nfo
@@ -35,6 +36,8 @@ class CroppedWindow:
     size_kb: float = 0.0
     crop_timestamp: float = 0.0
     filepath: str = ""
+    change_score: float = 0.0   # 0 = no change, higher = more change vs previous
+    is_focus: bool = False       # True if this is the detected work-focus window
 
     def to_dict(self) -> Dict:
         return {
@@ -45,6 +48,8 @@ class CroppedWindow:
             "size_kb": round(self.size_kb, 1),
             "crop_timestamp": self.crop_timestamp,
             "filepath": self.filepath,
+            "change_score": round(self.change_score, 1),
+            "is_focus": self.is_focus,
         }
 
 
@@ -57,6 +62,8 @@ class OrganizedScreenData:
     timestamp: float = 0.0
     total_windows: int = 0
     active_app: Optional[CroppedWindow] = None
+    focus_window: Optional[CroppedWindow] = None  # detected work area (most change)
+    changed_windows: List[CroppedWindow] = field(default_factory=list)
     crops: List[CroppedWindow] = field(default_factory=list)
     by_category: Dict[str, List[CroppedWindow]] = field(default_factory=dict)
     screen_summary: str = ""
@@ -66,6 +73,8 @@ class OrganizedScreenData:
             "timestamp": self.timestamp,
             "total_windows": self.total_windows,
             "active_app": self.active_app.to_dict() if self.active_app else None,
+            "focus_window": self.focus_window.to_dict() if self.focus_window else None,
+            "changed_windows": [c.to_dict() for c in self.changed_windows],
             "crops": [c.to_dict() for c in self.crops],
             "by_category": {
                 k: [c.to_dict() for c in v]
@@ -81,13 +90,34 @@ class OrganizedScreenData:
         """
         parts = []
 
-        # Active app first
-        if self.active_app:
+        # Focus window (where user is actively working, based on diffs)
+        if self.focus_window:
+            w = self.focus_window.window
+            parts.append(
+                f"🎯 Fokus pracy: {w.wm_class_name or w.title} "
+                f"({w.category.value}, zmiana: {self.focus_window.change_score:.0f})"
+            )
+
+        # Active app (may differ from focus)
+        if self.active_app and (
+            not self.focus_window
+            or self.active_app.window.window_id != self.focus_window.window.window_id
+        ):
             w = self.active_app.window
             parts.append(
                 f"Aktywna aplikacja: {w.wm_class_name or w.title} "
                 f"({w.category.value})"
             )
+
+        # Changed windows
+        if self.changed_windows:
+            changed_names = [
+                f"{c.window.wm_class_name or c.window.title} (Δ{c.change_score:.0f})"
+                for c in self.changed_windows
+                if not c.is_focus  # already reported
+            ]
+            if changed_names:
+                parts.append(f"Zmienione: {', '.join(changed_names)}")
 
         # Other apps grouped by category
         category_priority = [
@@ -99,8 +129,7 @@ class OrganizedScreenData:
 
         for cat in category_priority:
             cat_crops = self.by_category.get(cat.value, [])
-            # Skip active app (already reported)
-            cat_crops = [c for c in cat_crops if not c.window.is_active]
+            cat_crops = [c for c in cat_crops if not c.window.is_active and not c.is_focus]
             if cat_crops:
                 names = [c.window.wm_class_name or c.window.title for c in cat_crops]
                 parts.append(f"{cat.value}: {', '.join(names)}")
@@ -127,25 +156,32 @@ class WindowCropper:
         AppCategory.UNKNOWN: 0,
     }
 
+    # Titles that indicate compositor/WM guard windows (not real apps)
+    _GUARD_TITLES = {"", "mutter guard window", "gnome-shell", "Desktop"}
+
     def __init__(
         self,
         process_scanner: ProcessScanner,
         crops_dir: str = "/tmp/aidesk_crops",
         jpeg_quality: int = 70,
         min_window_size: int = 100,
-        max_crop_width: int = 1280,
-        max_crop_height: int = 720,
+        max_crop_dimension: int = 1280,
+        change_threshold: float = 3.0,
     ):
         self.scanner = process_scanner
         self.crops_dir = crops_dir
         self.jpeg_quality = jpeg_quality
         self.min_window_size = min_window_size
-        self.max_crop_width = max_crop_width
-        self.max_crop_height = max_crop_height
+        self.max_crop_dimension = max_crop_dimension
+        self.change_threshold = change_threshold
+
+        # Per-window change detection: geo_key → previous phash
+        self._prev_hashes: Dict[Tuple[int, int, int, int], imagehash.ImageHash] = {}
 
         # Stats
         self.total_crops = 0
         self.total_organizes = 0
+        self.total_focus_detections = 0
 
         # Ensure crops directory
         if self.crops_dir:
@@ -155,6 +191,7 @@ class WindowCropper:
             "WindowCropper initialized",
             crops_dir=crops_dir,
             jpeg_quality=jpeg_quality,
+            change_threshold=change_threshold,
         )
 
     @nfo.log_call(level="INFO")
@@ -179,16 +216,15 @@ class WindowCropper:
         crops = []
         screen_w, screen_h = fullscreen_image.size
         seen_geometries = set()
+        new_hashes: Dict[Tuple[int, int, int, int], imagehash.ImageHash] = {}
 
         for win in windows:
             # Skip tiny windows
             if win.width < self.min_window_size or win.height < self.min_window_size:
                 continue
 
-            # Skip fullscreen compositor/guard windows (mutter, gnome-shell, etc.)
-            if (win.x == 0 and win.y == 0
-                    and win.width >= screen_w * 0.95 and win.height >= screen_h * 0.95
-                    and (not win.wm_class_name or win.title in ("", "mutter guard window"))):
+            # Skip compositor/guard windows: no WM class + fills entire screen
+            if win.title in self._GUARD_TITLES and not win.wm_class_name:
                 continue
 
             # Deduplicate windows with identical geometry (e.g. PyCharm sub-windows)
@@ -197,7 +233,7 @@ class WindowCropper:
                 continue
             seen_geometries.add(geo_key)
 
-            # Clamp to screen bounds
+            # Clamp to screen/image bounds
             x1 = max(0, win.x)
             y1 = max(0, win.y)
             x2 = min(screen_w, win.x + win.width)
@@ -210,19 +246,25 @@ class WindowCropper:
                 # Crop the region
                 cropped_img = fullscreen_image.crop((x1, y1, x2, y2))
 
-                # Resize if too large
+                # Resize preserving aspect ratio (longest side → max_crop_dimension)
                 crop_w, crop_h = cropped_img.size
-                if crop_w > self.max_crop_width or crop_h > self.max_crop_height:
-                    ratio = min(
-                        self.max_crop_width / crop_w,
-                        self.max_crop_height / crop_h,
-                    )
-                    new_w = int(crop_w * ratio)
-                    new_h = int(crop_h * ratio)
+                longest = max(crop_w, crop_h)
+                if longest > self.max_crop_dimension:
+                    ratio = self.max_crop_dimension / longest
+                    new_w = max(2, int(crop_w * ratio))
+                    new_h = max(2, int(crop_h * ratio))
                     cropped_img = cropped_img.resize(
                         (new_w, new_h), Image.Resampling.LANCZOS
                     )
                     crop_w, crop_h = new_w, new_h
+
+                # Per-window change detection via perceptual hash
+                current_hash = imagehash.phash(cropped_img, hash_size=8)
+                new_hashes[geo_key] = current_hash
+                change_score = 0.0
+                prev = self._prev_hashes.get(geo_key)
+                if prev is not None:
+                    change_score = float(current_hash - prev)
 
                 # Encode as JPEG base64
                 buffer = BytesIO()
@@ -250,6 +292,7 @@ class WindowCropper:
                     size_kb=size_kb,
                     crop_timestamp=time.time(),
                     filepath=filepath,
+                    change_score=change_score,
                 )
                 crops.append(crop)
                 self.total_crops += 1
@@ -262,10 +305,14 @@ class WindowCropper:
                     error=str(e),
                 )
 
+        # Update stored hashes for next comparison
+        self._prev_hashes = new_hashes
+
         logger.info(
             "Cropped windows",
             total=len(crops),
             categories=[c.window.category.value for c in crops],
+            changes=[round(c.change_score, 1) for c in crops],
         )
 
         return crops
@@ -298,7 +345,7 @@ class WindowCropper:
         if windows is None:
             windows = self.scanner.scan_all_windows()
 
-        # Step 2: Crop each window
+        # Step 2: Crop each window (includes per-window change detection)
         crops = self.crop_all_windows(fullscreen_image, windows)
 
         # Step 3: Organize
@@ -317,11 +364,25 @@ class WindowCropper:
             if crop.window.is_active:
                 organized.active_app = crop
 
-        # Sort crops by priority (active first, then category importance)
+        # Step 4: Detect focus — the window with the most change
+        changed = [c for c in crops if c.change_score >= self.change_threshold]
+        organized.changed_windows = sorted(
+            changed, key=lambda c: c.change_score, reverse=True
+        )
+
+        if organized.changed_windows:
+            focus = organized.changed_windows[0]
+            focus.is_focus = True
+            organized.focus_window = focus
+            self.total_focus_detections += 1
+
+        # Sort crops by priority (focus first, then active, then category importance)
         organized.crops = sorted(
             crops,
             key=lambda c: (
+                not c.is_focus,
                 not c.window.is_active,
+                -c.change_score,
                 -self.CATEGORY_PRIORITY.get(c.window.category, 0),
             ),
         )
@@ -333,6 +394,8 @@ class WindowCropper:
             "Screen organized",
             total_windows=organized.total_windows,
             active_app=organized.active_app.window.wm_class_name if organized.active_app else None,
+            focus_app=organized.focus_window.window.wm_class_name if organized.focus_window else None,
+            changed_count=len(organized.changed_windows),
             categories=list(organized.by_category.keys()),
             summary=organized.screen_summary,
         )
@@ -353,6 +416,9 @@ class WindowCropper:
         return {
             "total_crops": self.total_crops,
             "total_organizes": self.total_organizes,
+            "total_focus_detections": self.total_focus_detections,
+            "tracked_windows": len(self._prev_hashes),
+            "change_threshold": self.change_threshold,
             "crops_dir": self.crops_dir,
             "scanner": self.scanner.get_stats(),
         }
@@ -370,8 +436,8 @@ def create_window_cropper(
         process_scanner=process_scanner,
         crops_dir=crops_dir,
         jpeg_quality=int(os.getenv("JPEG_QUALITY", "70")),
-        max_crop_width=int(os.getenv("SCREEN_WIDTH", "1280")),
-        max_crop_height=int(os.getenv("SCREEN_HEIGHT", "720")),
+        max_crop_dimension=int(os.getenv("MAX_DIMENSION", "1280")),
+        change_threshold=float(os.getenv("CROP_CHANGE_THRESHOLD", "3.0")),
     )
 
 
