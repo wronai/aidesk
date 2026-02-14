@@ -619,6 +619,8 @@ class SemanticMemoryStep:
         self._mem = semantic_memory
 
     def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False  # skip memory on idle ticks
         return self._mem is not None and ctx.analysis_result is not None
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
@@ -652,6 +654,8 @@ class ActionTemplateStep:
         self._lib = action_library
 
     def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False  # skip template matching on idle ticks
         return (
             self._lib is not None
             and self._lib.enabled
@@ -684,6 +688,8 @@ class OCRPostProcessStep:
         self._enhancer = ocr_enhancer
 
     def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False  # skip OCR enhancement on idle ticks
         return (
             self._enhancer is not None
             and self._enhancer.enabled
@@ -725,6 +731,8 @@ class PredictiveStep:
         self._prev_window_id = 0
 
     def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False  # skip predictive analysis on idle ticks
         return self._engine is not None and self._engine.enabled and ctx.active_window is not None
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
@@ -760,12 +768,60 @@ class PredictiveStep:
 
 # ===== Pipeline Orchestrator =====
 
+class ParallelGroup:
+    """
+    Wraps multiple independent steps and runs them concurrently.
+
+    Acts as a single PipelineStep from the orchestrator's perspective.
+    Steps that fail can_run() are skipped. Errors in one step don't
+    block others (each runs in its own asyncio task).
+
+    Usage:
+        pipeline.add_step(ParallelGroup([
+            SemanticMemoryStep(mem),
+            ActionTemplatesStep(lib),
+            PredictiveStep(engine),
+        ]))
+    """
+
+    def __init__(self, steps: List, name: str = ""):
+        self._steps = steps
+        self.name = name or "parallel(" + ",".join(s.name for s in steps) + ")"
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return any(s.can_run(ctx) for s in self._steps)
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        runnable = [s for s in self._steps if s.can_run(ctx)]
+        if not runnable:
+            return ctx
+
+        async def _run_one(step):
+            try:
+                await step.execute(ctx, bus)
+                return (step.name, None)
+            except Exception as e:
+                return (step.name, e)
+
+        results = await asyncio.gather(*[_run_one(s) for s in runnable])
+
+        for step_name, error in results:
+            if error:
+                ctx.errors.append({"step": step_name, "error": str(error)})
+                logger.error("Parallel step failed", step=step_name, error=str(error))
+            else:
+                ctx.steps_executed.append(step_name)
+
+        return ctx
+
+
 class PipelineOrchestrator:
     """
     Executes a sequence of PipelineSteps, respecting can_run() gates.
 
     Open/Closed: add steps via add_step() without modifying orchestrator.
     Single Responsibility: orchestrator only manages execution order and timing.
+    Supports ParallelGroup for concurrent independent steps.
     """
 
     def __init__(self, bus: EventBus, steps: Optional[List] = None):
@@ -814,35 +870,38 @@ class PipelineOrchestrator:
 
         self.total_runs += 1
 
-        for step in self.steps:
-            step_name = step.name
+        from observability import get_tracer
+        tracer = get_tracer()
 
-            # Gate check
-            if not step.can_run(ctx):
-                ctx.skipped.append(step_name)
-                continue
+        with tracer.span("pipeline.run", attributes={"run_id": ctx.run_id, "profile": ctx.profile}) as pipeline_span:
+            for step in self.steps:
+                step_name = step.name
 
-            # Execute with timing
-            t0 = time.time()
-            try:
-                ctx = await step.execute(ctx, self.bus)
-                elapsed = time.time() - t0
-                ctx.steps_executed.append(step_name)
-                ctx.step_timings[step_name] = round(elapsed * 1000, 1)
-            except Exception as e:
-                elapsed = time.time() - t0
-                self.total_errors += 1
-                ctx.errors.append({
-                    "step": step_name,
-                    "error": str(e),
-                    "elapsed_ms": round(elapsed * 1000, 1),
-                })
-                logger.error(
-                    "Pipeline step failed",
-                    step=step_name,
-                    error=str(e),
-                    elapsed_ms=round(elapsed * 1000, 1),
-                )
+                # Gate check
+                if not step.can_run(ctx):
+                    ctx.skipped.append(step_name)
+                    continue
+
+                # Execute with timing + tracing
+                with tracer.span(step_name, parent=pipeline_span) as step_span:
+                    try:
+                        ctx = await step.execute(ctx, self.bus)
+                        ctx.steps_executed.append(step_name)
+                        ctx.step_timings[step_name] = step_span.duration_ms
+                    except Exception as e:
+                        step_span.set_error(str(e))
+                        self.total_errors += 1
+                        ctx.errors.append({
+                            "step": step_name,
+                            "error": str(e),
+                            "elapsed_ms": step_span.duration_ms,
+                        })
+                        logger.error(
+                            "Pipeline step failed",
+                            step=step_name,
+                            error=str(e),
+                            elapsed_ms=step_span.duration_ms,
+                        )
 
         # Emit pipeline completion event for ReadModel projection
         await self.bus.publish(Event(
@@ -956,17 +1015,18 @@ def create_pipeline(
     if shell_agent:
         pipeline.add_step(SuggestActionsStep(shell_agent))
 
-    # Phase 10*: Action templates (learned patterns with confidence)
+    # Phase 10-12*: Independent post-analysis steps (run in parallel)
+    parallel_steps = []
     if action_library:
-        pipeline.add_step(ActionTemplateStep(action_library))
-
-    # Phase 11*: Semantic memory (store analysis + recall relevant past)
+        parallel_steps.append(ActionTemplateStep(action_library))
     if semantic_memory:
-        pipeline.add_step(SemanticMemoryStep(semantic_memory))
-
-    # Phase 12*: Predictive pre-fetch (learn transitions, trigger background pre-fetch)
+        parallel_steps.append(SemanticMemoryStep(semantic_memory))
     if predictive_engine:
-        pipeline.add_step(PredictiveStep(predictive_engine))
+        parallel_steps.append(PredictiveStep(predictive_engine))
+    if len(parallel_steps) > 1:
+        pipeline.add_step(ParallelGroup(parallel_steps))
+    elif parallel_steps:
+        pipeline.add_step(parallel_steps[0])
 
     # Final: build broadcast payload
     pipeline.add_step(BuildBroadcastStep())

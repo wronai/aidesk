@@ -481,12 +481,14 @@ class OCREnhancer:
             line = lines[i]
             # If line ends with a short word fragment (< 4 chars, no punctuation)
             # and next line starts with lowercase, merge
+            words = line.split()
             if (i + 1 < len(lines)
                     and len(line) > 0
+                    and words
                     and not line[-1] in ".!?:;,)"
                     and len(lines[i + 1]) > 0
                     and lines[i + 1][0].islower()
-                    and len(line.split()[-1]) < 4
+                    and len(words[-1]) < 4
                     and not line.strip().endswith(("=", "{", "(", "[", ","))):
                 merged.append(line + lines[i + 1])
                 i += 2

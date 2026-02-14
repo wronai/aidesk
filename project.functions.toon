@@ -1,6 +1,6 @@
 project: aidesk
-generated: "2026-02-14T11:05:57.991625"
-modules[45]{path,lang,items}:
+generated: "2026-02-14T11:25:42.322211"
+modules[46]{path,lang,items}:
   backend/process_scanner.py,python,13
   backend/stt.py,python,7
   backend/query_handlers.py,python,23
@@ -34,6 +34,7 @@ modules[45]{path,lang,items}:
   backend/tests/test_units.py,python,88
   backend/tests/conftest.py,python,0
   backend/tests/test_circuit_breaker.py,python,27
+  backend/tests/test_coverage_gaps.py,python,36
   backend/tests/test_tier1.py,python,88
   backend/tests/test_e2e.py,python,74
   backend/routes/screen.py,python,8
@@ -711,6 +712,44 @@ function_details:
       TestStepGuard.test_circuit_opens_after_threshold,method,(),213-228,false,16,3,checks circuit opens after threshold
       TestStepGuard.test_breaker_stats,method,(),230-235,false,6,1,checks breaker stats
       TestStepGuard.test_wrap_step_with_guard_factory,method,(),237-241,false,5,1,checks wrap step with guard factory
+  backend/tests/test_coverage_gaps.py:
+    functions[36]{name,kind,sig,loc,async,lines,cc,does}:
+      TestParseEnvFile._write_env,method,"(content:str) -> str",24-28,false,5,1,logs env
+      TestParseEnvFile.test_parse_simple_key_value,method,(),30-34,false,5,1,checks parse simple key value
+      TestParseEnvFile.test_parse_preserves_comments,method,(),36-40,false,5,1,checks parse preserves comments
+      TestParseEnvFile.test_parse_empty_value,method,(),42-45,false,4,1,checks parse empty value
+      TestParseEnvFile.test_parse_commented_alternative,method,(),47-52,false,6,2,checks parse commented alternative
+      TestParseEnvFile.test_parse_nonexistent_file,method,(),54-57,false,4,1,checks parse nonexistent file
+      TestParseEnvFile.test_parse_blank_lines,method,(),59-63,false,5,1,checks parse blank lines
+      TestParseEnvFile.test_parse_example_line,method,(),65-68,false,4,1,checks parse example line
+      TestReadEnv.test_read_env_returns_dict,method,(),72-74,false,3,1,checks read env returns dict
+      TestUpdateEnv.test_update_creates_file_if_missing,method,(),78-96,false,19,1,checks update creates file if missing
+      TestAnalysisStrategies.test_vision_only_needs_no_ocr,method,(),111-114,false,4,1,checks vision only needs no ocr
+      TestAnalysisStrategies.test_vision_only_builds_image_message,method,(),116-124,false,9,1,checks vision only builds image message
+      TestAnalysisStrategies.test_ocr_only_needs_ocr_no_llm,method,(),126-129,false,4,1,checks ocr only needs ocr no llm
+      TestAnalysisStrategies.test_ocr_only_builds_empty_messages,method,(),131-134,false,4,1,checks ocr only builds empty messages
+      TestAnalysisStrategies.test_hybrid_needs_ocr_and_llm,method,(),136-139,false,4,1,checks hybrid needs ocr and llm
+      TestAnalysisStrategies.test_hybrid_builds_text_only_message,method,(),141-147,false,7,1,checks hybrid builds text only message
+      TestAnalysisStrategies.test_ocr_plus_vision_needs_both,method,(),149-152,false,4,1,checks ocr plus vision needs both
+      TestAnalysisStrategies.test_ocr_plus_vision_builds_image_message,method,(),154-158,false,5,1,checks ocr plus vision builds image message
+      TestAnalysisStrategies.test_strategy_registry_has_all_modes,method,(),160-164,false,5,1,checks strategy registry has all modes
+      TestAnalysisStrategies.test_strategy_registry_returns_correct_types,method,(),166-170,false,5,1,checks strategy registry returns correct types
+      TestOCREnhancerFuzz._random_text,method,"(min_len=0, max_len=500)",183-186,false,4,2,random text
+      TestOCREnhancerFuzz.test_enhance_never_crashes_on_random_input,method,(),188-195,false,8,2,"Fuzz: random text should never crash the enhancer."
+      TestOCREnhancerFuzz.test_enhance_empty_string,method,(),197-200,false,4,1,checks enhance empty string
+      TestOCREnhancerFuzz.test_enhance_whitespace_only,method,(),202-205,false,4,1,checks enhance whitespace only
+      TestOCREnhancerFuzz.test_enhance_unicode,method,(),207-210,false,4,1,checks enhance unicode
+      TestOCREnhancerFuzz.test_enhance_very_long_text,method,(),212-216,false,5,1,checks enhance very long text
+      TestOCREnhancerFuzz.test_enhance_all_text_types_valid,method,(),218-223,false,6,2,checks enhance all text types valid
+      TestOCREnhancerFuzz.test_enhance_preserves_length_approximately,method,(),225-232,false,8,1,Enhanced text should not be drastically different in length.
+      TestOCREnhancerFuzz.test_idempotent_on_clean_text,method,(),234-240,false,7,2,Clean text should pass through with minimal changes.
+      TestAsyncSubprocess.test_run_async_echo,method,(),249-253,false,5,1,checks run async echo
+      TestAsyncSubprocess.test_run_async_nonexistent_command,method,(),255-259,false,5,1,checks run async nonexistent command
+      TestAsyncSubprocess.test_run_async_timeout,method,(),261-265,false,5,1,checks run async timeout
+      TestAsyncSubprocess.test_run_async_shell_echo,method,(),267-272,false,6,1,checks run async shell echo
+      TestAsyncSubprocess.test_run_async_shell_timeout,method,(),274-278,false,5,1,checks run async shell timeout
+      TestAsyncSubprocess.test_run_in_thread_echo,method,(),280-284,false,5,1,checks run in thread echo
+      TestAsyncSubprocess.test_run_in_thread_failure,method,(),286-290,false,5,1,checks run in thread failure
   backend/tests/test_tier1.py:
     functions[88]{name,kind,sig,loc,async,lines,cc,does}:
       TestMonitorAwareCapture._make_monitors,method,(),36-41,false,6,1,"Create a 2-monitor setup: left (1920x1080) + right (2560x1440)."

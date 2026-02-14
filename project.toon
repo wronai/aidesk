@@ -1,6 +1,6 @@
-# aidesk | 45f 15921L | python:42/javascript:3
+# aidesk | 46f 16212L | python:43/javascript:3
 # Keys: M=modules, D=details, i=imports, c=classes, f=functions, m=methods
-M[45]:
+M[46]:
   backend/process_scanner.py,317
   backend/stt.py,210
   backend/query_handlers.py,192
@@ -34,6 +34,7 @@ M[45]:
   backend/tests/test_units.py,744
   backend/tests/conftest.py,4
   backend/tests/test_circuit_breaker.py,187
+  backend/tests/test_coverage_gaps.py,223
   backend/tests/test_tier1.py,681
   backend/tests/test_e2e.py,513
   backend/routes/screen.py,82
@@ -244,7 +245,7 @@ D:
     e: createOverlay
     createOverlay()
   overlay/app.js:
-    e: handleTranscript,formatAnalysisText,handleBenchmarkResult,runBenchmark,handleAgentActions,handleWindowsLayout,copyCommand,handleError
+    e: switchMode,loadOCRSettings,connect,escapeHtml,handleModeChanged,formatAnalysisText,approveAndExecute,handleOrganizedScreen
     connect()
     updateConnectionStatus(status)
     handleAnalysis(data)
@@ -269,6 +270,14 @@ D:
     TestRetryWithBackoff: test_succeeds_first_try(0),test_retries_transient_then_succeeds(0),test_raises_after_max_retries(0),test_no_retry_for_non_transient(0)
     _MockStep: can_run(1),execute(2)  # Mock pipeline step for testing.
     TestStepGuard: test_delegates_name(0),test_delegates_can_run(0),test_success_passes_through(0),test_circuit_opens_after_threshold(0),test_breaker_stats(0)
+  backend/tests/test_coverage_gaps.py:
+    i: asyncio,os,sys,tempfile,pytest,analyzer.{OCROnlyStrategy,VisionOnlyStrategy},config_service.{_parse_env_file,read_env,update_env}
+    e: TestParseEnvFile,TestReadEnv,TestUpdateEnv,TestAnalysisStrategies,TestOCREnhancerFuzz,TestAsyncSubprocess
+    TestParseEnvFile: _write_env(1),test_parse_simple_key_value(0),test_parse_preserves_comments(0),test_parse_empty_value(0),test_parse_commented_alternative(0)
+    TestReadEnv: test_read_env_returns_dict(0)
+    TestUpdateEnv: test_update_creates_file_if_missing(0)
+    TestAnalysisStrategies: test_vision_only_needs_no_ocr(0),test_vision_only_builds_image_message(0),test_ocr_only_needs_ocr_no_llm(0),test_ocr_only_builds_empty_messages(0),test_hybrid_needs_ocr_and_llm(0)
+    TestOCREnhancerFuzz: _random_text(2),test_enhance_never_crashes_on_random_input(0),test_enhance_empty_string(0),test_enhance_whitespace_only(0),test_enhance_unicode(0)  # Property-based-style fuzz tests for O...
   backend/tests/test_tier1.py:
     i: asyncio,os,sys,tempfile,time,pytest,multi_monitor.MonitorAwareCapture,window_aware.{AppCategory,MonitorInfo,WindowInfo}
     e: TestMonitorAwareCapture,TestSemanticMemory,TestAppActionLibrary,TestOCREnhancer,TestPredictiveAnalyzer,TestTier1PipelineSteps,TestPipelineContextTier1Fields

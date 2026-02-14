@@ -1,0 +1,121 @@
+"""Tests for Pydantic Settings configuration."""
+import os
+import sys
+
+import pytest
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from settings import Settings, get_settings, reload_settings
+
+
+class TestSettingsDefaults:
+    def test_default_vision_model(self):
+        s = Settings(_env_file=None)
+        assert s.vision_model == "ollama/llava"
+
+    def test_default_port(self, monkeypatch):
+        monkeypatch.delenv("PORT", raising=False)
+        s = Settings(_env_file=None)
+        assert s.port == 8000
+
+    def test_default_analysis_mode(self):
+        s = Settings(_env_file=None)
+        assert s.analysis_mode == "hybrid"
+
+    def test_default_ocr_engine(self):
+        s = Settings(_env_file=None)
+        assert s.ocr_engine == "paddleocr"
+
+    def test_default_feature_flags(self):
+        s = Settings(_env_file=None)
+        assert s.enable_stt is True
+        assert s.enable_vision is True
+        assert s.enable_window_aware is True
+        assert s.enable_shell_agent is True
+
+    def test_default_circuit_breaker(self):
+        s = Settings(_env_file=None)
+        assert s.analyze_circuit_threshold == 5
+        assert s.analyze_max_retries == 2
+
+
+class TestSettingsValidation:
+    def test_invalid_analysis_mode_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, analysis_mode="invalid_mode")
+
+    def test_invalid_ocr_engine_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, ocr_engine="invalid_engine")
+
+    def test_port_range_enforced(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, port=99999)
+
+    def test_temperature_range_enforced(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, vision_temperature=5.0)
+
+    def test_jpeg_quality_range(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, jpeg_quality=0)
+
+    def test_valid_capture_mode(self):
+        s = Settings(_env_file=None, capture_mode="window")
+        assert s.capture_mode == "window"
+
+    def test_invalid_capture_mode(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, capture_mode="invalid")
+
+
+class TestSettingsProperties:
+    def test_cors_origins_list(self):
+        s = Settings(_env_file=None, cors_origins="http://a,http://b,http://c")
+        assert s.cors_origins_list == ["http://a", "http://b", "http://c"]
+
+    def test_ocr_languages_list(self):
+        s = Settings(_env_file=None, ocr_languages="pl,en,de")
+        assert s.ocr_languages_list == ["pl", "en", "de"]
+
+    def test_empty_cors_origins(self):
+        s = Settings(_env_file=None, cors_origins="")
+        assert s.cors_origins_list == []
+
+
+class TestSettingsFromEnv:
+    def test_env_var_override(self, monkeypatch):
+        monkeypatch.setenv("VISION_MODEL", "gemini/gemini-2.0-flash")
+        monkeypatch.setenv("PORT", "9999")
+        s = Settings(_env_file=None)
+        assert s.vision_model == "gemini/gemini-2.0-flash"
+        assert s.port == 9999
+
+    def test_bool_from_env(self, monkeypatch):
+        monkeypatch.setenv("ENABLE_STT", "false")
+        s = Settings(_env_file=None)
+        assert s.enable_stt is False
+
+    def test_float_from_env(self, monkeypatch):
+        monkeypatch.setenv("VISION_TEMPERATURE", "0.7")
+        s = Settings(_env_file=None)
+        assert s.vision_temperature == 0.7
+
+
+class TestGetSettings:
+    def test_returns_settings_instance(self):
+        reload_settings()  # clear cache
+        s = get_settings()
+        assert isinstance(s, Settings)
+
+    def test_cached(self):
+        reload_settings()
+        s1 = get_settings()
+        s2 = get_settings()
+        assert s1 is s2
+
+    def test_reload_clears_cache(self):
+        s1 = get_settings()
+        s2 = reload_settings()
+        assert isinstance(s2, Settings)

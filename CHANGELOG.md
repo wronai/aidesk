@@ -1,3 +1,24 @@
+## [2.1.2] - 2026-02-14
+
+### Summary
+
+refactor(tests): configuration management system
+
+### Other
+
+- update backend/observability.py
+- update backend/ocr_post_process.py
+- update backend/pipeline.py
+- update backend/routes/events.py
+- update backend/settings.py
+- update backend/tests/test_e2e.py
+- update backend/tests/test_observability.py
+- update backend/tests/test_parallel_group.py
+- update backend/tests/test_settings.py
+- update backend/tests/test_typed_events.py
+- ... and 3 more
+
+
 ## [2.1.1] - 2026-02-14
 
 ### Summary

@@ -91,6 +91,17 @@ async def get_read_model_stats():
     return qry.query_stats()
 
 
+@router.get("/traces")
+async def get_traces(name: Optional[str] = None, n: int = 20):
+    """Get tracer metrics and recent spans."""
+    from observability import get_tracer
+    tracer = get_tracer()
+    return {
+        "stats": tracer.get_stats(),
+        "recent_spans": tracer.get_recent_spans(n=n, name=name),
+    }
+
+
 @router.get("/predictive")
 async def get_predictive_stats():
     """Get predictive engine stats and transition patterns."""
