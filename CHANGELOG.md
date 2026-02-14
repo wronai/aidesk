@@ -1,3 +1,24 @@
+## [2.1.32] - 2026-02-14
+
+### Summary
+
+refactor(tests): code analysis engine
+
+### Other
+
+- build: update Makefile
+- update backend/analyzer.py
+- update backend/capture.py
+- update backend/cost_budget.py
+- update backend/diagnostics.py
+- update backend/pipeline/steps_core.py
+- update backend/server.py
+- update backend/settings.py
+- update backend/shell_agent.py
+- update backend/tests/test_cost_budget.py
+- ... and 3 more
+
+
 ## [2.1.31] - 2026-02-14
 
 ### Summary

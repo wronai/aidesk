@@ -85,6 +85,35 @@ class TestSettingsValidation:
             Settings(_env_file=None, capture_mode="invalid")
 
 
+class TestVlmOcrSettingsValidation:
+    def test_vlm_ocr_timeout_too_low_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, vlm_ocr_timeout=0.5)
+
+    def test_vlm_ocr_timeout_too_high_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, vlm_ocr_timeout=200.0)
+
+    def test_vlm_ocr_image_detail_invalid_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, vlm_ocr_image_detail="ultra")
+
+    def test_vlm_ocr_max_tokens_too_low_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, vlm_ocr_max_tokens=50)
+
+    def test_vlm_ocr_max_tokens_too_high_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, vlm_ocr_max_tokens=10000)
+
+    def test_vlm_ocr_defaults_valid(self):
+        s = Settings(_env_file=None)
+        assert s.vlm_ocr_model == "openrouter/qwen/qwen2.5-vl-32b-instruct:free"
+        assert s.vlm_ocr_max_tokens == 1500
+        assert s.vlm_ocr_timeout == 15.0
+        assert s.vlm_ocr_image_detail == "low"
+
+
 class TestSettingsProperties:
     def test_cors_origins_list(self):
         s = Settings(_env_file=None, cors_origins="http://a,http://b,http://c")

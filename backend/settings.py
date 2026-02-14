@@ -56,8 +56,8 @@ class Settings(BaseSettings):
         "openrouter/qwen/qwen2.5-vl-32b-instruct:free",
         description="LiteLLM model string for VLM OCR engine",
     )
-    vlm_ocr_max_tokens: int = Field(1500, ge=100, le=4096)
-    vlm_ocr_timeout: float = Field(15.0, ge=1.0)
+    vlm_ocr_max_tokens: int = Field(1500, ge=100, le=8000)
+    vlm_ocr_timeout: float = Field(15.0, ge=1.0, le=120.0)
     vlm_ocr_image_detail: str = Field("low", pattern="^(low|high|auto)$")
 
     # ===== API Keys =====

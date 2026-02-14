@@ -114,7 +114,9 @@ BLOCKED_PATTERNS = [
     r"chmod\s+777\s+/",    # chmod 777 /
     r"curl.*\|\s*(ba)?sh",  # curl | bash
     r"wget.*\|\s*(ba)?sh",  # wget | bash
-    r"\|\s*(sh|bash|python[23]?|perl|ruby|node)\b",  # pipe to any interpreter
+    r"\|\s*(sh|bash|zsh|python[23]?|perl|ruby|node|php)\b",  # pipe to any interpreter
+    r"\|\s*(source|eval)\b",  # pipe to source/eval
+    r"base64\s+-d\s*\|",     # base64 decode piped to command
     r"eval\s+",             # eval
     r">\s*/dev/sd",         # write to raw device
     r"shutdown|reboot|halt|poweroff",

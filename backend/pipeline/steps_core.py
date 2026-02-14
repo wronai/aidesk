@@ -349,9 +349,17 @@ class AnalyzeStep:
         """Record analysis cost to budget tracker."""
         if self._budget and cost > 0 and hasattr(self._budget, "record_spend"):
             try:
-                self._budget.record_spend(cost)
+                self._budget.record_spend(cost, source="analysis")
             except Exception as e:
                 logger.warning("Failed to record analysis spend", error=str(e), cost=cost)
+
+    def _record_ocr_spend(self, cost: float):
+        """Record OCR cost to budget tracker (separate from analysis)."""
+        if self._budget and cost > 0 and hasattr(self._budget, "record_spend"):
+            try:
+                self._budget.record_spend(cost, source="ocr")
+            except Exception as e:
+                logger.warning("Failed to record OCR spend", error=str(e), cost=cost)
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         t0 = time.time()
@@ -403,7 +411,7 @@ class AnalyzeStep:
                 active = ocr_mgr.active_engine
                 ocr_cost = getattr(active, "_last_cost", 0.0) if active else 0.0
                 if ocr_cost > 0:
-                    self._record_spend(ocr_cost)
+                    self._record_ocr_spend(ocr_cost)
                     await bus.publish(Event(
                         type=EventType.OCR_COST.value,
                         data={

@@ -37,6 +37,8 @@ class CostBudget:
         self.state_path = state_path
         self.daily_spent = 0.0
         self.hourly_spent = 0.0
+        self.ocr_spent = 0.0
+        self.analysis_spent = 0.0
         self.last_reset_day = 0
         self.last_reset_hour = 0
         
@@ -84,14 +86,23 @@ class CostBudget:
             
         return True
 
-    def record_spend(self, cost: float):
-        """Record actual spend after API call."""
+    def record_spend(self, cost: float, source: str = "analysis"):
+        """Record actual spend after API call.
+        
+        Args:
+            cost: Cost in USD
+            source: Cost source — 'analysis' or 'ocr'
+        """
         if cost <= 0:
             return
             
         self.check_and_reset()
         self.daily_spent += cost
         self.hourly_spent += cost
+        if source == "ocr":
+            self.ocr_spent += cost
+        else:
+            self.analysis_spent += cost
         self._save_state()
 
     def get_suggested_mode(self, requested_mode: str) -> str:
@@ -116,6 +127,8 @@ class CostBudget:
                 data = json.loads(path.read_text())
                 self.daily_spent = data.get("daily_spent", 0.0)
                 self.hourly_spent = data.get("hourly_spent", 0.0)
+                self.ocr_spent = data.get("ocr_spent", 0.0)
+                self.analysis_spent = data.get("analysis_spent", 0.0)
                 self.last_reset_day = data.get("last_reset_day", 0)
                 self.last_reset_hour = data.get("last_reset_hour", 0)
         except Exception as e:
@@ -128,6 +141,8 @@ class CostBudget:
             data = {
                 "daily_spent": self.daily_spent,
                 "hourly_spent": self.hourly_spent,
+                "ocr_spent": self.ocr_spent,
+                "analysis_spent": self.analysis_spent,
                 "last_reset_day": self.last_reset_day,
                 "last_reset_hour": self.last_reset_hour,
                 "updated": time.time(),
@@ -143,6 +158,8 @@ class CostBudget:
             "daily_remaining": round(max(0, self.config.daily_limit_usd - self.daily_spent), 4),
             "hourly_spent": round(self.hourly_spent, 4),
             "hourly_limit": self.config.hourly_limit_usd,
+            "analysis_cost_usd": round(self.analysis_spent, 6),
+            "ocr_cost_usd": round(self.ocr_spent, 6),
             "status": "ok" if self.can_spend() else "exceeded",
         }
 

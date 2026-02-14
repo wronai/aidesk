@@ -83,6 +83,7 @@ class AutoDiagnostics:
         checks.append(self._check_captures_dir())
         checks.append(self._check_analyzer())
         checks.append(self._check_ocr())
+        checks.append(self._check_vlm_ocr())
         checks.append(self._check_stt())
         checks.append(self._check_log_file())
         checks.append(self._check_log_db())
@@ -191,6 +192,50 @@ class AutoDiagnostics:
             }
         except Exception as e:
             return {"name": "ocr", "ok": False, "detail": str(e)}
+
+    def _check_vlm_ocr(self) -> Dict:
+        """Check VLM OCR engine runtime health (error rate, latency, cost)."""
+        ocr = self.app_state.get("ocr_manager")
+        if ocr is None:
+            return {"name": "vlm_ocr", "ok": True, "detail": "OCR manager not initialized"}
+
+        engines = getattr(ocr, "engines", {})
+        if "vlm_ocr" not in engines:
+            return {"name": "vlm_ocr", "ok": True, "detail": "VLM OCR not registered"}
+
+        engine = engines["vlm_ocr"]
+
+        try:
+            stats = engine.get_stats()
+            total_calls = stats.get("total_calls", 0)
+            errors = stats.get("errors", getattr(engine, "_error_count", 0))
+            total_cost = stats.get("total_cost_usd", 0.0)
+            avg_latency = stats.get("avg_latency_ms", 0.0)
+            error_rate = round(errors / max(total_calls, 1) * 100, 1)
+
+            # warn if error rate > 30%, fail if > 50%
+            if error_rate > 50:
+                status_ok = False
+            elif error_rate > 30:
+                status_ok = True  # ok=True but detail shows warning
+            else:
+                status_ok = True
+
+            return {
+                "name": "vlm_ocr",
+                "ok": status_ok,
+                "detail": {
+                    "model": stats.get("model", getattr(engine, "model", "unknown")),
+                    "total_calls": total_calls,
+                    "errors": errors,
+                    "error_rate_pct": error_rate,
+                    "avg_latency_ms": avg_latency,
+                    "total_cost_usd": round(total_cost, 6),
+                    "warning": "High error rate" if error_rate > 30 else None,
+                },
+            }
+        except Exception as e:
+            return {"name": "vlm_ocr", "ok": False, "detail": str(e)}
 
     def _check_stt(self) -> Dict:
         """Check STT service status."""

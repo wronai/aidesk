@@ -228,8 +228,12 @@ Zwróć odpowiedź jako JSON:
         # Configure LiteLLM
         litellm.drop_params = True  # Drop unsupported params silently
 
-        if os.getenv("DEBUG", "false").lower() == "true":
+        # Only enable verbose litellm logging if explicitly requested.
+        # DEBUG=true alone does NOT enable it — litellm verbose mode can leak
+        # API keys in request headers to stdout/logs.
+        if os.getenv("LITELLM_VERBOSE", "false").lower() == "true":
             litellm.set_verbose = True
+            litellm.suppress_debug_info = False
 
         logger.info(
             "LiteLLM analyzer initialized",

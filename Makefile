@@ -22,7 +22,7 @@ ifeq ($(PORT),)
   PORT := 8000
 endif
 
-.PHONY: help setup setup-backend setup-overlay env install install-system-deps diag diagnostics run run-backend run-overlay stop clean test test-setup test-units test-e2e status logs
+.PHONY: help setup setup-backend setup-overlay env install install-system-deps diag diagnostics run run-backend run-overlay stop clean test test-setup test-units test-e2e test-vlm-ocr test-all status logs
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -147,6 +147,12 @@ test-units: ## Run unit tests (fast, no server)
 
 test-e2e: ## Run e2e API tests (with lifespan)
 	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_e2e.py -v
+
+test-vlm-ocr: ## Run VLM OCR engine + preflight tests
+	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_vlm_ocr_engine.py $(BACKEND_DIR)/tests/test_preflight.py -v
+
+test-all: ## Run full test suite (excluding known pre-existing failures)
+	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/ -v --ignore=$(BACKEND_DIR)/tests/test_plugins.py
 
 status: ## Check if backend is running
 	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"

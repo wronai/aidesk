@@ -77,6 +77,42 @@ class TestCostBudget:
         # Cheap modes allowed
         assert budget.get_suggested_mode("ocr_only") == "ocr_only"
 
+    def test_record_ocr_spend_tracked_separately(self, tmp_path):
+        config = BudgetConfig()
+        budget = CostBudget(config, state_path=str(tmp_path / "state.json"))
+
+        budget.record_spend(0.01, source="ocr")
+        budget.record_spend(0.05, source="analysis")
+        budget.record_spend(0.02, source="ocr")
+
+        assert budget.ocr_spent == pytest.approx(0.03)
+        assert budget.analysis_spent == pytest.approx(0.05)
+        assert budget.daily_spent == pytest.approx(0.08)
+
+        stats = budget.get_stats()
+        assert stats["ocr_cost_usd"] == pytest.approx(0.03, abs=1e-5)
+        assert stats["analysis_cost_usd"] == pytest.approx(0.05, abs=1e-5)
+
+    def test_ocr_spend_persisted(self, tmp_path):
+        config = BudgetConfig()
+        budget = CostBudget(config, state_path=str(tmp_path / "state.json"))
+        budget.record_spend(0.007, source="ocr")
+
+        budget2 = CostBudget(config, state_path=str(tmp_path / "state.json"))
+        assert budget2.ocr_spent == pytest.approx(0.007)
+
+    def test_budget_blocks_vlm_ocr_after_limit(self, tmp_path):
+        """Budget with $0.01/h blocks after enough VLM OCR calls."""
+        config = BudgetConfig(hourly_limit_usd=0.01)
+        budget = CostBudget(config, state_path=str(tmp_path / "state.json"))
+
+        # Simulate 100 Gemini Flash OCR calls at ~$0.0001 each
+        for _ in range(100):
+            budget.record_spend(0.0001, source="ocr")
+
+        assert budget.ocr_spent == pytest.approx(0.01)
+        assert budget.can_spend(0.0001) is False
+
     def test_factory(self, monkeypatch):
         # Mock settings
         settings = MagicMock()

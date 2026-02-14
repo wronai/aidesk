@@ -155,6 +155,48 @@ class SmartScreenCapture:
             captures_dir=captures_dir,
         )
 
+    def _check_change_detected(self, img_resized) -> tuple:
+        """Compare perceptual hash to detect meaningful screen changes.
+
+        Returns:
+            (changed: bool, hash_diff: int, current_hash) tuple.
+        """
+        current_hash = imagehash.phash(img_resized, hash_size=8)
+        if self.last_hash is None:
+            return True, 0, current_hash
+
+        hash_diff = current_hash - self.last_hash
+        if hash_diff < self.change_threshold:
+            self.consecutive_unchanged += 1
+            logger.debug(
+                "No significant change detected",
+                hash_diff=hash_diff,
+                threshold=self.change_threshold,
+                consecutive_unchanged=self.consecutive_unchanged,
+            )
+            return False, hash_diff, current_hash
+        return True, hash_diff, current_hash
+
+    def _encode_and_save(self, img_resized, now: float) -> tuple:
+        """JPEG-encode resized image and optionally save to disk.
+
+        Returns:
+            (b64_str, size_kb) tuple.
+        """
+        buffer = BytesIO()
+        img_resized.save(buffer, format="JPEG", quality=self.jpeg_quality, optimize=True)
+
+        if self.save_to_disk and self.captures_dir:
+            filename = f"capture_{int(now)}.jpg"
+            filepath = os.path.join(self.captures_dir, filename)
+            with open(filepath, "wb") as f:
+                f.write(buffer.getvalue())
+            logger.debug("Screenshot saved to disk", path=filepath)
+
+        b64 = base64.b64encode(buffer.getvalue()).decode()
+        size_kb = len(buffer.getvalue()) / 1024
+        return b64, size_kb
+
     def capture(
         self,
         monitor_index: Optional[int] = None,
@@ -171,64 +213,31 @@ class SmartScreenCapture:
             Dict with image data if change detected, None otherwise
         """
         now = time.time()
-        current_interval = self.adaptive_interval
 
         # Rate limiting
-        if now - self.last_capture_time < current_interval:
+        if now - self.last_capture_time < self.adaptive_interval:
             return None
 
         self.total_captures += 1
 
         try:
             img = self._grab_screen(monitor_index=monitor_index, roi=roi)
-
-            # Track native resolution
             self._native_size = img.size
-
-            # Resize preserving aspect ratio (works for any orientation)
             img_resized = _resize_preserve_aspect(img, self.max_dimension)
 
-            # Perceptual hash for change detection
-            current_hash = imagehash.phash(img_resized, hash_size=8)
+            changed, hash_diff, current_hash = self._check_change_detected(img_resized)
+            if not changed:
+                return None
 
-            # Check for changes
-            hash_diff = 0
-            if self.last_hash is not None:
-                hash_diff = current_hash - self.last_hash
-                if hash_diff < self.change_threshold:
-                    self.consecutive_unchanged += 1
-                    logger.debug(
-                        "No significant change detected",
-                        hash_diff=hash_diff,
-                        threshold=self.change_threshold,
-                        consecutive_unchanged=self.consecutive_unchanged,
-                    )
-                    return None
-
-            # Change detected or first capture
+            # Update state
             self.last_hash = current_hash
             self.last_capture_time = now
             prev_unchanged = self.consecutive_unchanged
             self.consecutive_unchanged = 0
             self.changes_detected += 1
-
-            # Store resized image for downstream pipeline steps (avoids base64 re-decode)
             self._last_resized_image = img_resized
 
-            # Encode as JPEG
-            buffer = BytesIO()
-            img_resized.save(buffer, format="JPEG", quality=self.jpeg_quality, optimize=True)
-            
-            # Save to disk if configured (controlled by SAVE_CAPTURES env)
-            if self.save_to_disk and self.captures_dir:
-                filename = f"capture_{int(now)}.jpg"
-                filepath = os.path.join(self.captures_dir, filename)
-                with open(filepath, "wb") as f:
-                    f.write(buffer.getvalue())
-                logger.debug("Screenshot saved to disk", path=filepath)
-
-            b64 = base64.b64encode(buffer.getvalue()).decode()
-            size_kb = len(buffer.getvalue()) / 1024
+            b64, size_kb = self._encode_and_save(img_resized, now)
             resized_w, resized_h = img_resized.size
 
             logger.info(
@@ -240,7 +249,6 @@ class SmartScreenCapture:
                 detection_rate=f"{(self.changes_detected / self.total_captures * 100):.1f}%",
             )
 
-            # Path to full-resolution original frame (for high-quality cropping/OCR)
             fullscreen_path = None
             if self.backend == "wayland_portal" and os.path.exists(WAYLAND_FRAME_PATH):
                 fullscreen_path = WAYLAND_FRAME_PATH

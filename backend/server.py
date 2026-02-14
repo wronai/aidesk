@@ -133,6 +133,12 @@ def setup_logging():
 
     loguru_logger.add(sqlite_sink, level=log_level)
 
+    # Suppress litellm's verbose stdlib loggers — they can leak API keys
+    # in request headers when LOG_LEVEL=DEBUG.
+    import logging as _logging
+    for _name in ("LiteLLM", "litellm", "LiteLLM Router", "LiteLLM Proxy"):
+        _logging.getLogger(_name).setLevel(_logging.WARNING)
+
     # Structlog configuration to use loguru
     structlog.configure(
         processors=[
