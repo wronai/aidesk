@@ -1,3 +1,23 @@
+## [2.0.2] - 2026-02-14
+
+### Summary
+
+refactor(tests): deep code analysis engine with 4 supporting modules
+
+### Other
+
+- build: update Makefile
+- update backend/.env.example
+- update backend/diagnostics.py
+- update backend/requirements.txt
+- update backend/server.py
+- update backend/tests/test_e2e.py
+- update backend/tests/test_units.py
+- update overlay/app.js
+- update overlay/index.html
+- update overlay/styles.css
+
+
 ## [2.0.1] - 2026-02-14
 
 ### Summary

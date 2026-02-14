@@ -42,6 +42,17 @@ def _import_stt():
 # Load environment variables
 load_dotenv()
 
+# Read version from VERSION file
+def _read_version() -> str:
+    version_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VERSION")
+    try:
+        with open(version_file) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return "2.0.0"
+
+APP_VERSION = _read_version()
+
 # Configure nfo structured function logging (SQLite + Markdown)
 os.makedirs("logs", exist_ok=True)
 nfo_logger = nfo.configure(
@@ -517,7 +528,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Desktop Assistant API",
     description="Real-time screen + voice AI assistant backend",
-    version="1.0.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -536,7 +547,7 @@ async def root():
     """Root endpoint."""
     return {
         "name": "AI Desktop Assistant API",
-        "version": "2.0.0",
+        "version": APP_VERSION,
         "status": "running",
         "endpoints": {
             "stream": "/stream - SSE endpoint for real-time updates",

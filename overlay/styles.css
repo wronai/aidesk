@@ -574,6 +574,37 @@ kbd {
   white-space: nowrap;
 }
 
+/* Screen Summary Bar */
+.screen-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 16px;
+  background: rgba(16, 185, 129, 0.06);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.12);
+  font-size: 10px;
+  color: #9ca3af;
+  animation: slideDown 0.3s ease-out;
+}
+
+.screen-summary-icon {
+  font-size: 11px;
+}
+
+.screen-summary-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #a5b4fc;
+}
+
+.screen-summary-count {
+  font-size: 10px;
+  color: #6ee7b7;
+  white-space: nowrap;
+}
+
 /* Category badges */
 .badge-cat-ide { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.3); }
 .badge-cat-terminal { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }

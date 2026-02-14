@@ -31,6 +31,9 @@ const elements = {
   windowDetail: document.getElementById('windowDetail'),
   agentActions: document.getElementById('agentActions'),
   agentActionsList: document.getElementById('agentActionsList'),
+  screenSummary: document.getElementById('screenSummary'),
+  screenSummaryText: document.getElementById('screenSummaryText'),
+  screenSummaryCount: document.getElementById('screenSummaryCount'),
 };
 
 /**
@@ -94,6 +97,16 @@ function connect() {
   eventSource.addEventListener('agent_result', (e) => {
     const data = JSON.parse(e.data);
     handleAgentResult(data);
+  });
+
+  eventSource.addEventListener('windows_layout', (e) => {
+    const data = JSON.parse(e.data);
+    handleWindowsLayout(data);
+  });
+
+  eventSource.addEventListener('organized_screen', (e) => {
+    const data = JSON.parse(e.data);
+    handleOrganizedScreen(data);
   });
 
   eventSource.addEventListener('ocr_benchmark', (e) => {
@@ -573,6 +586,36 @@ async function approveAndExecute(actionId) {
     }
   } catch (error) {
     console.error('Agent execute error:', error);
+  }
+}
+
+/**
+ * Handle windows layout broadcast (all visible windows)
+ */
+function handleWindowsLayout(data) {
+  // Update screen summary count
+  if (elements.screenSummaryCount) {
+    elements.screenSummaryCount.textContent = `${data.total} okien`;
+  }
+}
+
+/**
+ * Handle organized screen data (per-app crops + categories)
+ */
+function handleOrganizedScreen(data) {
+  if (!elements.screenSummary) return;
+
+  elements.screenSummary.style.display = 'flex';
+
+  // Show summary text
+  if (data.summary && elements.screenSummaryText) {
+    elements.screenSummaryText.textContent = data.summary;
+  }
+
+  // Show window count with categories
+  if (elements.screenSummaryCount) {
+    const cats = (data.categories || []).map(c => CATEGORY_EMOJI[c] || c).join(' ');
+    elements.screenSummaryCount.textContent = `${data.total_windows} okien ${cats}`;
   }
 }
 

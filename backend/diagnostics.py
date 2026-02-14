@@ -89,6 +89,8 @@ class AutoDiagnostics:
         checks.append(self._check_window_manager())
         checks.append(self._check_profile_manager())
         checks.append(self._check_shell_agent())
+        checks.append(self._check_process_scanner())
+        checks.append(self._check_window_cropper())
 
         elapsed = round(time.time() - start, 3)
         all_ok = all(c["ok"] for c in checks)
@@ -340,6 +342,46 @@ class AutoDiagnostics:
             }
         except Exception as e:
             return {"name": "shell_agent", "ok": False, "detail": str(e)}
+
+    def _check_process_scanner(self) -> Dict:
+        """Check process scanner status."""
+        scanner = self.app_state.get("process_scanner")
+        if scanner is None:
+            return {"name": "process_scanner", "ok": False, "detail": "Not initialized"}
+
+        try:
+            stats = scanner.get_stats()
+            return {
+                "name": "process_scanner",
+                "ok": True,
+                "detail": {
+                    "total_scans": stats.get("total_scans", 0),
+                    "last_window_count": stats.get("last_window_count", 0),
+                    "tools": stats.get("tools", {}),
+                },
+            }
+        except Exception as e:
+            return {"name": "process_scanner", "ok": False, "detail": str(e)}
+
+    def _check_window_cropper(self) -> Dict:
+        """Check window cropper status."""
+        cropper = self.app_state.get("window_cropper")
+        if cropper is None:
+            return {"name": "window_cropper", "ok": False, "detail": "Not initialized"}
+
+        try:
+            stats = cropper.get_stats()
+            return {
+                "name": "window_cropper",
+                "ok": True,
+                "detail": {
+                    "total_crops": stats.get("total_crops", 0),
+                    "total_organizes": stats.get("total_organizes", 0),
+                    "crops_dir": stats.get("crops_dir", ""),
+                },
+            }
+        except Exception as e:
+            return {"name": "window_cropper", "ok": False, "detail": str(e)}
 
     def get_latest(self) -> Optional[Dict]:
         """Return latest diagnostics result."""

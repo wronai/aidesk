@@ -78,8 +78,16 @@ run-overlay: ## Run overlay only
 install: setup-backend ## Reinstall Python deps
 	$(PYTHON) -m pip install -r $(BACKEND_DIR)/requirements.txt --upgrade
 
-test: ## Run backend test_setup.py
+test: test-units test-e2e ## Run all tests (unit + e2e)
+
+test-setup: ## Run backend test_setup.py
 	$(PYTHON) $(BACKEND_DIR)/test_setup.py
+
+test-units: ## Run unit tests (fast, no server)
+	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_units.py -v
+
+test-e2e: ## Run e2e API tests (with lifespan)
+	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_e2e.py -v
 
 status: ## Check if backend is running
 	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"
