@@ -12,6 +12,11 @@ _state: Dict = {}
 _broadcast = None
 
 
+def _get_crops_dir() -> str:
+    """Resolve crop directory from env (matches settings.crops_dir)."""
+    return os.getenv("CROPS_DIR", "/tmp/proxeen_crops")
+
+
 def init(app_state: dict, broadcast_fn):
     global _state, _broadcast
     _state = app_state
@@ -73,7 +78,7 @@ async def get_screenshot(filename: str):
 @router.get("/crops")
 async def list_crops():
     """List all saved per-app crop files."""
-    crops_dir = "/tmp/proxeen_crops"
+    crops_dir = _get_crops_dir()
     if not os.path.exists(crops_dir):
         return []
 
@@ -91,7 +96,7 @@ async def list_crops():
 @router.get("/crops/{filename}")
 async def get_crop(filename: str):
     """Serve a specific crop file."""
-    crops_dir = "/tmp/proxeen_crops"
+    crops_dir = _get_crops_dir()
     file_path = os.path.join(crops_dir, filename)
     if not os.path.abspath(file_path).startswith(os.path.abspath(crops_dir)):
         raise HTTPException(status_code=403, detail="Access denied")

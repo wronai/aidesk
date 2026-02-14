@@ -1,3 +1,24 @@
+## [2.1.28] - 2026-02-14
+
+### Summary
+
+refactor(goal): CLI interface improvements
+
+### Other
+
+- update backend/bootstrap.py
+- update backend/clipboard_intel.py
+- update backend/clipboard_intel/__init__.py
+- update backend/clipboard_intel/engines.py
+- update backend/clipboard_intel/manager.py
+- update backend/clipboard_intel/models.py
+- update backend/clipboard_intel/queue.py
+- update backend/clipboard_intel/selection.py
+- update backend/preflight.py
+- update backend/routes/core.py
+- ... and 2 more
+
+
 ## [2.1.27] - 2026-02-14
 
 ### Summary

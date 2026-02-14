@@ -42,6 +42,7 @@ from predictive_engine import create_predictive_engine_from_env
 from clipboard_intel import create_clipboard_manager_from_env
 from cost_budget import create_cost_budget_from_env
 from plugins.loader import PluginLoader
+from preflight import run_preflight
 
 logger = structlog.get_logger()
 
@@ -299,6 +300,12 @@ class AppBootstrap:
         self.init_tier1()
         self.init_pipeline()
         self.init_plugins()
+
+        # Pre-startup model connectivity checks
+        preflight_report = await run_preflight(self.settings)
+        self.state["preflight"] = preflight_report
+        self._init_results["preflight"] = preflight_report.get("all_ok", False)
+
         await self.start_tasks(screen_loop_coro, on_transcript_cb)
 
     # ── Shutdown ──

@@ -580,6 +580,34 @@ class TestScreenRoutes:
         r = self.client.get("/screenshots/../../etc/passwd")
         assert r.status_code in (403, 404)
 
+    def test_crops_empty_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CROPS_DIR", str(tmp_path))
+        r = self.client.get("/crops")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_crops_with_files(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CROPS_DIR", str(tmp_path))
+        (tmp_path / "crop_test.jpg").write_bytes(b"\xff\xd8test")
+        r = self.client.get("/crops")
+        assert r.status_code == 200
+        assert len(r.json()) == 1
+        assert r.json()[0]["name"] == "crop_test.jpg"
+
+    def test_crop_file_served_from_env_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CROPS_DIR", str(tmp_path))
+        payload = b"\xff\xd8test"
+        (tmp_path / "crop_test.jpg").write_bytes(payload)
+
+        r = self.client.get("/crops/crop_test.jpg")
+        assert r.status_code == 200
+        assert r.content == payload
+
+    def test_crop_path_traversal(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CROPS_DIR", str(tmp_path))
+        r = self.client.get("/crops/../../etc/passwd")
+        assert r.status_code in (403, 404)
+
 
 # ===== Config Routes =====
 

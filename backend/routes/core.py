@@ -41,6 +41,7 @@ async def root():
             "pipeline_info": "/pipeline - Pipeline steps and stats (GET)",
             "config": "/config - Get/update .env configuration (GET/POST)",
             "config_ui": "/config/ui - Browser-based configuration UI (GET)",
+            "preflight": "/preflight - Pre-startup model connectivity report (GET/POST)",
         },
     }
 
@@ -116,6 +117,7 @@ async def stats():
 async def health():
     """Health check endpoint."""
     is_healthy = _state["capture"] is not None and _state["analyzer"] is not None
+    preflight_report = _state.get("preflight")
     return JSONResponse(
         status_code=200 if is_healthy else 503,
         content={
@@ -126,8 +128,31 @@ async def health():
                           "profile_manager", "shell_agent", "process_scanner",
                           "window_cropper", "event_bus", "pipeline", "read_model")
             },
+            "preflight": {
+                "all_ok": preflight_report.get("all_ok") if preflight_report else None,
+                "failed": preflight_report.get("failed", []) if preflight_report else [],
+            },
         },
     )
+
+
+@router.get("/preflight")
+async def preflight():
+    """Get pre-startup model connectivity report (or re-run)."""
+    report = _state.get("preflight")
+    if not report:
+        return JSONResponse(status_code=503, content={"error": "Preflight not yet run"})
+    return report
+
+
+@router.post("/preflight")
+async def rerun_preflight():
+    """Re-run preflight diagnostics (model connectivity checks)."""
+    from preflight import run_preflight
+    from settings import get_settings
+    report = await run_preflight(get_settings())
+    _state["preflight"] = report
+    return report
 
 
 @router.get("/diagnostics")
