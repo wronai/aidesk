@@ -584,7 +584,7 @@ function setupMouseForwarding() {
   if (!window.electron || !window.electron.setIgnoreMouseEvents) return;
 
   // All interactive elements that should be clickable
-  const interactiveSelectors = 'select, button, input, .ocr-controls, .header';
+  const interactiveSelectors = 'select, button, input, .ocr-controls, .header, .agent-actions, .agent-action-buttons';
 
   document.addEventListener('mouseover', (e) => {
     if (e.target.closest(interactiveSelectors)) {

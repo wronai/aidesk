@@ -385,13 +385,22 @@ async def root():
     """Root endpoint."""
     return {
         "name": "AI Desktop Assistant API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
         "endpoints": {
             "stream": "/stream - SSE endpoint for real-time updates",
             "status": "/status - Current status and latest data",
             "stats": "/stats - Detailed statistics",
             "health": "/health - Health check",
+            "window": "/window - Active window info (GET)",
+            "window_latest": "/window/latest - Cached window info (GET)",
+            "monitors": "/monitors - Connected monitors (GET)",
+            "profiles": "/profiles - Per-app analysis profiles (GET)",
+            "agent_actions": "/agent/actions - Pending agent actions (GET)",
+            "agent_approve": "/agent/approve/{id} - Approve action (POST)",
+            "agent_execute": "/agent/execute/{id} - Execute action (POST)",
+            "agent_run": "/agent/run - Run safe command (POST)",
+            "agent_history": "/agent/history - Action history (GET)",
         },
     }
 
@@ -484,6 +493,15 @@ async def stats():
     if app_state["stt"]:
         stats_data["stt"] = app_state["stt"].get_stats()
 
+    if app_state["window_manager"]:
+        stats_data["window_manager"] = app_state["window_manager"].get_stats()
+
+    if app_state["profile_manager"]:
+        stats_data["profile_manager"] = app_state["profile_manager"].get_stats()
+
+    if app_state["shell_agent"]:
+        stats_data["shell_agent"] = app_state["shell_agent"].get_stats()
+
     stats_data["context"] = app_state["context"].get_stats()
 
     return stats_data
@@ -505,6 +523,9 @@ async def health():
                 "analyzer": app_state["analyzer"] is not None,
                 "ocr": app_state["ocr_manager"] is not None,
                 "stt": app_state["stt"] is not None,
+                "window_manager": app_state["window_manager"] is not None,
+                "profile_manager": app_state["profile_manager"] is not None,
+                "shell_agent": app_state["shell_agent"] is not None,
             },
         },
     )

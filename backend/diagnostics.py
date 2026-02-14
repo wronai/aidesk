@@ -86,6 +86,9 @@ class AutoDiagnostics:
         checks.append(self._check_log_file())
         checks.append(self._check_log_db())
         checks.append(self._check_context())
+        checks.append(self._check_window_manager())
+        checks.append(self._check_profile_manager())
+        checks.append(self._check_shell_agent())
 
         elapsed = round(time.time() - start, 3)
         all_ok = all(c["ok"] for c in checks)
@@ -269,6 +272,74 @@ class AutoDiagnostics:
                 "max_items": stats.get("max_items", 0),
             },
         }
+
+    def _check_window_manager(self) -> Dict:
+        """Check window manager (window awareness) status."""
+        wm = self.app_state.get("window_manager")
+        if wm is None:
+            enabled = os.getenv("ENABLE_WINDOW_AWARE", "true").lower() == "true"
+            if enabled:
+                return {"name": "window_manager", "ok": False, "detail": "Enabled but not initialized"}
+            return {"name": "window_manager", "ok": True, "detail": "Disabled in config"}
+
+        try:
+            stats = wm.get_stats()
+            return {
+                "name": "window_manager",
+                "ok": True,
+                "detail": {
+                    "display_server": stats.get("display_server", "unknown"),
+                    "monitors": stats.get("monitors", 0),
+                    "total_queries": stats.get("total_queries", 0),
+                    "tools": stats.get("tools", {}),
+                },
+            }
+        except Exception as e:
+            return {"name": "window_manager", "ok": False, "detail": str(e)}
+
+    def _check_profile_manager(self) -> Dict:
+        """Check per-app profile manager status."""
+        pm = self.app_state.get("profile_manager")
+        if pm is None:
+            return {"name": "profile_manager", "ok": False, "detail": "Not initialized"}
+
+        try:
+            stats = pm.get_stats()
+            return {
+                "name": "profile_manager",
+                "ok": True,
+                "detail": {
+                    "active_category": stats.get("active_category"),
+                    "switch_count": stats.get("switch_count", 0),
+                    "total_profiles": stats.get("total_profiles", 0),
+                },
+            }
+        except Exception as e:
+            return {"name": "profile_manager", "ok": False, "detail": str(e)}
+
+    def _check_shell_agent(self) -> Dict:
+        """Check shell agent status."""
+        agent = self.app_state.get("shell_agent")
+        if agent is None:
+            enabled = os.getenv("ENABLE_SHELL_AGENT", "true").lower() == "true"
+            if enabled:
+                return {"name": "shell_agent", "ok": False, "detail": "Enabled but not initialized"}
+            return {"name": "shell_agent", "ok": True, "detail": "Disabled in config"}
+
+        try:
+            stats = agent.get_stats()
+            return {
+                "name": "shell_agent",
+                "ok": True,
+                "detail": {
+                    "total_suggestions": stats.get("total_suggestions", 0),
+                    "total_executions": stats.get("total_executions", 0),
+                    "total_blocked": stats.get("total_blocked", 0),
+                    "pending_actions": stats.get("pending_actions", 0),
+                },
+            }
+        except Exception as e:
+            return {"name": "shell_agent", "ok": False, "detail": str(e)}
 
     def get_latest(self) -> Optional[Dict]:
         """Return latest diagnostics result."""
