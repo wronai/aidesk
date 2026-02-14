@@ -48,6 +48,7 @@ class RealtimeSTT:
         self.transcript_callback: Optional[Callable] = None
         self.connection = None
         self.is_running = False
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
         self.total_duration = 0.0
         self.total_cost = 0.0
 
@@ -81,6 +82,7 @@ class RealtimeSTT:
 
         self.transcript_callback = on_transcript
         self.is_running = True
+        self._loop = asyncio.get_running_loop()
 
         try:
             # Create connection
@@ -138,7 +140,20 @@ class RealtimeSTT:
         except Exception as e:
             logger.error("Failed to start STT", error=str(e))
             self.is_running = False
+            self._loop = None
             raise
+
+    def _send_audio_bytes(self, audio_bytes: bytes):
+        """Thread-safe send of audio bytes to Deepgram using the captured loop."""
+        if not (self.connection and self.is_running):
+            return
+        if not self._loop or self._loop.is_closed():
+            return
+
+        asyncio.run_coroutine_threadsafe(
+            self.connection.send(audio_bytes),
+            self._loop,
+        )
 
     @staticmethod
     def _resolve_device(pulse_name: Optional[str]) -> Optional[int]:
@@ -173,15 +188,12 @@ class RealtimeSTT:
 
                 # Send to Deepgram
                 try:
-                    asyncio.run_coroutine_threadsafe(
-                        self.connection.send(audio_bytes),
-                        asyncio.get_event_loop(),
-                    )
+                    self._send_audio_bytes(audio_bytes)
                 except Exception as e:
                     logger.error("Failed to send audio", error=str(e))
 
         # Determine which device to use: monitor (loopback) takes priority if set
-        device_index = self._sd_monitor_index or self._sd_device_index
+        device_index = self._sd_monitor_index if self._sd_monitor_index is not None else self._sd_device_index
         device_label = self.monitor_device or self.input_device or "default"
 
         try:

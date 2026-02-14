@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # ===== TTS =====
     tts_engine: str = Field(
         "auto",
-        description="auto|piper|pico2wave|spd-say|festival|espeak-ng|espeak",
+        description="auto|piper|pico2wave|spd-say|rhvoice|festival|espeak-ng|espeak",
     )
     tts_piper_model: str = Field(
         "",
@@ -215,7 +215,7 @@ class Settings(BaseSettings):
     @field_validator("tts_engine")
     @classmethod
     def validate_tts_engine(cls, v):
-        valid = {"auto", "piper", "pico2wave", "spd-say", "festival", "espeak-ng", "espeak"}
+        valid = {"auto", "piper", "pico2wave", "spd-say", "rhvoice", "festival", "espeak-ng", "espeak"}
         if v not in valid:
             raise ValueError(f"tts_engine must be one of {valid}, got '{v}'")
         return v

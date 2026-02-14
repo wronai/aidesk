@@ -703,6 +703,82 @@ class TestClipboardRoutes:
         assert r.status_code == 200
         assert "queue_size" in r.json()
 
+    def test_analyze_selection_with_explicit_clipboard(self):
+        """Test analyze-selection using clipboard text from request body."""
+        mock_router = MagicMock()
+        mock_match = MagicMock()
+        mock_match.to_dict.return_value = {
+            "skill": "test", "score": 0.9, "label": "Test Match", "icon": "🧪"
+        }
+        mock_match.skill_name = "test"
+        mock_match.label = "Test Match"
+        mock_match.icon = "🧪"
+        mock_match.extracted_text = None
+        mock_router.analyze.return_value = [mock_match]
+        self.state["skill_router"] = mock_router
+
+        r = self.client.post("/analyze-selection", json={
+            "text": "selected text",
+            "clipboard_text": "explicit clipboard content"
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["top_skill"] == "test"
+        
+        # Verify context passed to router
+        args = mock_router.analyze.call_args
+        assert args
+        ctx = args[0][1]
+        assert ctx.text == "selected text"
+        assert ctx.clipboard_top == "explicit clipboard content"
+
+    def test_analyze_selection_fallback_to_manager(self):
+        """Test analyze-selection fetching clipboard from manager when body is empty."""
+        # Ensure manager has known item on top
+        self.mgr.push("manager clipboard item")
+        
+        mock_router = MagicMock()
+        mock_router.analyze.return_value = []
+        self.state["skill_router"] = mock_router
+
+        r = self.client.post("/analyze-selection", json={
+            "text": "selected text"
+            # no clipboard_text
+        })
+        assert r.status_code == 200
+        
+        # Verify context used manager's item
+        args = mock_router.analyze.call_args
+        ctx = args[0][1]
+        assert ctx.clipboard_top == "manager clipboard item"
+
+    def test_execute_skill(self):
+        """Test skill execution route passes context correctly."""
+        mock_router = MagicMock()
+        mock_result = MagicMock()
+        mock_result.to_dict.return_value = {"ok": True, "output": "Done"}
+        mock_router.execute = AsyncMock(return_value=mock_result)
+        self.state["skill_router"] = mock_router
+
+        r = self.client.post("/skill/execute", json={
+            "skill": "test_skill",
+            "option_id": "opt_1",
+            "text": "selection",
+            "clipboard_text": "clip content"
+        })
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+        # Verify arguments passed to execute
+        mock_router.execute.assert_called_once()
+        args = mock_router.execute.call_args
+        # execute(skill_name, text, option_id, ctx)
+        assert args[0][0] == "test_skill"
+        assert args[0][1] == "selection"
+        assert args[0][2] == "opt_1"
+        ctx = args[0][3]
+        assert ctx.clipboard_top == "clip content"
+
 
 # ===== Init function tests =====
 

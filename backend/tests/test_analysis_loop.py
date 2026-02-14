@@ -170,6 +170,28 @@ class TestTick:
         })
 
 
+    @pytest.mark.asyncio
+    async def test_tick_with_clipboard_broadcast(self):
+        state = _make_state()
+        broadcast = AsyncMock()
+
+        async def mock_run(ctx):
+            ctx.analysis_result = {"text": "some text"}
+            ctx.clipboard_suggestions = [{"text": "suggestion"}]
+            ctx.clipboard_auto_copies = [{"text": "auto_copy"}]
+            ctx.steps_executed = ["clipboard"]
+            return ctx
+        state["pipeline"].run = AsyncMock(side_effect=mock_run)
+
+        loop = AnalysisLoop(state, broadcast)
+        await loop.tick()
+
+        broadcast.assert_any_call("clipboard_suggestions", {
+            "suggestions": [{"text": "suggestion"}],
+            "auto_copies": [{"text": "auto_copy"}],
+        })
+
+
 class TestWindowTracking:
     @pytest.mark.asyncio
     async def test_window_change_notifies_selector(self):
@@ -298,3 +320,81 @@ class TestErrorHandling:
         await loop.tick()
 
         broadcast.assert_any_call("agent_actions", {"actions": [{"cmd": "git push"}]})
+
+
+class TestClipboardBroadcastRegression:
+    """P2a: Regression tests for clipboard fields in _broadcast_state.
+
+    Ensures PipelineContext always has clipboard_suggestions and
+    clipboard_auto_copies fields, and that _broadcast_state handles
+    them correctly in all scenarios.
+    """
+
+    def test_pipeline_context_has_clipboard_fields(self):
+        """PipelineContext must always have clipboard fields with defaults."""
+        ctx = PipelineContext()
+        assert hasattr(ctx, "clipboard_suggestions")
+        assert hasattr(ctx, "clipboard_auto_copies")
+        assert ctx.clipboard_suggestions == []
+        assert ctx.clipboard_auto_copies == []
+
+    @pytest.mark.asyncio
+    async def test_broadcast_clipboard_when_present(self):
+        """When clipboard data exists, it should be broadcast."""
+        state = _make_state()
+        broadcast = AsyncMock()
+
+        async def mock_run(ctx):
+            ctx.clipboard_suggestions = [{"text": "paste me"}]
+            ctx.clipboard_auto_copies = [{"text": "auto"}]
+            ctx.steps_executed = ["clipboard"]
+            return ctx
+        state["pipeline"].run = AsyncMock(side_effect=mock_run)
+
+        loop = AnalysisLoop(state, broadcast)
+        await loop.tick()
+
+        broadcast.assert_any_call("clipboard_suggestions", {
+            "suggestions": [{"text": "paste me"}],
+            "auto_copies": [{"text": "auto"}],
+        })
+
+    @pytest.mark.asyncio
+    async def test_no_clipboard_broadcast_when_empty(self):
+        """When clipboard_suggestions is empty, no clipboard broadcast should occur."""
+        state = _make_state()
+        broadcast = AsyncMock()
+
+        async def mock_run(ctx):
+            # clipboard fields stay at default (empty lists)
+            ctx.steps_executed = ["scan"]
+            return ctx
+        state["pipeline"].run = AsyncMock(side_effect=mock_run)
+
+        loop = AnalysisLoop(state, broadcast)
+        await loop.tick()
+
+        # Should NOT have broadcast clipboard_suggestions
+        for call in broadcast.call_args_list:
+            assert call[0][0] != "clipboard_suggestions"
+
+    @pytest.mark.asyncio
+    async def test_clipboard_suggestions_without_auto_copies(self):
+        """Suggestions present but auto_copies empty — should still broadcast."""
+        state = _make_state()
+        broadcast = AsyncMock()
+
+        async def mock_run(ctx):
+            ctx.clipboard_suggestions = [{"text": "suggestion"}]
+            # clipboard_auto_copies stays empty
+            ctx.steps_executed = ["clipboard"]
+            return ctx
+        state["pipeline"].run = AsyncMock(side_effect=mock_run)
+
+        loop = AnalysisLoop(state, broadcast)
+        await loop.tick()
+
+        broadcast.assert_any_call("clipboard_suggestions", {
+            "suggestions": [{"text": "suggestion"}],
+            "auto_copies": [],
+        })

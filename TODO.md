@@ -4,20 +4,20 @@ Backlog został przygotowany na podstawie aktualnego kodu oraz indeksu `project.
 
 ## P0 — stabilność runtime
 
-- [ ] Naprawić payload SSE dla clipboard w `AnalysisLoop`:
+- [x] Naprawić payload SSE dla clipboard w `AnalysisLoop`:
   - `backend/analysis_loop.py` odwołuje się do `ctx.clipboard_auto_copies`, ale pole nie istnieje w `PipelineContext`.
   - Opcje: dodać pole do `PipelineContext` albo użyć bezpiecznego fallback (`getattr(ctx, "clipboard_auto_copies", 0)`).
 
 ## P1 — domknięcie konfiguracji (typed Settings)
 
-- [ ] Dodać `daily_budget` i `hourly_budget` do `Settings` (obecnie fallback + TODO w `backend/cost_budget.py`).
-- [ ] Dodać `ocr_spell_dict`/`OCR_SPELL_DICT` do `Settings` (obecnie TODO w `backend/ocr_post_process.py`).
-- [ ] Dodać `crop_change_threshold` do `Settings` (obecnie hardcoded TODO w `backend/window_cropper.py`).
-- [ ] Dodać `diag_interval` do `Settings` (obecnie TODO w `backend/bootstrap.py`).
+- [x] Dodać `daily_budget` i `hourly_budget` do `Settings` (obecnie fallback + TODO w `backend/cost_budget.py`).
+- [x] Dodać `ocr_spell_dict`/`OCR_SPELL_DICT` do `Settings` (obecnie TODO w `backend/ocr_post_process.py`).
+- [x] Dodać `crop_change_threshold` do `Settings` (obecnie hardcoded TODO w `backend/window_cropper.py`).
+- [x] Dodać `diag_interval` do `Settings` (obecnie TODO w `backend/bootstrap.py`).
 
 ## P1 — pipeline i koszty
 
-- [ ] Zintegrować `cost_budget` z decyzją o trybie analizy (degradacja do `ocr_only` po przekroczeniu budżetu).
+- [x] Zintegrować `cost_budget` z decyzją o trybie analizy (degradacja do `ocr_only` po przekroczeniu budżetu).
   - `cost_budget` jest tworzony i przekazywany do `create_pipeline`, ale nie jest używany w krokach.
 
 ## P2 — testy i jakość
