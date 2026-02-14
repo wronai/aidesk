@@ -1,3 +1,23 @@
+## [1.0.5] - 2026-02-14
+
+### Summary
+
+refactor(build): configuration management system
+
+### Other
+
+- build: update Makefile
+- update backend/app_profiles.py
+- update backend/capture.py
+- update backend/diagnostics.py
+- update backend/server.py
+- update backend/shell_agent.py
+- update backend/window_aware.py
+- update overlay/app.js
+- update overlay/index.html
+- update overlay/styles.css
+
+
 ## [1.0.4] - 2026-02-14
 
 ### Summary

@@ -24,6 +24,13 @@ const elements = {
   benchmarkResults: document.getElementById('benchmarkResults'),
   ocrInfo: document.getElementById('ocrInfo'),
   ocrInfoText: document.getElementById('ocrInfoText'),
+  windowContext: document.getElementById('windowContext'),
+  windowEmoji: document.getElementById('windowEmoji'),
+  windowAppName: document.getElementById('windowAppName'),
+  windowCategory: document.getElementById('windowCategory'),
+  windowDetail: document.getElementById('windowDetail'),
+  agentActions: document.getElementById('agentActions'),
+  agentActionsList: document.getElementById('agentActionsList'),
 };
 
 /**
@@ -72,6 +79,21 @@ function connect() {
   eventSource.addEventListener('mode_changed', (e) => {
     const data = JSON.parse(e.data);
     handleModeChanged(data);
+  });
+
+  eventSource.addEventListener('window', (e) => {
+    const data = JSON.parse(e.data);
+    handleWindowUpdate(data);
+  });
+
+  eventSource.addEventListener('agent_actions', (e) => {
+    const data = JSON.parse(e.data);
+    handleAgentActions(data);
+  });
+
+  eventSource.addEventListener('agent_result', (e) => {
+    const data = JSON.parse(e.data);
+    handleAgentResult(data);
   });
 
   eventSource.addEventListener('ocr_benchmark', (e) => {
@@ -422,6 +444,136 @@ async function loadOCRSettings() {
   } catch (error) {
     console.log('Could not load OCR settings (backend may not be ready):', error.message);
   }
+}
+
+/**
+ * Category emoji mapping
+ */
+const CATEGORY_EMOJI = {
+  ide: '💻', terminal: '🖥️', browser: '🌐', email: '📧',
+  chat: '💬', office: '📄', media: '🎨', file_manager: '📁',
+  system: '⚙️', unknown: '📝',
+};
+
+/**
+ * Handle window context update from backend
+ */
+function handleWindowUpdate(data) {
+  if (!elements.windowContext) return;
+
+  const category = data.category || 'unknown';
+  const appName = data.wm_class_name || data.title || '—';
+  const emoji = CATEGORY_EMOJI[category] || '📝';
+
+  elements.windowContext.style.display = 'block';
+  elements.windowEmoji.textContent = emoji;
+  elements.windowAppName.textContent = appName;
+  elements.windowCategory.textContent = category;
+  elements.windowCategory.className = `badge badge-cat-${category}`;
+
+  // Detail line: git branch, CWD
+  let detail = '';
+  if (data.git && data.git.branch) {
+    detail += `🔀 ${data.git.branch}`;
+    if (data.git.status) detail += ` (${data.git.status})`;
+  }
+  if (data.cwd) {
+    const shortCwd = data.cwd.replace(/^\/home\/[^/]+/, '~');
+    if (detail) detail += '  •  ';
+    detail += `📁 ${shortCwd}`;
+  }
+  elements.windowDetail.textContent = detail;
+  elements.windowDetail.style.display = detail ? 'block' : 'none';
+}
+
+/**
+ * Handle agent action suggestions from backend
+ */
+function handleAgentActions(data) {
+  if (!elements.agentActions || !data.actions || data.actions.length === 0) {
+    if (elements.agentActions) elements.agentActions.style.display = 'none';
+    return;
+  }
+
+  elements.agentActions.style.display = 'block';
+
+  let html = '';
+  for (const action of data.actions) {
+    const riskClass = `risk-${action.risk}`;
+    const riskLabel = action.risk === 'safe' ? '✅' : action.risk === 'low' ? '🟡' : action.risk === 'medium' ? '🟠' : '🔴';
+    html += `
+      <div class="agent-action-item ${riskClass}">
+        <div class="agent-action-desc">${riskLabel} ${escapeHtml(action.description)}</div>
+        <div class="agent-action-cmd"><code>${escapeHtml(action.command)}</code></div>
+        <div class="agent-action-buttons">
+          <button class="btn-agent btn-approve" onclick="approveAndExecute('${action.action_id}')" title="Zatwierdź i wykonaj">▶ Wykonaj</button>
+          <button class="btn-agent btn-copy" onclick="copyCommand('${escapeHtml(action.command)}')" title="Kopiuj komendę">📋</button>
+        </div>
+      </div>
+    `;
+  }
+
+  elements.agentActionsList.innerHTML = html;
+
+  // Auto-hide after 30 seconds
+  setTimeout(() => {
+    if (elements.agentActions) elements.agentActions.style.display = 'none';
+  }, 30000);
+}
+
+/**
+ * Handle agent execution result
+ */
+function handleAgentResult(data) {
+  if (!data.executed) return;
+
+  const statusEmoji = data.exit_code === 0 ? '✅' : '❌';
+  const output = data.output ? data.output.substring(0, 200) : '(brak wyjścia)';
+
+  // Show result as temporary notification in agent actions area
+  if (elements.agentActionsList) {
+    const resultHtml = `
+      <div class="agent-result">
+        <div class="agent-result-header">${statusEmoji} ${escapeHtml(data.description)} (exit: ${data.exit_code})</div>
+        <pre class="agent-result-output">${escapeHtml(output)}</pre>
+      </div>
+    `;
+    elements.agentActionsList.innerHTML = resultHtml;
+    elements.agentActions.style.display = 'block';
+
+    setTimeout(() => {
+      if (elements.agentActions) elements.agentActions.style.display = 'none';
+    }, 15000);
+  }
+}
+
+/**
+ * Approve and execute an agent action via API
+ */
+async function approveAndExecute(actionId) {
+  try {
+    // Approve first
+    await fetch(`${BACKEND_URL}/agent/approve/${actionId}`, { method: 'POST' });
+    // Then execute
+    const res = await fetch(`${BACKEND_URL}/agent/execute/${actionId}`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      handleAgentResult(data);
+    }
+  } catch (error) {
+    console.error('Agent execute error:', error);
+  }
+}
+
+/**
+ * Copy command to clipboard
+ */
+function copyCommand(command) {
+  navigator.clipboard.writeText(command).then(() => {
+    console.log('Command copied to clipboard:', command);
+  }).catch(err => {
+    console.error('Clipboard copy failed:', err);
+  });
 }
 
 /**

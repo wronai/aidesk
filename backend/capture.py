@@ -8,7 +8,7 @@ from PIL import Image
 from io import BytesIO
 import base64
 import time
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import structlog
 import os
 
@@ -71,9 +71,17 @@ class SmartScreenCapture:
             captures_dir=captures_dir,
         )
 
-    def capture(self) -> Optional[Dict]:
+    def capture(
+        self,
+        monitor_index: Optional[int] = None,
+        roi: Optional[Dict] = None,
+    ) -> Optional[Dict]:
         """
         Capture screen and return if meaningful change detected.
+
+        Args:
+            monitor_index: Monitor to capture (None = primary, 0 = all, 1+ = specific)
+            roi: Region of Interest dict with keys: left, top, width, height
 
         Returns:
             Dict with image data if change detected, None otherwise
@@ -88,8 +96,21 @@ class SmartScreenCapture:
         self.total_captures += 1
 
         try:
-            # Capture primary monitor
-            monitor = self.sct.monitors[1]
+            # Select monitor
+            if roi:
+                # ROI capture (e.g., active window region)
+                monitor = {
+                    "left": roi["left"],
+                    "top": roi["top"],
+                    "width": roi["width"],
+                    "height": roi["height"],
+                }
+            elif monitor_index is not None and 0 <= monitor_index < len(self.sct.monitors):
+                monitor = self.sct.monitors[monitor_index]
+            else:
+                # Default: primary monitor (index 1)
+                monitor = self.sct.monitors[1]
+
             raw = self.sct.grab(monitor)
             img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
 
@@ -150,6 +171,8 @@ class SmartScreenCapture:
                 "resolution": (self.screen_width, self.screen_height),
                 "size_kb": size_kb,
                 "hash_diff": 0 if self.last_hash is None else hash_diff,
+                "monitor_index": monitor_index,
+                "roi": roi,
             }
 
         except Exception as e:
@@ -168,6 +191,44 @@ class SmartScreenCapture:
             return self.idle_interval  # Idle mode
         return self.min_interval  # Active mode
 
+    def get_monitors(self) -> List[Dict]:
+        """Get list of available monitors from mss."""
+        monitors = []
+        for i, mon in enumerate(self.sct.monitors):
+            monitors.append({
+                "index": i,
+                "left": mon["left"],
+                "top": mon["top"],
+                "width": mon["width"],
+                "height": mon["height"],
+                "is_combined": i == 0,  # index 0 is the combined virtual screen
+            })
+        return monitors
+
+    def capture_roi_image(self, roi: Dict) -> Optional[str]:
+        """
+        Capture a specific screen region and return base64 JPEG.
+        Useful for window-focused capture.
+
+        Args:
+            roi: Dict with left, top, width, height
+
+        Returns:
+            Base64-encoded JPEG string, or None on error
+        """
+        try:
+            raw = self.sct.grab(roi)
+            img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+            img_resized = img.resize(
+                (self.screen_width, self.screen_height), Image.Resampling.LANCZOS
+            )
+            buffer = BytesIO()
+            img_resized.save(buffer, format="JPEG", quality=self.jpeg_quality, optimize=True)
+            return base64.b64encode(buffer.getvalue()).decode()
+        except Exception as e:
+            logger.error("ROI capture failed", error=str(e), roi=roi)
+            return None
+
     def get_stats(self) -> Dict:
         """Get capture statistics."""
         return {
@@ -181,6 +242,7 @@ class SmartScreenCapture:
             "consecutive_unchanged": self.consecutive_unchanged,
             "current_interval": self.adaptive_interval,
             "is_idle": self.consecutive_unchanged > self.idle_threshold,
+            "monitors": len(self.sct.monitors),
         }
 
 

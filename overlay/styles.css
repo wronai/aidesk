@@ -535,3 +535,183 @@ kbd {
   color: #c4b5fd;
   border: 1px solid rgba(167, 139, 250, 0.3);
 }
+
+/* Window Context Bar */
+.window-context {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+  animation: slideDown 0.3s ease-out;
+}
+
+.window-context-app {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-context-emoji {
+  font-size: 14px;
+}
+
+.window-context-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e0e0e0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-context-detail {
+  font-size: 10px;
+  color: #8b8b8b;
+  margin-top: 3px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Category badges */
+.badge-cat-ide { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.3); }
+.badge-cat-terminal { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+.badge-cat-browser { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+.badge-cat-email { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
+.badge-cat-chat { background: rgba(236, 72, 153, 0.2); color: #f9a8d4; border: 1px solid rgba(236, 72, 153, 0.3); }
+.badge-cat-office { background: rgba(107, 114, 128, 0.2); color: #d1d5db; border: 1px solid rgba(107, 114, 128, 0.3); }
+.badge-cat-media { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.3); }
+.badge-cat-file_manager { background: rgba(234, 179, 8, 0.2); color: #fde68a; border: 1px solid rgba(234, 179, 8, 0.3); }
+.badge-cat-system { background: rgba(75, 85, 99, 0.2); color: #9ca3af; border: 1px solid rgba(75, 85, 99, 0.3); }
+.badge-cat-unknown { background: rgba(75, 85, 99, 0.15); color: #9ca3af; border: 1px solid rgba(75, 85, 99, 0.2); }
+
+/* Agent Actions Section */
+.agent-actions {
+  padding: 10px 16px;
+  background: rgba(16, 185, 129, 0.04);
+  border-top: 1px solid rgba(16, 185, 129, 0.12);
+  animation: slideDown 0.3s ease-out;
+}
+
+.agent-actions-header {
+  margin-bottom: 8px;
+}
+
+.agent-actions-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #34d399;
+}
+
+.agent-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-action-item {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.2s ease;
+}
+
+.agent-action-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.agent-action-item.risk-safe { border-left: 3px solid #10b981; }
+.agent-action-item.risk-low { border-left: 3px solid #f59e0b; }
+.agent-action-item.risk-medium { border-left: 3px solid #f97316; }
+.agent-action-item.risk-high { border-left: 3px solid #ef4444; }
+
+.agent-action-desc {
+  font-size: 11px;
+  color: #d4d4d4;
+  margin-bottom: 4px;
+}
+
+.agent-action-cmd {
+  margin-bottom: 6px;
+}
+
+.agent-action-cmd code {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.agent-action-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-agent {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.btn-approve {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+.btn-approve:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.btn-copy {
+  background: rgba(107, 114, 128, 0.15);
+  border-color: rgba(107, 114, 128, 0.3);
+  color: #d1d5db;
+}
+
+.btn-copy:hover {
+  background: rgba(107, 114, 128, 0.25);
+  border-color: rgba(107, 114, 128, 0.5);
+}
+
+/* Agent Result */
+.agent-result {
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.agent-result-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #d4d4d4;
+  margin-bottom: 6px;
+}
+
+.agent-result-output {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+  color: #a3a3a3;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}

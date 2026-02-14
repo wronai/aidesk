@@ -20,8 +20,20 @@ from fastapi.staticfiles import StaticFiles
 from capture import create_capture_from_env
 from analyzer import create_analyzer_from_env
 from ocr_engines import create_ocr_manager_from_env
-from stt import create_stt_from_env
 from context import ContextManager
+from diagnostics import AutoDiagnostics
+from window_aware import WindowManager, create_window_manager_from_env
+from app_profiles import ProfileManager, create_profile_manager
+from shell_agent import ShellAgent, create_shell_agent_from_env
+
+# Lazy STT import - sounddevice may not be available
+def _import_stt():
+    try:
+        from stt import create_stt_from_env
+        return create_stt_from_env
+    except (ImportError, OSError) as e:
+        structlog.get_logger().warning("STT module unavailable", error=str(e))
+        return None
 
 # Load environment variables
 load_dotenv()
@@ -91,6 +103,11 @@ app_state = {
     "analyzer": None,
     "ocr_manager": None,
     "stt": None,
+    "diagnostics": None,
+    "window_manager": None,
+    "profile_manager": None,
+    "shell_agent": None,
+    "latest_window": None,
     "stats": {
         "start_time": time.time(),
         "total_screen_analyses": 0,
@@ -129,25 +146,61 @@ async def broadcast(event_type: str, data: Dict):
 
 async def screen_analysis_loop():
     """
-    Main loop: capture → detect change → analyze → broadcast.
+    Main loop: capture → window detect → per-app profile → analyze → agent suggest → broadcast.
     """
     capture = app_state["capture"]
     analyzer = app_state["analyzer"]
     context_mgr = app_state["context"]
+    window_mgr = app_state.get("window_manager")
+    profile_mgr = app_state.get("profile_manager")
+    shell_agent = app_state.get("shell_agent")
 
-    logger.info("Screen analysis loop started")
+    # Window-aware capture mode
+    use_window_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
+
+    logger.info("Screen analysis loop started",
+                window_aware=window_mgr is not None,
+                capture_mode="window" if use_window_roi else "fullscreen")
 
     while True:
         try:
-            # Capture screen (returns None if no change)
-            result = capture.capture()
+            # Step 1: Detect active window
+            window_info = None
+            window_context = ""
+            roi = None
+
+            if window_mgr:
+                window_info = window_mgr.get_active_window()
+                app_state["latest_window"] = window_info.to_dict()
+                window_context = window_info.to_context_string()
+
+                # Optional: capture only the active window region
+                if use_window_roi and window_info.width > 0:
+                    roi = window_mgr.get_window_roi(window_info)
+
+                # Broadcast window info to overlay
+                await broadcast("window", window_info.to_dict())
+
+            # Step 2: Capture screen (with optional ROI)
+            result = capture.capture(roi=roi)
 
             if result:
-                # Get recent context
+                # Step 3: Build context with window awareness
                 context_str = context_mgr.get_context_string(n=5, max_length=500)
+                if window_context:
+                    context_str = f"{window_context}\n\n{context_str}"
 
-                # Analyze screen
-                analysis = await analyzer.analyze(result["image_b64"], context_str)
+                # Step 4: Get per-app prompt addon
+                prompt_addon = ""
+                if profile_mgr and window_info:
+                    prompt_addon = profile_mgr.get_prompt_addon(window_info.category)
+
+                # Step 5: Analyze screen (with enriched context)
+                full_context = context_str
+                if prompt_addon:
+                    full_context = f"{prompt_addon}\n\n{context_str}"
+
+                analysis = await analyzer.analyze(result["image_b64"], full_context)
 
                 # Store in state
                 app_state["latest_analysis"] = analysis["text"]
@@ -161,23 +214,55 @@ async def screen_analysis_loop():
                         "tokens": analysis.get("tokens", 0),
                         "cost": analysis.get("cost", 0.0),
                         "provider": analysis.get("provider", "unknown"),
+                        "window": window_info.title if window_info else None,
+                        "category": window_info.category.value if window_info else None,
                     },
                 )
 
-                # Broadcast to overlay
-                await broadcast(
-                    "analysis",
-                    {
-                        "text": analysis["text"],
-                        "timestamp": result["timestamp"],
-                        "size_kb": result["size_kb"],
-                        "tokens": analysis.get("tokens", 0),
-                        "cost": round(analysis.get("cost", 0.0), 6),
-                        "provider": analysis.get("provider", "unknown"),
-                        "mode": analysis.get("mode", "vision_only"),
-                        "ocr": analysis.get("ocr"),
-                    },
-                )
+                # Step 6: Shell agent — suggest actions based on analysis
+                agent_actions = []
+                if shell_agent and window_info:
+                    analysis_text = analysis.get("text", "")
+                    # Also check OCR text if available
+                    ocr_text = ""
+                    if analysis.get("ocr") and analysis["ocr"].get("text"):
+                        ocr_text = analysis["ocr"]["text"]
+                    combined_text = f"{analysis_text}\n{ocr_text}"
+
+                    actions = shell_agent.suggest_actions(
+                        detected_text=combined_text,
+                        category=window_info.category,
+                        cwd=window_info.cwd,
+                    )
+                    if actions:
+                        agent_actions = [a.to_dict() for a in actions]
+                        await broadcast("agent_actions", {"actions": agent_actions})
+
+                # Step 7: Broadcast to overlay
+                broadcast_data = {
+                    "text": analysis["text"],
+                    "timestamp": result["timestamp"],
+                    "size_kb": result["size_kb"],
+                    "tokens": analysis.get("tokens", 0),
+                    "cost": round(analysis.get("cost", 0.0), 6),
+                    "provider": analysis.get("provider", "unknown"),
+                    "mode": analysis.get("mode", "vision_only"),
+                    "ocr": analysis.get("ocr"),
+                }
+
+                # Enrich with window info
+                if window_info:
+                    broadcast_data["window"] = {
+                        "title": window_info.title,
+                        "category": window_info.category.value,
+                        "app": window_info.wm_class_name,
+                        "git_branch": window_info.git_branch,
+                    }
+
+                if agent_actions:
+                    broadcast_data["agent_actions"] = agent_actions
+
+                await broadcast("analysis", broadcast_data)
 
             # Adaptive sleep based on capture interval
             await asyncio.sleep(capture.adaptive_interval)
@@ -216,10 +301,29 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting AI Desktop Assistant backend")
 
-    # Initialize components
+    # Initialize core components
     app_state["capture"] = create_capture_from_env()
     app_state["ocr_manager"] = create_ocr_manager_from_env()
     app_state["analyzer"] = create_analyzer_from_env(ocr_manager=app_state["ocr_manager"])
+
+    # Initialize window awareness (Linux X11/Wayland)
+    if os.getenv("ENABLE_WINDOW_AWARE", "true").lower() == "true":
+        try:
+            app_state["window_manager"] = create_window_manager_from_env()
+            logger.info("Window awareness enabled")
+        except Exception as e:
+            logger.warning("Window awareness initialization failed", error=str(e))
+
+    # Initialize per-app profiles
+    app_state["profile_manager"] = create_profile_manager()
+
+    # Initialize shell agent
+    if os.getenv("ENABLE_SHELL_AGENT", "true").lower() == "true":
+        try:
+            app_state["shell_agent"] = create_shell_agent_from_env()
+            logger.info("Shell agent enabled")
+        except Exception as e:
+            logger.warning("Shell agent initialization failed", error=str(e))
 
     # Start screen analysis loop
     screen_task = asyncio.create_task(screen_analysis_loop())
@@ -228,12 +332,18 @@ async def lifespan(app: FastAPI):
     stt_task = None
     if os.getenv("ENABLE_STT", "true").lower() == "true":
         try:
-            app_state["stt"] = create_stt_from_env()
+            create_stt = _import_stt()
+            app_state["stt"] = create_stt() if create_stt else None
             if app_state["stt"]:
                 stt_task = asyncio.create_task(app_state["stt"].start(on_transcript))
                 logger.info("STT enabled and started")
         except Exception as e:
             logger.warning("STT initialization failed", error=str(e))
+
+    # Start autodiagnostics
+    diag_interval = float(os.getenv("DIAG_INTERVAL", "30"))
+    app_state["diagnostics"] = AutoDiagnostics(app_state, interval=diag_interval)
+    diag_task = asyncio.create_task(app_state["diagnostics"].run_loop(broadcast))
 
     logger.info("Backend fully initialized and running")
 
@@ -242,6 +352,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down backend")
     screen_task.cancel()
+    diag_task.cancel()
 
     if stt_task:
         stt_task.cancel()
@@ -540,6 +651,171 @@ async def set_analysis_mode(mode_name: str):
     await broadcast("mode_changed", {"mode": mode_name})
 
     return {"mode": mode_name, "status": "active"}
+
+
+# ===== Diagnostics Endpoints =====
+
+@app.get("/diagnostics")
+async def diagnostics():
+    """Get latest autodiagnostics result."""
+    diag = app_state.get("diagnostics")
+    if not diag or not diag.get_latest():
+        return JSONResponse(status_code=503, content={"error": "Diagnostics not yet available", "detail": "First check runs after configured interval"})
+    return diag.get_latest()
+
+
+@app.get("/diagnostics/history")
+async def diagnostics_history():
+    """Get diagnostics history."""
+    diag = app_state.get("diagnostics")
+    if not diag:
+        return []
+    return diag.get_history()
+
+
+# ===== Window Awareness Endpoints =====
+
+@app.get("/window")
+async def get_active_window():
+    """Get current active window information."""
+    wm = app_state.get("window_manager")
+    if not wm:
+        return JSONResponse(status_code=503, content={"error": "Window awareness not enabled"})
+    info = wm.get_active_window()
+    return info.to_dict()
+
+
+@app.get("/window/latest")
+async def get_latest_window():
+    """Get latest cached window info (no subprocess call)."""
+    latest = app_state.get("latest_window")
+    if not latest:
+        return JSONResponse(status_code=404, content={"error": "No window data yet"})
+    return latest
+
+
+@app.get("/monitors")
+async def get_monitors():
+    """Get list of connected monitors."""
+    wm = app_state.get("window_manager")
+    capture = app_state.get("capture")
+
+    result = {"monitors": []}
+
+    if wm:
+        result["monitors"] = [m.to_dict() for m in wm.get_monitors()]
+        result["source"] = "xrandr"
+    elif capture:
+        result["monitors"] = capture.get_monitors()
+        result["source"] = "mss"
+
+    return result
+
+
+@app.get("/window/stats")
+async def window_stats():
+    """Get window manager statistics."""
+    wm = app_state.get("window_manager")
+    if not wm:
+        return JSONResponse(status_code=503, content={"error": "Window awareness not enabled"})
+    return wm.get_stats()
+
+
+# ===== App Profiles Endpoints =====
+
+@app.get("/profiles")
+async def get_profiles():
+    """Get all available per-app analysis profiles."""
+    pm = app_state.get("profile_manager")
+    if not pm:
+        return JSONResponse(status_code=503, content={"error": "Profile manager not initialized"})
+    return {
+        "profiles": pm.get_all_profiles(),
+        "active": pm.active_category.value if pm.active_category else None,
+        "stats": pm.get_stats(),
+    }
+
+
+# ===== Shell Agent Endpoints =====
+
+@app.get("/agent/actions")
+async def get_pending_actions():
+    """Get pending agent actions awaiting approval."""
+    agent = app_state.get("shell_agent")
+    if not agent:
+        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
+    return {
+        "pending": agent.get_pending_actions(),
+        "stats": agent.get_stats(),
+    }
+
+
+@app.post("/agent/approve/{action_id}")
+async def approve_action(action_id: str):
+    """Approve a pending agent action."""
+    agent = app_state.get("shell_agent")
+    if not agent:
+        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
+
+    success = agent.approve_action(action_id)
+    if not success:
+        return JSONResponse(status_code=404, content={"error": f"Action not found: {action_id}"})
+
+    return {"action_id": action_id, "status": "approved"}
+
+
+@app.post("/agent/execute/{action_id}")
+async def execute_action(action_id: str):
+    """Execute an approved agent action."""
+    agent = app_state.get("shell_agent")
+    if not agent:
+        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
+
+    try:
+        # Get CWD from latest window if available
+        cwd = None
+        latest_window = app_state.get("latest_window")
+        if latest_window and latest_window.get("cwd"):
+            cwd = latest_window["cwd"]
+
+        result = agent.execute_action(action_id, cwd=cwd)
+        await broadcast("agent_result", result.to_dict())
+        return result.to_dict()
+    except ValueError as e:
+        return JSONResponse(status_code=404, content={"error": str(e)})
+
+
+@app.get("/agent/history")
+async def agent_history():
+    """Get agent action execution history."""
+    agent = app_state.get("shell_agent")
+    if not agent:
+        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
+    return {
+        "history": agent.get_history(n=50),
+        "stats": agent.get_stats(),
+    }
+
+
+@app.post("/agent/run")
+async def agent_run_safe(request: Request):
+    """
+    Run a safe (read-only) command directly.
+    Body: {"command": "git status", "cwd": "/optional/path"}
+    """
+    agent = app_state.get("shell_agent")
+    if not agent:
+        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
+
+    body = await request.json()
+    command = body.get("command", "").strip()
+    cwd = body.get("cwd")
+
+    if not command:
+        return JSONResponse(status_code=400, content={"error": "Missing 'command' field"})
+
+    result = agent.execute_safe(command, cwd=cwd)
+    return result.to_dict()
 
 
 # ===== Screenshot Browser Endpoints =====

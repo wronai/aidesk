@@ -76,7 +76,7 @@ run-overlay: ## Run overlay only
 # ---- Utilities ----
 
 install: setup-backend ## Reinstall Python deps
-	$(PIP) install -r $(BACKEND_DIR)/requirements.txt --upgrade
+	$(PYTHON) -m pip install -r $(BACKEND_DIR)/requirements.txt --upgrade
 
 test: ## Run backend test_setup.py
 	$(PYTHON) $(BACKEND_DIR)/test_setup.py
