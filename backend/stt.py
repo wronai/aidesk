@@ -27,6 +27,8 @@ class RealtimeSTT:
         api_key: str,
         language: str = "pl",
         model: str = "nova-3",
+        input_device: Optional[str] = None,
+        monitor_device: Optional[str] = None,
     ):
         """
         Initialize STT.
@@ -35,10 +37,14 @@ class RealtimeSTT:
             api_key: Deepgram API key
             language: Language code (pl, en, etc.)
             model: Deepgram model (nova-3, nova-2, etc.)
+            input_device: PulseAudio/PipeWire source name for microphone (None = default)
+            monitor_device: PulseAudio/PipeWire monitor source for speaker loopback (None = disabled)
         """
         self.api_key = api_key
         self.language = language
         self.model = model
+        self.input_device = input_device or None
+        self.monitor_device = monitor_device or None
         self.transcript_callback: Optional[Callable] = None
         self.connection = None
         self.is_running = False
@@ -48,8 +54,18 @@ class RealtimeSTT:
         config = DeepgramClientOptions(options={"keepalive": "true"})
         self.client = DeepgramClient(api_key, config)
 
+        # Resolve PulseAudio/PipeWire device name → sounddevice index
+        self._sd_device_index = self._resolve_device(self.input_device)
+        self._sd_monitor_index = self._resolve_device(self.monitor_device)
+
         logger.info(
-            "Deepgram STT initialized", language=language, model=model
+            "Deepgram STT initialized",
+            language=language,
+            model=model,
+            input_device=self.input_device,
+            monitor_device=self.monitor_device,
+            sd_device_index=self._sd_device_index,
+            sd_monitor_index=self._sd_monitor_index,
         )
 
     async def start(self, on_transcript: Callable):
@@ -124,8 +140,26 @@ class RealtimeSTT:
             self.is_running = False
             raise
 
+    @staticmethod
+    def _resolve_device(pulse_name: Optional[str]) -> Optional[int]:
+        """
+        Resolve PulseAudio/PipeWire device name to sounddevice index.
+        Returns None if not found or not specified.
+        """
+        if not pulse_name:
+            return None
+        try:
+            devices = sd.query_devices()
+            for i, d in enumerate(devices):
+                if pulse_name in d.get("name", ""):
+                    return i
+            logger.warning("Audio device not found in sounddevice", pulse_name=pulse_name)
+        except Exception as e:
+            logger.warning("Failed to resolve audio device", pulse_name=pulse_name, error=str(e))
+        return None
+
     async def _capture_audio(self):
-        """Capture audio from microphone and stream to Deepgram."""
+        """Capture audio from microphone (and optionally monitor) and stream to Deepgram."""
 
         def audio_callback(indata, frames, time_info, status):
             """Called for each audio block from sounddevice."""
@@ -146,20 +180,29 @@ class RealtimeSTT:
                 except Exception as e:
                     logger.error("Failed to send audio", error=str(e))
 
+        # Determine which device to use: monitor (loopback) takes priority if set
+        device_index = self._sd_monitor_index or self._sd_device_index
+        device_label = self.monitor_device or self.input_device or "default"
+
         try:
-            logger.info("Starting microphone capture")
-            with sd.InputStream(
+            logger.info("Starting audio capture", device=device_label, device_index=device_index)
+
+            stream_kwargs = dict(
                 samplerate=16000,
                 channels=1,
                 dtype="float32",
                 blocksize=4000,
                 callback=audio_callback,
-            ):
+            )
+            if device_index is not None:
+                stream_kwargs["device"] = device_index
+
+            with sd.InputStream(**stream_kwargs):
                 while self.is_running:
                     await asyncio.sleep(0.1)
 
         except Exception as e:
-            logger.error("Audio capture failed", error=str(e))
+            logger.error("Audio capture failed", error=str(e), device=device_label)
             self.is_running = False
 
     async def stop(self):
@@ -188,6 +231,8 @@ class RealtimeSTT:
             "is_running": self.is_running,
             "language": self.language,
             "model": self.model,
+            "input_device": self.input_device or "(default)",
+            "monitor_device": self.monitor_device or "(disabled)",
             "total_duration_min": round(self.total_duration / 60, 2),
             "total_cost_usd": round(self.total_cost, 4),
         }
@@ -212,4 +257,6 @@ def create_stt_from_env() -> Optional[RealtimeSTT]:
         api_key=api_key,
         language=os.getenv("STT_LANGUAGE", "pl"),
         model=os.getenv("DEEPGRAM_MODEL", "nova-3"),
+        input_device=os.getenv("STT_INPUT_DEVICE", ""),
+        monitor_device=os.getenv("STT_MONITOR_DEVICE", ""),
     )

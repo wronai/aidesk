@@ -7,69 +7,290 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #0f172a; color: #f8fafc; }
-        .screenshot-card { transition: transform 0.2s; }
-        .screenshot-card:hover { transform: scale(1.02); }
+        .card { transition: transform 0.15s, box-shadow 0.15s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+        .tab-btn.active { border-color: #3b82f6; color: #3b82f6; background: rgba(59,130,246,0.1); }
+        .url-link { word-break: break-all; }
+        .crop-border { border: 2px solid transparent; }
+        .crop-border.active-window { border-color: #22c55e; }
     </style>
 </head>
-<body class="p-8">
-    <div class="max-w-6xl mx-auto">
-        <header class="mb-8 flex justify-between items-center">
-            <h1 class="text-3xl font-bold text-blue-400">Przeglądarka Zrzutów Ekranu</h1>
-            <button onclick="loadScreenshots()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition">Odśwież</button>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-6 flex justify-between items-center flex-wrap gap-4">
+            <h1 class="text-2xl font-bold text-blue-400">🖥 Przeglądarka Zrzutów Ekranu</h1>
+            <div class="flex gap-2">
+                <button onclick="refresh()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition">Odśwież</button>
+                <button onclick="toggleAutoRefresh()" id="auto-btn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition">Auto: OFF</button>
+            </div>
         </header>
 
-        <div id="gallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Screenshots will be loaded here -->
-            <div class="col-span-full text-center py-20 text-gray-400">Ładowanie obrazów...</div>
+        <!-- Tabs -->
+        <div class="flex gap-1 mb-6 border-b border-slate-700">
+            <button class="tab-btn active px-4 py-2 border-b-2 text-sm font-medium transition" data-tab="screenshots" onclick="switchTab('screenshots')">
+                Zrzuty ekranu
+            </button>
+            <button class="tab-btn px-4 py-2 border-b-2 border-transparent text-sm font-medium text-gray-400 transition" data-tab="crops" onclick="switchTab('crops')">
+                Cięcia per-app
+            </button>
+            <button class="tab-btn px-4 py-2 border-b-2 border-transparent text-sm font-medium text-gray-400 transition" data-tab="organized" onclick="switchTab('organized')">
+                Podgląd organizacji
+            </button>
+        </div>
+
+        <!-- Tab: Screenshots -->
+        <div id="tab-screenshots" class="tab-content">
+            <div id="gallery" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div class="col-span-full text-center py-16 text-gray-500">Ładowanie...</div>
+            </div>
+        </div>
+
+        <!-- Tab: Per-app crops -->
+        <div id="tab-crops" class="tab-content hidden">
+            <div id="crops-gallery" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div class="col-span-full text-center py-16 text-gray-500">Ładowanie...</div>
+            </div>
+        </div>
+
+        <!-- Tab: Organized screen -->
+        <div id="tab-organized" class="tab-content hidden">
+            <div id="organized-view" class="space-y-6">
+                <div class="text-center py-16 text-gray-500">Ładowanie...</div>
+            </div>
         </div>
     </div>
 
-    <!-- Modal for full size view -->
-    <div id="modal" class="fixed inset-0 bg-black/90 hidden flex items-center justify-center z-50 p-4" onclick="closeModal()">
-        <img id="modal-img" src="" class="max-w-full max-h-full rounded-lg shadow-2xl">
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/90 hidden z-50 flex flex-col items-center justify-center p-4" onclick="if(event.target===this)closeModal()">
+        <div class="relative max-w-full max-h-full flex flex-col items-center">
+            <img id="modal-img" src="" class="max-w-full max-h-[85vh] rounded-lg shadow-2xl">
+            <div id="modal-info" class="mt-3 text-sm text-gray-300 text-center"></div>
+            <button onclick="closeModal()" class="absolute -top-3 -right-3 bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded-full text-lg flex items-center justify-center">×</button>
+        </div>
     </div>
 
     <script>
-        const API_URL = ''; // Same origin
+        let autoInterval = null;
 
+        // ── Tab switching ──
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('active');
+                el.classList.add('border-transparent', 'text-gray-400');
+            });
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+            const btn = document.querySelector(`[data-tab="${tab}"]`);
+            btn.classList.add('active');
+            btn.classList.remove('border-transparent', 'text-gray-400');
+
+            if (tab === 'screenshots') loadScreenshots();
+            else if (tab === 'crops') loadCrops();
+            else if (tab === 'organized') loadOrganized();
+        }
+
+        // ── Screenshots ──
         async function loadScreenshots() {
             const gallery = document.getElementById('gallery');
             try {
-                const response = await fetch('/screenshots');
-                const data = await response.json();
-                
-                if (data.length === 0) {
-                    gallery.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Brak zapisanych zrzutów ekranu.</div>';
+                const data = await (await fetch('/screenshots')).json();
+                if (!data.length) {
+                    gallery.innerHTML = '<div class="col-span-full text-center py-16 text-gray-500">Brak zrzutów.</div>';
                     return;
                 }
-
-                gallery.innerHTML = data.map(s => `
-                    <div class="screenshot-card bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-lg cursor-pointer" onclick="openModal('${s.url}')">
-                        <div class="aspect-video bg-slate-900 flex items-center justify-center overflow-hidden">
-                            <img src="${s.url}" class="w-full h-full object-cover" loading="lazy">
+                gallery.innerHTML = data.slice(0, 30).map(s => {
+                    const fullUrl = location.origin + s.url;
+                    return `
+                    <div class="card bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
+                        <div class="aspect-video bg-slate-900 flex items-center justify-center overflow-hidden cursor-pointer" onclick="openModal('${s.url}', '${s.name}')">
+                            <img src="${s.url}" class="w-full h-full object-contain" loading="lazy">
                         </div>
-                        <div class="p-4">
+                        <div class="p-3 space-y-1">
                             <div class="text-sm font-medium truncate">${s.name}</div>
-                            <div class="text-xs text-gray-400 mt-1">${new Date(s.timestamp * 1000).toLocaleString('pl-PL')}</div>
-                            <div class="text-xs text-blue-400 mt-1">${(s.size / 1024).toFixed(1)} KB</div>
+                            <div class="text-xs text-gray-400">${fmtDate(s.timestamp)} · ${fmtKB(s.size)}</div>
+                            <div class="flex gap-2 mt-2">
+                                <a href="${s.url}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 url-link truncate" title="Miniatura">📎 miniatura</a>
+                                <span class="text-gray-600">|</span>
+                                <a href="${s.url}" target="_blank" download class="text-xs text-emerald-400 hover:text-emerald-300">⬇ pobierz</a>
+                            </div>
+                            <div class="text-[10px] text-gray-600 url-link mt-1 select-all">${fullUrl}</div>
                         </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                gallery.innerHTML = '<div class="col-span-full text-center py-20 text-red-400">Błąd podczas ładowania: ' + error.message + '</div>';
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                gallery.innerHTML = `<div class="col-span-full text-center py-16 text-red-400">Błąd: ${e.message}</div>`;
             }
         }
 
-        function openModal(url) {
-            const modal = document.getElementById('modal');
-            const modalImg = document.getElementById('modal-img');
-            modalImg.src = url;
-            modal.classList.remove('hidden');
+        // ── Crops ──
+        async function loadCrops() {
+            const el = document.getElementById('crops-gallery');
+            try {
+                const data = await (await fetch('/crops')).json();
+                if (!data.length) {
+                    el.innerHTML = '<div class="col-span-full text-center py-16 text-gray-500">Brak cropów.</div>';
+                    return;
+                }
+                el.innerHTML = data.slice(0, 50).map(c => {
+                    const fullUrl = location.origin + c.url;
+                    const parts = c.name.replace('crop_', '').split('_');
+                    const appName = parts[0] || 'unknown';
+                    return `
+                    <div class="card bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
+                        <div class="aspect-video bg-slate-900 flex items-center justify-center overflow-hidden cursor-pointer" onclick="openModal('${c.url}', '${c.name}')">
+                            <img src="${c.url}" class="w-full h-full object-contain" loading="lazy">
+                        </div>
+                        <div class="p-3 space-y-1">
+                            <div class="text-sm font-medium truncate">🪟 ${appName}</div>
+                            <div class="text-xs text-gray-400">${fmtDate(c.timestamp)} · ${fmtKB(c.size)}</div>
+                            <div class="flex gap-2 mt-2">
+                                <a href="${c.url}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">📎 podgląd</a>
+                                <span class="text-gray-600">|</span>
+                                <a href="${c.url}" target="_blank" download class="text-xs text-emerald-400 hover:text-emerald-300">⬇ pobierz</a>
+                            </div>
+                            <div class="text-[10px] text-gray-600 url-link mt-1 select-all">${fullUrl}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                el.innerHTML = `<div class="col-span-full text-center py-16 text-red-400">Błąd: ${e.message}</div>`;
+            }
+        }
+
+        // ── Organized screen view ──
+        async function loadOrganized() {
+            const el = document.getElementById('organized-view');
+            try {
+                const data = await (await fetch('/screen/organized')).json();
+                if (data.error) {
+                    el.innerHTML = `<div class="text-center py-16 text-gray-500">${data.error}</div>`;
+                    return;
+                }
+
+                let html = '';
+
+                // Summary bar
+                html += `
+                <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                    <div class="flex justify-between items-center flex-wrap gap-2">
+                        <div>
+                            <span class="text-lg font-semibold text-blue-400">Organizacja ekranu</span>
+                            <span class="text-sm text-gray-400 ml-3">${data.total_windows} okien · ${fmtDate(data.timestamp)}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">${data.screen_summary || ''}</div>
+                    </div>
+                </div>`;
+
+                // Active app (highlighted)
+                if (data.active_app) {
+                    const a = data.active_app;
+                    const cropUrl = cropUrlFromFilepath(a.filepath);
+                    html += `
+                    <div class="bg-slate-800 rounded-xl border-2 border-green-500/50 overflow-hidden">
+                        <div class="px-4 py-2 bg-green-500/10 border-b border-green-500/30 flex items-center gap-2">
+                            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                            <span class="font-semibold text-green-400">Aktywna: ${a.window.wm_class_name || a.window.title}</span>
+                            <span class="text-xs text-gray-400 ml-auto">${a.width}×${a.height} · ${a.size_kb} KB</span>
+                        </div>
+                        <div class="flex flex-col md:flex-row">
+                            <div class="md:w-2/3 bg-slate-900 flex items-center justify-center p-2 cursor-pointer" onclick="openModal('${cropUrl}', 'Aktywna: ${esc(a.window.title)}')">
+                                ${cropUrl ? `<img src="${cropUrl}" class="max-w-full max-h-[400px] object-contain rounded">` : `<div class="text-gray-600 py-12">Brak podglądu</div>`}
+                            </div>
+                            <div class="md:w-1/3 p-4 space-y-2 text-sm">
+                                <div><span class="text-gray-400">Tytuł:</span> <span class="text-white">${esc(a.window.title)}</span></div>
+                                <div><span class="text-gray-400">Klasa:</span> <span class="text-white">${a.window.wm_class || '—'}</span></div>
+                                <div><span class="text-gray-400">Kategoria:</span> <span class="text-yellow-400">${a.window.category || '—'}</span></div>
+                                <div><span class="text-gray-400">Geometria:</span> <span class="text-white">${fmtGeo(a.window.geometry)}</span></div>
+                                <div><span class="text-gray-400">PID:</span> <span class="text-white">${a.window.pid || '—'}</span></div>
+                                ${cropUrl ? `<div class="pt-2"><a href="${cropUrl}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">📎 otwórz oryginał</a><div class="text-[10px] text-gray-600 url-link mt-1 select-all">${location.origin}${cropUrl}</div></div>` : ''}
+                            </div>
+                        </div>
+                    </div>`;
+                }
+
+                // By category
+                const categories = data.by_category || {};
+                const catIcons = {ide:'💻',terminal:'⬛',browser:'🌐',email:'📧',chat:'💬',office:'📄',media:'🎵',file_manager:'📁',system:'⚙️',unknown:'❓'};
+                for (const [cat, crops] of Object.entries(categories)) {
+                    html += `
+                    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                        <div class="px-4 py-2 border-b border-slate-700 flex items-center gap-2">
+                            <span>${catIcons[cat] || '📦'}</span>
+                            <span class="font-semibold text-gray-200">${cat}</span>
+                            <span class="text-xs text-gray-500">(${crops.length})</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4">
+                            ${crops.map(c => {
+                                const url = cropUrlFromFilepath(c.filepath);
+                                const isActive = c.window.is_active;
+                                return `
+                                <div class="bg-slate-900 rounded-lg overflow-hidden crop-border ${isActive ? 'active-window' : 'border-slate-700'} border">
+                                    <div class="aspect-video flex items-center justify-center overflow-hidden cursor-pointer bg-black/30" onclick="openModal('${url}', '${esc(c.window.title)}')">
+                                        ${url ? `<img src="${url}" class="w-full h-full object-contain" loading="lazy">` : '<div class="text-gray-700 text-xs">—</div>'}
+                                    </div>
+                                    <div class="p-2 space-y-1">
+                                        <div class="text-xs font-medium truncate">${esc(c.window.wm_class_name || c.window.title)}</div>
+                                        <div class="text-[10px] text-gray-500 truncate">${esc(c.window.title)}</div>
+                                        <div class="text-[10px] text-gray-500">${c.width}×${c.height} · ${c.size_kb} KB · ${fmtGeo(c.window.geometry)}</div>
+                                        ${url ? `<a href="${url}" target="_blank" class="text-[10px] text-blue-400 hover:text-blue-300 block truncate">📎 ${location.origin}${url}</a>` : ''}
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+                }
+
+                el.innerHTML = html;
+            } catch (e) {
+                el.innerHTML = `<div class="text-center py-16 text-red-400">Błąd: ${e.message}</div>`;
+            }
+        }
+
+        // ── Helpers ──
+        function fmtDate(ts) { return new Date(ts * 1000).toLocaleString('pl-PL'); }
+        function fmtKB(bytes) { return (bytes / 1024).toFixed(1) + ' KB'; }
+        function fmtGeo(g) { return g ? `${g.x},${g.y} ${g.w}×${g.h}` : '—'; }
+        function esc(s) { return (s||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+        function cropUrlFromFilepath(filepath) {
+            if (!filepath) return '';
+            const name = filepath.split('/').pop();
+            return '/crops/' + name;
+        }
+
+        function openModal(url, info) {
+            if (!url) return;
+            document.getElementById('modal-img').src = url;
+            document.getElementById('modal-info').textContent = info || '';
+            document.getElementById('modal').classList.remove('hidden');
         }
 
         function closeModal() {
             document.getElementById('modal').classList.add('hidden');
         }
+
+        function refresh() {
+            const active = document.querySelector('.tab-btn.active');
+            if (active) switchTab(active.dataset.tab);
+        }
+
+        function toggleAutoRefresh() {
+            const btn = document.getElementById('auto-btn');
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+                btn.textContent = 'Auto: OFF';
+                btn.classList.remove('bg-green-700');
+                btn.classList.add('bg-slate-700');
+            } else {
+                autoInterval = setInterval(refresh, 3000);
+                btn.textContent = 'Auto: ON (3s)';
+                btn.classList.remove('bg-slate-700');
+                btn.classList.add('bg-green-700');
+            }
+        }
+
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
         // Initial load
         loadScreenshots();

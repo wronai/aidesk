@@ -483,6 +483,20 @@ class PipelineOrchestrator:
                     elapsed_ms=round(elapsed * 1000, 1),
                 )
 
+        # Emit pipeline completion event for ReadModel projection
+        await self.bus.publish(Event(
+            type="pipeline.completed",
+            data={
+                "run_id": ctx.run_id,
+                "steps_executed": ctx.steps_executed,
+                "step_timings": ctx.step_timings,
+                "errors": ctx.errors,
+                "skipped": ctx.skipped,
+            },
+            source="orchestrator",
+            correlation_id=ctx.correlation_id,
+        ))
+
         return ctx
 
     def get_step_names(self) -> List[str]:

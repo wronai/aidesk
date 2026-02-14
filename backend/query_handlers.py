@@ -129,6 +129,9 @@ class QueryHandlers:
         self.bus.subscribe(EventType.ANALYSIS_COMPLETED.value, self._project_analysis)
         self.bus.subscribe(EventType.AGENT_SUGGESTED.value, self._project_agent)
 
+        # Pipeline completion
+        self.bus.subscribe("pipeline.completed", self._project_pipeline)
+
         # Wildcard: count all events
         self.bus.subscribe("*", self._project_all)
 
@@ -145,6 +148,14 @@ class QueryHandlers:
 
     async def _project_agent(self, event: Event):
         self.read_model.on_agent_suggested(event.data)
+
+    async def _project_pipeline(self, event: Event):
+        self.read_model.on_pipeline_completed(
+            run_id=event.data.get("run_id", ""),
+            steps=event.data.get("steps_executed", []),
+            timings=event.data.get("step_timings", {}),
+            errors=event.data.get("errors", []),
+        )
 
     async def _project_all(self, event: Event):
         self.read_model.on_event(event)

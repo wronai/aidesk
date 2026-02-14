@@ -575,6 +575,61 @@ Protocols (runtime_checkable)
 └── EventBroadcaster - broadcast(event_type, data)
 ```
 
+#### command_handlers.py - CQRS Write Side
+```python
+CommandHandlers
+├── register_all() - Subscribe all cmd.* handlers to EventBus
+├── handle_switch_ocr(event)    - cmd.switch_ocr_engine
+├── handle_switch_mode(event)   - cmd.switch_mode
+├── handle_execute_action(event) - cmd.execute_action
+├── handle_approve_action(event) - cmd.approve_action
+├── handle_run_safe(event)      - cmd.run_safe
+└── handle_run_benchmark(event) - cmd.run_benchmark
+```
+
+#### query_handlers.py - CQRS Read Side + ReadModel
+```python
+ReadModel (materialized view)
+├── on_windows_scanned(data)     - Update window count
+├── on_screen_captured(data)     - Update capture size
+├── on_analysis_completed(data)  - Update tokens/cost/provider
+├── on_agent_suggested(data)     - Update action counts
+├── on_pipeline_completed(...)   - Update run metrics
+├── get_pipeline_view() → Dict   - Materialized pipeline state
+├── get_analysis_view() → Dict   - Materialized analysis metrics
+└── get_event_counts() → Dict    - Event frequency counts
+
+QueryHandlers
+├── register_all() - Subscribe projectors to domain events
+├── query_health() → Dict        - System health (read-only)
+├── query_stats() → Dict         - Enriched stats + read model
+├── query_events(filters) → Dict - Event store query
+├── query_pipeline() → Dict      - Pipeline execution state
+└── query_event_store_stats()    - Store statistics
+```
+
+#### config_service.py - Configuration Management
+```python
+EnvConfig (.env read/write)
+├── read_env() → Dict[str, str]        - Parse .env file
+├── update_env(updates) → Dict          - Update .env preserving comments
+└── get_config_with_schema() → Dict     - Values + schema + audio devices
+
+AudioDeviceScanner (PulseAudio/PipeWire)
+├── discover_audio_devices() → Dict     - All sources/sinks/monitors
+├── _discover_pactl() → (sources, sinks) - pactl list parsing
+└── _discover_sounddevice() → List      - sounddevice fallback
+
+CONFIG_SCHEMA = 7 groups:
+├── 🔊 Audio / STT (mic, monitor, speaker, language, model, API key)
+├── 🤖 Vision / AI Model (model, mode, tokens, temperature)
+├── 🔤 OCR (engine, languages, GPU)
+├── 🔑 Klucze API (Gemini, OpenAI, Anthropic, Groq, DeepSeek, Mistral)
+├── ⚡ Wydajność (thresholds, intervals, dimensions)
+├── 🖥️ Funkcje (window awareness, shell agent, capture mode)
+└── 🌐 Serwer (port, host, log level, debug)
+```
+
 ### Frontend (Electron/Overlay)
 
 #### main.js - Electron Main Process

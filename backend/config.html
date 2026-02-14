@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Desk - Konfiguracja</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .group-card { transition: all 0.2s; }
+        .group-card:hover { border-color: #3b82f6; }
+        .field-row { transition: background 0.15s; }
+        .field-row:hover { background: rgba(59,130,246,0.06); }
+        input[type="text"], input[type="number"], input[type="password"], select {
+            background: #1e293b; border: 1px solid #334155; color: #f8fafc;
+            border-radius: 0.5rem; padding: 0.5rem 0.75rem; width: 100%;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+        .toggle { position: relative; width: 48px; height: 26px; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle .slider {
+            position: absolute; inset: 0; background: #334155; border-radius: 13px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .toggle .slider::before {
+            content: ''; position: absolute; width: 20px; height: 20px;
+            left: 3px; bottom: 3px; background: #94a3b8; border-radius: 50%;
+            transition: all 0.2s;
+        }
+        .toggle input:checked + .slider { background: #3b82f6; }
+        .toggle input:checked + .slider::before { transform: translateX(22px); background: #f8fafc; }
+        .device-card {
+            background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem;
+            padding: 0.75rem 1rem; cursor: pointer; transition: all 0.2s;
+        }
+        .device-card:hover { border-color: #3b82f6; }
+        .device-card.selected { border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+        .device-card .state-badge {
+            font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+            text-transform: uppercase; font-weight: 600;
+        }
+        .state-RUNNING { background: #166534; color: #86efac; }
+        .state-SUSPENDED { background: #713f12; color: #fde047; }
+        .state-IDLE { background: #1e3a5f; color: #93c5fd; }
+        .state-UNKNOWN { background: #374151; color: #9ca3af; }
+        .toast {
+            position: fixed; bottom: 2rem; right: 2rem; padding: 1rem 1.5rem;
+            border-radius: 0.75rem; font-weight: 500; z-index: 100;
+            transform: translateY(100px); opacity: 0; transition: all 0.3s;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { background: #166534; color: #86efac; border: 1px solid #22c55e; }
+        .toast.error { background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; }
+        .password-wrap { position: relative; }
+        .password-wrap .toggle-vis {
+            position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: #64748b; cursor: pointer; font-size: 1.1rem;
+        }
+        .section-collapse { max-height: 2000px; overflow: hidden; transition: max-height 0.4s ease; }
+        .section-collapse.collapsed { max-height: 0; }
+        .chevron { transition: transform 0.3s; display: inline-block; }
+        .chevron.rotated { transform: rotate(-90deg); }
+        @keyframes pulse-save { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); } 50% { box-shadow: 0 0 0 8px rgba(59,130,246,0); } }
+        .save-pulse { animation: pulse-save 1.5s infinite; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+
+        <!-- Header -->
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-400">⚙️ Konfiguracja AI Desk</h1>
+                <p class="text-gray-400 text-sm mt-1">Edycja pliku .env — zmiany wymagają restartu serwera</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="loadConfig()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition text-sm">🔄 Odśwież</button>
+                <button id="saveBtn" onclick="saveConfig()" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition font-medium disabled:opacity-50" disabled>💾 Zapisz zmiany</button>
+            </div>
+        </header>
+
+        <!-- Audio Devices Section (special) -->
+        <div id="audio-section" class="mb-8">
+            <div class="group-card bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden">
+                <div class="p-5 border-b border-slate-700 cursor-pointer flex justify-between items-center" onclick="toggleSection('audio-body')">
+                    <h2 class="text-xl font-semibold text-blue-300">🔊 Urządzenia Audio</h2>
+                    <span id="audio-body-chevron" class="chevron text-gray-400">▼</span>
+                </div>
+                <div id="audio-body" class="section-collapse p-5 space-y-6">
+
+                    <!-- Microphones -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wider">🎤 Mikrofony (STT Input)</h3>
+                        <p class="text-xs text-gray-500 mb-3">Urządzenie wejściowe do nagrywania głosu. Wybierz mikrofon dla Speech-to-Text.</p>
+                        <div id="mic-devices" class="grid gap-2">
+                            <div class="text-gray-500 text-sm">Ładowanie...</div>
+                        </div>
+                    </div>
+
+                    <!-- Speaker Monitors (Loopback) -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wider">🔁 Monitor głośnika (Loopback STT)</h3>
+                        <p class="text-xs text-gray-500 mb-3">Przechwytywanie dźwięku z głośnika do analizy STT — np. transkrypcja rozmów, spotkań, filmów.</p>
+                        <div id="monitor-devices" class="grid gap-2">
+                            <div class="text-gray-500 text-sm">Ładowanie...</div>
+                        </div>
+                    </div>
+
+                    <!-- Speakers (Output) -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wider">🔈 Głośniki (Output)</h3>
+                        <p class="text-xs text-gray-500 mb-3">Urządzenie wyjściowe audio.</p>
+                        <div id="speaker-devices" class="grid gap-2">
+                            <div class="text-gray-500 text-sm">Ładowanie...</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Config Groups -->
+        <div id="config-groups" class="space-y-6">
+            <div class="text-center py-12 text-gray-400">Ładowanie konfiguracji...</div>
+        </div>
+
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+    let configData = {};
+    let pendingChanges = {};
+    let audioDevices = {};
+
+    // ─── Load config ─────────────────────────────────────────
+    async function loadConfig() {
+        try {
+            const res = await fetch('/config');
+            configData = await res.json();
+            audioDevices = configData.audio || {};
+            renderAudioDevices();
+            renderConfigGroups();
+            pendingChanges = {};
+            updateSaveButton();
+        } catch (e) {
+            showToast('Błąd ładowania: ' + e.message, 'error');
+        }
+    }
+
+    // ─── Render audio device cards ───────────────────────────
+    function renderAudioDevices() {
+        const current = audioDevices.current || {};
+
+        renderDeviceList('mic-devices', audioDevices.microphones || [], 'STT_INPUT_DEVICE', current.stt_input_device);
+        renderDeviceList('monitor-devices', audioDevices.monitors || [], 'STT_MONITOR_DEVICE', current.stt_monitor_device);
+        renderDeviceList('speaker-devices', audioDevices.speakers || [], 'AUDIO_OUTPUT_DEVICE', current.audio_output_device);
+    }
+
+    function renderDeviceList(containerId, devices, envKey, currentValue) {
+        const container = document.getElementById(containerId);
+
+        if (devices.length === 0) {
+            container.innerHTML = '<div class="text-gray-500 text-sm italic">Nie znaleziono urządzeń tego typu.</div>';
+            return;
+        }
+
+        // Add "default (system)" option
+        const defaultSelected = !currentValue || currentValue === '';
+        let html = `
+            <div class="device-card ${defaultSelected ? 'selected' : ''}" onclick="selectDevice('${envKey}', '', '${containerId}', this)">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="font-medium text-sm">🔧 Domyślne systemowe</div>
+                        <div class="text-xs text-gray-500">Używa domyślnego urządzenia PulseAudio/PipeWire</div>
+                    </div>
+                    ${defaultSelected ? '<span class="text-blue-400 text-lg">✓</span>' : ''}
+                </div>
+            </div>
+        `;
+
+        for (const d of devices) {
+            const selected = currentValue === d.name;
+            const stateClass = 'state-' + (d.state || 'UNKNOWN');
+            html += `
+                <div class="device-card ${selected ? 'selected' : ''}" onclick="selectDevice('${envKey}', '${d.name}', '${containerId}', this)">
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-sm truncate">${escHtml(d.description || d.name)}</div>
+                            <div class="text-xs text-gray-500 truncate mt-0.5 font-mono">${escHtml(d.name)}</div>
+                            <div class="flex gap-2 mt-1 items-center">
+                                <span class="device-card .state-badge ${stateClass}" style="font-size:0.65rem;padding:2px 6px;border-radius:4px;text-transform:uppercase;font-weight:600">${d.state || '?'}</span>
+                                <span class="text-xs text-gray-600">${escHtml(d.sample_spec || '')}</span>
+                            </div>
+                        </div>
+                        ${selected ? '<span class="text-blue-400 text-lg ml-2">✓</span>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function selectDevice(envKey, deviceName, containerId, el) {
+        // Update visual selection
+        const container = document.getElementById(containerId);
+        container.querySelectorAll('.device-card').forEach(c => {
+            c.classList.remove('selected');
+            const check = c.querySelector('.text-blue-400');
+            if (check) check.remove();
+        });
+        el.classList.add('selected');
+        // Add checkmark
+        const flexDiv = el.querySelector('.flex');
+        if (flexDiv && !el.querySelector('.text-blue-400')) {
+            const span = document.createElement('span');
+            span.className = 'text-blue-400 text-lg ml-2';
+            span.textContent = '✓';
+            flexDiv.appendChild(span);
+        }
+
+        markChanged(envKey, deviceName);
+    }
+
+    // ─── Render config groups ────────────────────────────────
+    function renderConfigGroups() {
+        const schema = configData.schema || [];
+        const values = configData.values || {};
+        const container = document.getElementById('config-groups');
+
+        let html = '';
+        for (const group of schema) {
+            const groupId = group.icon + '-body';
+            html += `
+                <div class="group-card bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden">
+                    <div class="p-4 border-b border-slate-700 cursor-pointer flex justify-between items-center" onclick="toggleSection('${groupId}')">
+                        <h2 class="text-lg font-semibold text-gray-200">${escHtml(group.group)}</h2>
+                        <span id="${groupId}-chevron" class="chevron text-gray-400">▼</span>
+                    </div>
+                    <div id="${groupId}" class="section-collapse">
+                        <div class="divide-y divide-slate-700/50">
+            `;
+
+            for (const f of group.fields) {
+                const val = values[f.key] !== undefined ? values[f.key] : '';
+                html += `
+                    <div class="field-row px-5 py-3 flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+                        <div class="md:w-1/3">
+                            <label class="text-sm font-medium text-gray-300">${escHtml(f.label)}</label>
+                            <div class="text-xs text-gray-500 mt-0.5">${escHtml(f.help || '')}</div>
+                        </div>
+                        <div class="md:w-2/3">
+                            ${renderField(f, val)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function renderField(f, val) {
+        const key = f.key;
+
+        if (f.type === 'bool') {
+            const checked = val.toLowerCase() === 'true' ? 'checked' : '';
+            return `
+                <label class="toggle">
+                    <input type="checkbox" ${checked} onchange="markChanged('${key}', this.checked ? 'true' : 'false')">
+                    <span class="slider"></span>
+                </label>
+            `;
+        }
+
+        if (f.type === 'select') {
+            const opts = (f.options || []).map(o =>
+                `<option value="${escAttr(o)}" ${val === o ? 'selected' : ''}>${escHtml(o)}</option>`
+            ).join('');
+            return `<select onchange="markChanged('${key}', this.value)">${opts}</select>`;
+        }
+
+        if (f.type === 'password') {
+            return `
+                <div class="password-wrap">
+                    <input type="password" value="${escAttr(val)}" onchange="markChanged('${key}', this.value)" id="field-${key}">
+                    <button class="toggle-vis" onclick="togglePassword('field-${key}', this)" type="button">👁</button>
+                </div>
+            `;
+        }
+
+        if (f.type === 'number') {
+            return `<input type="number" value="${escAttr(val)}" onchange="markChanged('${key}', this.value)" step="any">`;
+        }
+
+        // audio_source, audio_monitor, audio_sink handled in audio section
+        if (f.type === 'audio_source' || f.type === 'audio_monitor' || f.type === 'audio_sink') {
+            return `<input type="text" value="${escAttr(val)}" onchange="markChanged('${key}', this.value)" placeholder="(wybierz w sekcji Audio powyżej)" class="opacity-60">`;
+        }
+
+        // Default: text
+        return `<input type="text" value="${escAttr(val)}" onchange="markChanged('${key}', this.value)">`;
+    }
+
+    // ─── Change tracking ─────────────────────────────────────
+    function markChanged(key, value) {
+        const original = (configData.values || {})[key] || '';
+        if (value === original) {
+            delete pendingChanges[key];
+        } else {
+            pendingChanges[key] = value;
+        }
+        updateSaveButton();
+    }
+
+    function updateSaveButton() {
+        const btn = document.getElementById('saveBtn');
+        const count = Object.keys(pendingChanges).length;
+        if (count > 0) {
+            btn.disabled = false;
+            btn.textContent = `💾 Zapisz zmiany (${count})`;
+            btn.classList.add('save-pulse');
+        } else {
+            btn.disabled = true;
+            btn.textContent = '💾 Zapisz zmiany';
+            btn.classList.remove('save-pulse');
+        }
+    }
+
+    // ─── Save config ─────────────────────────────────────────
+    async function saveConfig() {
+        if (Object.keys(pendingChanges).length === 0) return;
+
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Zapisywanie...';
+
+        try {
+            const res = await fetch('/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(pendingChanges),
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                showToast(`✅ Zapisano ${Object.keys(pendingChanges).length} zmian. Restart serwera może być wymagany.`, 'success');
+                pendingChanges = {};
+                configData.values = data.values;
+                updateSaveButton();
+            } else {
+                showToast('❌ Błąd: ' + (data.error || 'Nieznany błąd'), 'error');
+            }
+        } catch (e) {
+            showToast('❌ Błąd: ' + e.message, 'error');
+        }
+
+        btn.disabled = Object.keys(pendingChanges).length === 0;
+        updateSaveButton();
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────
+    function toggleSection(id) {
+        const el = document.getElementById(id);
+        const chevron = document.getElementById(id + '-chevron');
+        el.classList.toggle('collapsed');
+        if (chevron) chevron.classList.toggle('rotated');
+    }
+
+    function togglePassword(fieldId, btn) {
+        const input = document.getElementById(fieldId);
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.textContent = '🔒';
+        } else {
+            input.type = 'password';
+            btn.textContent = '👁';
+        }
+    }
+
+    function escHtml(s) {
+        const div = document.createElement('div');
+        div.textContent = s || '';
+        return div.innerHTML;
+    }
+
+    function escAttr(s) {
+        return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function showToast(msg, type) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.className = 'toast ' + type + ' show';
+        setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    // ─── Init ────────────────────────────────────────────────
+    loadConfig();
+    </script>
+</body>
+</html>

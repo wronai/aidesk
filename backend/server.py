@@ -33,6 +33,7 @@ from event_bus import EventBus, EventStore, Event, EventType, create_event_bus
 from pipeline import PipelineOrchestrator, PipelineContext, create_pipeline
 from command_handlers import CommandHandlers
 from query_handlers import QueryHandlers, ReadModel
+from config_service import get_config_with_schema, read_env, update_env, discover_audio_devices
 
 # Lazy STT import - sounddevice may not be available
 def _import_stt():
@@ -548,6 +549,9 @@ async def root():
             "read_model": "/read-model - CQRS materialized views (GET)",
             "read_model_pipeline": "/read-model/pipeline - Pipeline execution view (GET)",
             "read_model_stats": "/read-model/stats - Enriched stats with event metrics (GET)",
+            "config": "/config - Get/update .env configuration (GET/POST)",
+            "config_ui": "/config/ui - Browser-based configuration UI (GET)",
+            "audio_devices": "/audio/devices - List audio devices (GET)",
         },
     }
 
@@ -1173,10 +1177,88 @@ async def get_screenshot(filename: str):
     return FileResponse(file_path)
 
 
+@app.get("/crops")
+async def list_crops():
+    """List all saved per-app crop files."""
+    crops_dir = "/tmp/aidesk_crops"
+    if not os.path.exists(crops_dir):
+        return []
+
+    files = []
+    for f in os.listdir(crops_dir):
+        if f.endswith(".jpg"):
+            path = os.path.join(crops_dir, f)
+            st = os.stat(path)
+            files.append({
+                "name": f,
+                "timestamp": st.st_mtime,
+                "size": st.st_size,
+                "url": f"/crops/{f}",
+            })
+
+    files.sort(key=lambda x: x["timestamp"], reverse=True)
+    return files
+
+
+@app.get("/crops/{filename}")
+async def get_crop(filename: str):
+    """Serve a specific crop file."""
+    crops_dir = "/tmp/aidesk_crops"
+    file_path = os.path.join(crops_dir, filename)
+    if not os.path.abspath(file_path).startswith(os.path.abspath(crops_dir)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
+
+
 @app.get("/browser", response_class=FileResponse)
 async def screenshot_browser():
     """Serve the screenshot browser UI."""
     return FileResponse(os.path.join(os.path.dirname(__file__), "screenshots.html"))
+
+
+# ===== Configuration Service Endpoints =====
+
+@app.get("/config")
+async def get_config():
+    """Get full configuration: current .env values + schema + audio devices."""
+    return get_config_with_schema()
+
+
+@app.post("/config")
+async def post_config(request: Request):
+    """
+    Update .env configuration.
+    Body: {"KEY": "value", ...}
+    Returns updated values.
+    """
+    body = await request.json()
+    if not isinstance(body, dict) or not body:
+        return JSONResponse(status_code=400, content={"error": "Expected JSON object with key-value pairs"})
+
+    # Validate: only string values
+    for k, v in body.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            return JSONResponse(status_code=400, content={"error": f"Invalid key/value type for '{k}'"})
+
+    updated = update_env(body)
+
+    await broadcast("config_changed", {"keys": list(body.keys())})
+
+    return {"values": updated, "updated_keys": list(body.keys())}
+
+
+@app.get("/audio/devices")
+async def get_audio_devices():
+    """List all available audio devices (PulseAudio/PipeWire + sounddevice)."""
+    return discover_audio_devices()
+
+
+@app.get("/config/ui", response_class=FileResponse)
+async def config_ui():
+    """Serve the configuration UI."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "config.html"))
 
 
 if __name__ == "__main__":

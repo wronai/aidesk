@@ -1,8 +1,8 @@
-## [2.0.7] - 2026-02-14
+## [2.0.8] - 2026-02-14
 
 ### Summary
 
-feat(docs): deep code analysis engine with 2 supporting modules
+feat(docs): configuration management system
 
 ### Docs
 
@@ -10,10 +10,69 @@ feat(docs): deep code analysis engine with 2 supporting modules
 
 ### Other
 
+- build: update Makefile
 - update backend/.env.example
-- update backend/diagnostics.py
+- update backend/config.html
+- update backend/pipeline.py
+- update backend/query_handlers.py
+- update backend/screenshots.html
 - update backend/server.py
-- update backend/tests/test_units.py
+- update backend/stt.py
+
+
+## [2.0.7] - 2026-02-14
+
+### Summary
+
+refactor(backend): SOLID / CQRS / Event Sourcing architecture + Configuration UI
+
+### Architecture (SOLID / CQRS / Event Sourcing)
+
+- **event_bus.py** — Typed async EventBus with pub/sub + SQLite EventStore
+  - Immutable `Event` dataclass with correlation IDs, categories, versioning
+  - `EventStore` persists all events to `logs/events.db` for full audit trail
+  - Middleware support for event transformation before dispatch
+- **pipeline.py** — 8-step composable analysis pipeline with `PipelineStep` Protocol
+  - `ScanWindows → DetectActiveWindow → CaptureScreen → CropWindows → BuildContext → Analyze → SuggestActions → BuildBroadcast`
+  - Each step is independently testable, swappable via `add_step()` / `insert_after()`
+  - Emits `pipeline.completed` event with run metrics for ReadModel projection
+- **protocols.py** — 11 `Protocol` interfaces (ISP + DIP)
+  - `ScreenCapture`, `OCRExtractor`, `ScreenAnalyzer`, `WindowDetector`, `ProcessScanning`, `WindowCropping`, `ProfileProvider`, `CommandAgent`, `ContextStore`, `SpeechToText`, `EventBroadcaster`
+- **command_handlers.py** — CQRS write side (6 command handlers via EventBus)
+- **query_handlers.py** — CQRS read side + `ReadModel` materialized views
+  - Projects domain events into queryable state (pipeline metrics, analysis stats, event counts)
+
+### Configuration Service
+
+- **config_service.py** — `.env` read/write with comment preservation + audio device discovery
+  - `CONFIG_SCHEMA` with 7 groups, 30+ fields, typed inputs (bool, select, number, password, audio)
+  - `discover_audio_devices()` via `pactl` (PulseAudio/PipeWire) + `sounddevice` fallback
+- **config.html** — Modern Tailwind CSS configuration UI
+  - Audio device selection (microphones, monitors, speakers) with state badges
+  - Collapsible config groups, toggle switches, password visibility
+  - Pending changes tracking, save with toast notifications
+
+### New API Endpoints
+
+- `GET /events` — Query event store (filter by type, source, correlation_id, since)
+- `GET /events/stats` — Event bus and store statistics
+- `GET /pipeline` — Pipeline steps and execution stats
+- `GET /read-model/pipeline` — Materialized pipeline view
+- `GET /read-model/stats` — Enriched stats with event metrics
+- `GET /config` — Full config: .env values + schema + audio devices
+- `POST /config` — Update .env configuration (body: `{KEY: value}`)
+- `GET /audio/devices` — PulseAudio/PipeWire device discovery
+- `GET /config/ui` — Configuration web UI
+
+### Docs
+
+- docs: update ARCHITECTURE.md with pipeline, CQRS, event sourcing, config service
+
+### Other
+
+- update backend/.env.example (ENABLE_EVENT_STORE, EVENT_STORE_DB)
+- update backend/server.py (pipeline-based analysis loop, config endpoints)
+- Refactored monolithic `screen_analysis_loop` (180 lines) into 8 composable pipeline steps
 
 
 ## [2.0.6] - 2026-02-14
