@@ -18,6 +18,7 @@ Each method is independently testable without asyncio.sleep.
 import asyncio
 from typing import Any, Callable, Coroutine, Dict, Optional
 
+import nfo
 import structlog
 
 from event_bus import EventBus

@@ -26,6 +26,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+import nfo
 import structlog
 
 logger = structlog.get_logger()

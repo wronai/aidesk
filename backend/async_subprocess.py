@@ -15,6 +15,7 @@ import asyncio
 import subprocess
 from typing import List, Optional
 
+import nfo
 import structlog
 
 logger = structlog.get_logger()

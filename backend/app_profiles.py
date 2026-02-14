@@ -10,6 +10,7 @@ Each profile defines:
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+import nfo
 import structlog
 
 from window_aware import AppCategory

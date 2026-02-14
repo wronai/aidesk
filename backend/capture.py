@@ -17,6 +17,7 @@ import tempfile
 import signal as sig
 import re
 from typing import Optional, Dict, List
+import nfo
 import structlog
 import os
 

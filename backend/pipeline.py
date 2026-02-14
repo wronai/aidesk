@@ -20,7 +20,6 @@ import base64
 import os
 import time
 import uuid
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from io import BytesIO
@@ -486,7 +485,6 @@ class AnalyzeStep:
     def can_run(self, ctx: PipelineContext) -> bool:
         return self._analyzer is not None and ctx.image_b64 is not None
 
-    @nfo.log_call(level="INFO")
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         t0 = time.time()
         requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
@@ -873,7 +871,6 @@ class ClipboardStep:
             return False
         return self._clipboard is not None and ctx.analysis_result is not None
 
-    @nfo.log_call(level="INFO")
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         from window_aware import AppCategory
         analysis_text = ctx.analysis_result.get("text", "")

@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from PIL import Image
+import nfo
 import structlog
 
 logger = structlog.get_logger()

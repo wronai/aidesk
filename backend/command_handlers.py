@@ -11,6 +11,7 @@ Single Responsibility: each handler does exactly one thing.
 Open/Closed: add new handlers without modifying existing ones.
 Dependency Inversion: handlers receive dependencies, don't import them.
 """
+import nfo
 import structlog
 from typing import Any, Callable, Dict, Optional
 

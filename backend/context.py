@@ -4,6 +4,7 @@ Context manager for maintaining conversation history.
 import time
 from collections import deque
 from typing import Dict, List, Literal
+import nfo
 import structlog
 
 logger = structlog.get_logger()

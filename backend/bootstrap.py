@@ -16,6 +16,7 @@ import os
 import time
 from typing import Callable, Dict, List, Optional
 
+import nfo
 import structlog
 
 from capture import create_capture_from_env

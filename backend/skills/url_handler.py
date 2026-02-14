@@ -4,6 +4,7 @@ URLHandlerSkill — Detect URLs, file paths, IPs. Offer open/copy actions.
 import re
 from typing import List
 
+import nfo
 from skills.base import (
     BaseSkill, SkillCategory, SkillContext, SkillOption, SkillResult, OptionRisk,
 )

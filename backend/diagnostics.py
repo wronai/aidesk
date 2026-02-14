@@ -9,6 +9,7 @@ import glob
 import sqlite3
 from typing import Dict, List, Callable, Optional
 
+import nfo
 import structlog
 
 logger = structlog.get_logger()

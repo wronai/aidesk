@@ -180,6 +180,24 @@ start.bat    # Windows
 - `Ctrl+Shift+A` - Pokaż/Ukryj overlay
 - `Ctrl+Shift+Q` - Zamknij asystenta
 
+## 🧩 Przykłady użycia wg grup użytkowników
+
+Przygotowaliśmy gotowe scenariusze pracy w katalogu `EXAMPLES/`:
+
+- **Developer**
+  - [Naprawa `ModuleNotFoundError`](EXAMPLES/developer/fix-python-import-error.md)
+  - [ClipboardRelation: JSON + Regex](EXAMPLES/developer/clipboard-relation-json-regex.md)
+- **QA**
+  - [Triage regresji](EXAMPLES/qa/regression-triage.md)
+- **Ops/SRE**
+  - [Monitoring zdrowia i kosztów](EXAMPLES/ops/health-monitoring-and-cost-control.md)
+- **Content Creator**
+  - [Tłumaczenie + voice commands + TTS](EXAMPLES/content_creator/translation-and-voice-tts.md)
+- **Plugin Author**
+  - [Pierwszy plugin](EXAMPLES/plugin_author/create-first-plugin.md)
+
+> Punkt startowy dla całego katalogu: [EXAMPLES/README.md](EXAMPLES/README.md)
+
 ## 🎯 Jak to działa — aktualny pipeline (14 kroków)
 
 Kolejność kroków (z `backend/pipeline.py:create_pipeline`):
@@ -223,6 +241,7 @@ aidesk/
 │   ├── services/sse.js       # SSE service
 │   └── package.json
 ├── project.functions.toon     # Indeks modułów/funkcji projektu
+├── EXAMPLES/                  # Przykłady użycia wg grup użytkowników
 ├── README.md
 ├── ARCHITECTURE.md
 ├── CHANGELOG.md

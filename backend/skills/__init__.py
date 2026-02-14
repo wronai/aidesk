@@ -15,6 +15,7 @@ Adding a new skill:
 """
 from typing import Dict, List, Optional
 
+import nfo
 import structlog
 
 from skills.base import (

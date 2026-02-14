@@ -12,6 +12,7 @@ import json
 import time
 from pathlib import Path
 
+import nfo
 import structlog
 from typing import Any, Callable, Dict, Optional
 

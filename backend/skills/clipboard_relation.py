@@ -50,6 +50,7 @@ from skills.base import (
     BaseSkill, SkillCategory, SkillContext, SkillMatch, SkillOption, SkillResult, OptionRisk,
 )
 
+import nfo
 import structlog
 
 logger = structlog.get_logger()

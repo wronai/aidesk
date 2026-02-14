@@ -11,6 +11,7 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+import nfo
 import structlog
 
 logger = structlog.get_logger()

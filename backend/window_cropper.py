@@ -15,6 +15,7 @@ from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
 import imagehash
+import nfo
 import structlog
 from PIL import Image
 

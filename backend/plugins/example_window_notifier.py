@@ -34,7 +34,7 @@ class Plugin:
         bus.subscribe("pipeline.window_detected", self._on_window)
         logger.info("Plugin registered", plugin=self.name)
 
-    def _on_window(self, event):
+    async def _on_window(self, event):
         data = getattr(event, "data", {}) or {}
         category = data.get("category", "unknown")
 
@@ -49,20 +49,15 @@ class Plugin:
             )
             # Emit a custom event that other plugins or the ReadModel can consume
             if self._bus:
-                import asyncio
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(self._bus.publish(Event(
-                        type="plugin.window_category_changed",
-                        data={
-                            "from": self._last_category,
-                            "to": category,
-                            "switch_count": self._switch_count,
-                        },
-                        source=self.name,
-                    )))
-                except RuntimeError:
-                    pass  # No running event loop (e.g. during tests)
+                await self._bus.publish(Event(
+                    type="plugin.window_category_changed",
+                    data={
+                        "from": self._last_category,
+                        "to": category,
+                        "switch_count": self._switch_count,
+                    },
+                    source=self.name,
+                ))
 
         self._last_category = category
 

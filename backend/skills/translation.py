@@ -14,6 +14,7 @@ Options:
 import re
 from typing import List
 
+import nfo
 from skills.base import (
     BaseSkill, SkillCategory, SkillContext, SkillOption, SkillResult, OptionRisk,
 )

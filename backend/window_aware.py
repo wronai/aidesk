@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
+import nfo
 import structlog
 
 logger = structlog.get_logger()

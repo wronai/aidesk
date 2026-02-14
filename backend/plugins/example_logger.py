@@ -29,7 +29,7 @@ class Plugin:
         bus.subscribe("pipeline.context_built", self._on_context)
         logger.info("Plugin registered", plugin=self.name)
 
-    def _on_analysis(self, event):
+    async def _on_analysis(self, event):
         self._event_count += 1
         data = getattr(event, "data", {}) or {}
         logger.debug(
@@ -39,7 +39,7 @@ class Plugin:
             tokens=data.get("tokens"),
         )
 
-    def _on_context(self, event):
+    async def _on_context(self, event):
         self._event_count += 1
         data = getattr(event, "data", {}) or {}
         logger.debug(

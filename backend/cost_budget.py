@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
+import nfo
 import structlog
 
 from event_bus import EventBus, EventType

@@ -103,6 +103,17 @@ Overlay automatycznie:
 - Pokazuje sugestie AI
 - Transkrybuje twoją mowę (po polsku)
 
+## 🧩 Gotowe przykłady użycia (wg ról)
+
+Po pierwszym uruchomieniu przejdź do katalogu `EXAMPLES/` i wybierz scenariusz dla siebie:
+
+- `EXAMPLES/developer/fix-python-import-error.md`
+- `EXAMPLES/developer/clipboard-relation-json-regex.md`
+- `EXAMPLES/qa/regression-triage.md`
+- `EXAMPLES/ops/health-monitoring-and-cost-control.md`
+- `EXAMPLES/content_creator/translation-and-voice-tts.md`
+- `EXAMPLES/plugin_author/create-first-plugin.md`
+
 ## 🐛 Problemy?
 
 ### Backend nie startuje

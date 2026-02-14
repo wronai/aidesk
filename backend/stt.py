@@ -4,6 +4,7 @@ Real-time speech-to-text using Deepgram Nova-3.
 import os
 import asyncio
 from typing import Callable, Optional
+import nfo
 import structlog
 from deepgram import (
     DeepgramClient,

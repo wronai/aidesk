@@ -25,6 +25,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple
 
+import nfo
 import structlog
 
 from window_aware import AppCategory

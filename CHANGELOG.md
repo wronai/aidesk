@@ -1,3 +1,36 @@
+## [2.1.19] - 2026-02-14
+
+### Summary
+
+fix(examples): code analysis engine
+
+### Docs
+
+- docs: update README
+- docs: update translation-and-voice-tts.md
+- docs: update clipboard-relation-json-regex.md
+- docs: update fix-python-import-error.md
+- docs: update health-monitoring-and-cost-control.md
+- docs: update create-first-plugin.md
+- docs: update regression-triage.md
+- docs: update QUICKSTART.md
+- docs: update README
+
+### Other
+
+- update backend/action_templates.py
+- update backend/analysis_loop.py
+- update backend/analyzer.py
+- update backend/app_profiles.py
+- update backend/async_subprocess.py
+- update backend/bootstrap.py
+- update backend/capture.py
+- update backend/circuit_breaker.py
+- update backend/clipboard_intel.py
+- update backend/command_handlers.py
+- ... and 27 more
+
+
 ## [2.1.18] - 2026-02-14
 
 ### Summary

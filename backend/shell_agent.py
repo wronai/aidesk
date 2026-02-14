@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
+import nfo
 import structlog
 
 from window_aware import AppCategory

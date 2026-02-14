@@ -18,6 +18,7 @@ import shutil
 import tempfile
 from typing import Dict, List, Optional, Tuple
 
+import nfo
 import structlog
 
 from settings import get_settings

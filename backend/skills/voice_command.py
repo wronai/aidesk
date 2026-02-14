@@ -17,6 +17,7 @@ import re
 import time
 from typing import List, Optional
 
+import nfo
 from skills.base import (
     BaseSkill, SkillCategory, SkillContext, SkillOption, SkillResult, OptionRisk,
 )
