@@ -26,6 +26,9 @@ logger = structlog.get_logger()
 WAYLAND_FRAME_PATH = "/tmp/aidesk_wayland_frame.jpg"
 WAYLAND_STATUS_PATH = WAYLAND_FRAME_PATH + ".status"
 
+# System python3 — must bypass conda/venv to reach system PyGObject (gi)
+SYSTEM_PYTHON3 = "/usr/bin/python3"
+
 
 def _detect_backend() -> str:
     """Detect the best screen capture backend for the current session."""
@@ -48,7 +51,7 @@ def _detect_backend() -> str:
         # Option 2: Wayland portal (GNOME, KDE — uses PipeWire + GStreamer)
         try:
             result = subprocess.run(
-                ["python3", "-c", "import gi; gi.require_version('Gst','1.0')"],
+                [SYSTEM_PYTHON3, "-c", "import gi; gi.require_version('Gst','1.0')"],
                 capture_output=True, timeout=3,
             )
             if result.returncode == 0:
@@ -96,6 +99,7 @@ class SmartScreenCapture:
         max_dimension: int = 1280,
         jpeg_quality: int = 60,
         captures_dir: str = "/tmp/aidesk_captures",
+        save_to_disk: bool = True,
     ):
         """
         Initialize screen capture.
@@ -108,6 +112,7 @@ class SmartScreenCapture:
             max_dimension: Max pixels for longest side (aspect ratio preserved)
             jpeg_quality: JPEG compression quality (1-100)
             captures_dir: Directory to save debug screenshots
+            save_to_disk: Whether to save captures to disk (False = reduce I/O)
         """
         self.backend = _detect_backend()
         self.sct = mss.mss() if self.backend == "mss" else None
@@ -120,11 +125,13 @@ class SmartScreenCapture:
         self.max_dimension = max_dimension
         self.jpeg_quality = jpeg_quality
         self.captures_dir = captures_dir
+        self.save_to_disk = save_to_disk
         self.consecutive_unchanged = 0
         self.total_captures = 0
         self.changes_detected = 0
         self._screencast_proc = None
         self._native_size = (0, 0)
+        self._last_resized_image = None  # PIL Image — avoids base64 re-decode downstream
 
         # Legacy compat
         self.screen_width = max_dimension
@@ -204,12 +211,15 @@ class SmartScreenCapture:
             self.consecutive_unchanged = 0
             self.changes_detected += 1
 
+            # Store resized image for downstream pipeline steps (avoids base64 re-decode)
+            self._last_resized_image = img_resized
+
             # Encode as JPEG
             buffer = BytesIO()
             img_resized.save(buffer, format="JPEG", quality=self.jpeg_quality, optimize=True)
             
-            # Save to disk if directory is configured
-            if self.captures_dir:
+            # Save to disk if configured (controlled by SAVE_CAPTURES env)
+            if self.save_to_disk and self.captures_dir:
                 filename = f"capture_{int(now)}.jpg"
                 filepath = os.path.join(self.captures_dir, filename)
                 with open(filepath, "wb") as f:
@@ -273,7 +283,7 @@ class SmartScreenCapture:
         env["AIDESK_MAX_FPS"] = str(max(0.5, 1.0 / self.min_interval))
 
         self._screencast_proc = subprocess.Popen(
-            ["python3", helper_path],
+            [SYSTEM_PYTHON3, helper_path],
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -519,4 +529,5 @@ def create_capture_from_env() -> SmartScreenCapture:
         max_dimension=int(os.getenv("MAX_DIMENSION", "1280")),
         jpeg_quality=int(os.getenv("JPEG_QUALITY", "60")),
         captures_dir=os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures"),
+        save_to_disk=os.getenv("SAVE_CAPTURES", "true").lower() == "true",
     )

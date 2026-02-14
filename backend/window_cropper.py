@@ -167,6 +167,8 @@ class WindowCropper:
         min_window_size: int = 100,
         max_crop_dimension: int = 1280,
         change_threshold: float = 3.0,
+        max_crop_windows: int = 0,
+        save_to_disk: bool = True,
     ):
         self.scanner = process_scanner
         self.crops_dir = crops_dir
@@ -174,6 +176,8 @@ class WindowCropper:
         self.min_window_size = min_window_size
         self.max_crop_dimension = max_crop_dimension
         self.change_threshold = change_threshold
+        self.max_crop_windows = max_crop_windows  # 0 = crop all, >0 = top-K most relevant
+        self.save_to_disk = save_to_disk
 
         # Per-window change detection: geo_key → previous phash
         self._prev_hashes: Dict[Tuple[int, int, int, int], imagehash.ImageHash] = {}
@@ -192,7 +196,35 @@ class WindowCropper:
             crops_dir=crops_dir,
             jpeg_quality=jpeg_quality,
             change_threshold=change_threshold,
+            max_crop_windows=max_crop_windows,
+            save_to_disk=save_to_disk,
         )
+
+    def _select_top_k(self, windows: List[VisibleWindow], k: int) -> List[VisibleWindow]:
+        """
+        Select the K most relevant windows for cropping.
+
+        Priority: active window first, then by category importance + area.
+        This avoids expensive crop+hash+encode for low-priority windows.
+        """
+        def score(w: VisibleWindow) -> float:
+            s = 0.0
+            if w.is_active:
+                s += 10000
+            s += self.CATEGORY_PRIORITY.get(w.category, 0) * 100
+            s += (w.width * w.height) / 10000  # larger windows are more important
+            return s
+
+        ranked = sorted(windows, key=score, reverse=True)
+        selected = ranked[:k]
+
+        logger.debug(
+            "Top-K window selection",
+            total=len(windows),
+            selected=k,
+            selected_apps=[w.wm_class_name or w.title for w in selected],
+        )
+        return selected
 
     @nfo.log_call(level="INFO")
     def crop_all_windows(
@@ -212,6 +244,10 @@ class WindowCropper:
         """
         if windows is None:
             windows = self.scanner.scan_all_windows()
+
+        # Top-K selection: pick most relevant windows before expensive crop+hash
+        if self.max_crop_windows > 0 and len(windows) > self.max_crop_windows:
+            windows = self._select_top_k(windows, self.max_crop_windows)
 
         crops = []
         screen_w, screen_h = fullscreen_image.size
@@ -275,9 +311,9 @@ class WindowCropper:
                 b64 = base64.b64encode(buffer.getvalue()).decode()
                 size_kb = len(buffer.getvalue()) / 1024
 
-                # Save to disk
+                # Save to disk (controlled by save_to_disk flag)
                 filepath = ""
-                if self.crops_dir:
+                if self.save_to_disk and self.crops_dir:
                     safe_name = (win.wm_class_name or "unknown").replace("/", "_")
                     filename = f"crop_{safe_name}_{win.window_id}_{int(time.time())}.jpg"
                     filepath = os.path.join(self.crops_dir, filename)
@@ -438,6 +474,8 @@ def create_window_cropper(
         jpeg_quality=int(os.getenv("JPEG_QUALITY", "70")),
         max_crop_dimension=int(os.getenv("MAX_DIMENSION", "1280")),
         change_threshold=float(os.getenv("CROP_CHANGE_THRESHOLD", "3.0")),
+        max_crop_windows=int(os.getenv("MAX_CROP_WINDOWS", "0")),
+        save_to_disk=os.getenv("SAVE_CROPS", "true").lower() == "true",
     )
 
 

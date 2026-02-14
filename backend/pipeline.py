@@ -6,6 +6,7 @@ Implements:
 - Open/Closed: add new steps without modifying existing ones
 - Event Sourcing: each step emits events to the EventBus
 - CQRS: pipeline context separates read-state from write-commands
+- Pipeline Profiles: FAST / NORMAL / FULL for specialized task routing
 
 Pipeline flow:
     ScanWindows → CaptureScreen → CropWindows → OrganizeScreen
@@ -21,6 +22,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
@@ -30,6 +32,99 @@ from PIL import Image
 from event_bus import Event, EventBus, EventType
 
 logger = structlog.get_logger()
+
+
+# ===== Pipeline Profiles =====
+
+class PipelineProfile(str, Enum):
+    """
+    Pipeline execution profiles for specialized task routing.
+
+    FAST   — low-latency: skip cropping, use OCR-only/hybrid, cached window scan
+    NORMAL — balanced: cached scan, top-K crops, hybrid analysis
+    FULL   — quality-first: full scan, crop all, ocr+vision analysis
+    """
+    FAST = "fast"
+    NORMAL = "normal"
+    FULL = "full"
+
+
+class ProfileSelector:
+    """
+    Adaptively selects pipeline profile per tick based on heuristics.
+
+    Rules:
+    - FULL every `full_interval` seconds (periodic deep scan)
+    - FULL when active window changes (new app context)
+    - NORMAL when screen change detected (default)
+    - FAST when no significant change or in idle approach
+    """
+
+    def __init__(
+        self,
+        full_interval: float = 60.0,
+        force_profile: Optional[str] = None,
+    ):
+        self.full_interval = full_interval
+        self.force_profile = PipelineProfile(force_profile) if force_profile else None
+        self._last_full_time = 0.0
+        self._last_active_wid = 0
+        self._consecutive_fast = 0
+        # Stats
+        self.profile_counts = {p.value: 0 for p in PipelineProfile}
+
+    def select(self, ctx: 'PipelineContext', capture=None) -> PipelineProfile:
+        """
+        Choose optimal profile for this pipeline tick.
+
+        Args:
+            ctx: Current pipeline context (may have cached windows from prev tick)
+            capture: SmartScreenCapture instance for idle detection
+
+        Returns:
+            Selected PipelineProfile
+        """
+        if self.force_profile:
+            self.profile_counts[self.force_profile.value] += 1
+            return self.force_profile
+
+        now = time.time()
+
+        # Periodic FULL scan
+        if now - self._last_full_time >= self.full_interval:
+            self._last_full_time = now
+            self._consecutive_fast = 0
+            self.profile_counts[PipelineProfile.FULL.value] += 1
+            return PipelineProfile.FULL
+
+        # Check if capture system is in idle mode
+        is_idle = False
+        if capture and hasattr(capture, 'consecutive_unchanged'):
+            is_idle = capture.consecutive_unchanged > getattr(capture, 'idle_threshold', 30)
+
+        if is_idle:
+            self._consecutive_fast += 1
+            self.profile_counts[PipelineProfile.FAST.value] += 1
+            return PipelineProfile.FAST
+
+        # Default: NORMAL
+        self._consecutive_fast = 0
+        self.profile_counts[PipelineProfile.NORMAL.value] += 1
+        return PipelineProfile.NORMAL
+
+    def notify_active_window_changed(self, new_wid: int):
+        """Signal that active window changed — next tick should be FULL."""
+        if new_wid != self._last_active_wid:
+            self._last_active_wid = new_wid
+            self._last_full_time = 0  # Force FULL on next tick
+
+    def get_stats(self) -> Dict:
+        return {
+            "profile_counts": self.profile_counts,
+            "full_interval": self.full_interval,
+            "force_profile": self.force_profile.value if self.force_profile else None,
+            "last_full_ago": round(time.time() - self._last_full_time, 1) if self._last_full_time else None,
+        }
 
 
 # ===== Pipeline Context (shared state accumulator) =====
@@ -57,6 +152,7 @@ class PipelineContext:
     image_b64: Optional[str] = None
     capture_result: Optional[Dict] = None
     fullscreen_image: Optional[Any] = None  # PIL.Image
+    capture_image: Optional[Any] = None     # PIL.Image (resized) — avoids base64 re-decode
 
     # Phase 3+4: Cropping & organizing
     organized_screen: Optional[Any] = None  # OrganizedScreenData
@@ -75,6 +171,9 @@ class PipelineContext:
 
     # Broadcast payload
     broadcast_data: Optional[Dict] = None
+
+    # Pipeline profile for this run
+    profile: str = "normal"  # PipelineProfile value
 
     # Metadata
     steps_executed: List[str] = field(default_factory=list)
@@ -117,20 +216,39 @@ class PipelineStep(Protocol):
 # ===== Concrete Pipeline Steps =====
 
 class ScanWindowsStep:
-    """Phase 1a: Scan all visible windows with process info."""
+    """Phase 1a: Scan all visible windows with process info.
+
+    Supports caching: on FAST/NORMAL profiles, reuses cached results
+    if they are fresher than `cache_ttl`. On FULL profile, always re-scans.
+    This decouples expensive subprocess calls from every pipeline tick.
+    """
     name = "scan_windows"
 
-    def __init__(self, process_scanner):
+    def __init__(self, process_scanner, cache_ttl: float = 3.0):
         self._scanner = process_scanner
+        self._cache_ttl = cache_ttl
+        self._cached_windows: List[Any] = []
+        self._cache_time: float = 0.0
 
     def can_run(self, ctx: PipelineContext) -> bool:
         return self._scanner is not None
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        ctx.all_windows = self._scanner.scan_all_windows()
+        now = time.time()
+        cache_age = now - self._cache_time
+
+        # FAST/NORMAL: use cache if fresh enough
+        if ctx.profile != PipelineProfile.FULL.value and cache_age < self._cache_ttl and self._cached_windows:
+            ctx.all_windows = self._cached_windows
+            logger.debug("scan_windows: using cache", age=round(cache_age, 1), total=len(self._cached_windows))
+        else:
+            ctx.all_windows = self._scanner.scan_all_windows()
+            self._cached_windows = ctx.all_windows
+            self._cache_time = now
+
         await bus.publish(Event(
             type=EventType.WINDOWS_SCANNED.value,
-            data={"total": len(ctx.all_windows)},
+            data={"total": len(ctx.all_windows), "cached": ctx.profile != PipelineProfile.FULL.value and cache_age < self._cache_ttl},
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -184,6 +302,10 @@ class CaptureScreenStep:
         ctx.capture_result = result
         ctx.image_b64 = result["image_b64"]
 
+        # Store PIL image directly for downstream steps (avoids base64 re-decode)
+        if hasattr(self._capture, '_last_resized_image') and self._capture._last_resized_image is not None:
+            ctx.capture_image = self._capture._last_resized_image
+
         await bus.publish(Event(
             type=EventType.SCREEN_CAPTURED.value,
             data={
@@ -198,13 +320,18 @@ class CaptureScreenStep:
 
 
 class CropWindowsStep:
-    """Phase 3+4: Crop each visible application from fullscreen screenshot."""
+    """Phase 3+4: Crop each visible application from fullscreen screenshot.
+
+    Skipped on FAST profile (cropping is expensive and unnecessary for quick insights).
+    """
     name = "crop_windows"
 
     def __init__(self, window_cropper):
         self._cropper = window_cropper
 
     def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False  # FAST: skip cropping entirely
         return (
             self._cropper is not None
             and ctx.image_b64 is not None
@@ -212,8 +339,12 @@ class CropWindowsStep:
         )
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        img_bytes = base64.b64decode(ctx.image_b64)
-        fullscreen_img = Image.open(BytesIO(img_bytes))
+        # Prefer PIL image from capture (avoids base64 decode + JPEG re-parse)
+        if ctx.capture_image is not None:
+            fullscreen_img = ctx.capture_image
+        else:
+            img_bytes = base64.b64decode(ctx.image_b64)
+            fullscreen_img = Image.open(BytesIO(img_bytes))
 
         organized = self._cropper.organize_screen(fullscreen_img, ctx.all_windows)
         ctx.organized_screen = organized
@@ -551,12 +682,13 @@ def create_pipeline(
     Open/Closed: caller can add_step() / remove_step() after creation.
     """
     use_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
+    scan_cache_ttl = float(os.getenv("SCAN_CACHE_TTL", "3.0"))
 
     pipeline = PipelineOrchestrator(bus)
 
-    # Phase 1: Detect windows and processes
+    # Phase 1: Detect windows and processes (with caching for FAST/NORMAL)
     if process_scanner:
-        pipeline.add_step(ScanWindowsStep(process_scanner))
+        pipeline.add_step(ScanWindowsStep(process_scanner, cache_ttl=scan_cache_ttl))
     if window_mgr:
         pipeline.add_step(DetectActiveWindowStep(window_mgr, use_window_roi=use_roi))
 
@@ -564,7 +696,7 @@ def create_pipeline(
     if capture:
         pipeline.add_step(CaptureScreenStep(capture))
 
-    # Phase 3+4: Crop and organize
+    # Phase 3+4: Crop and organize (skipped on FAST profile)
     if window_cropper:
         pipeline.add_step(CropWindowsStep(window_cropper))
 
@@ -590,3 +722,11 @@ def create_pipeline(
     )
 
     return pipeline
+
+
+def create_profile_selector() -> ProfileSelector:
+    """Create ProfileSelector from environment variables."""
+    return ProfileSelector(
+        full_interval=float(os.getenv("PIPELINE_FULL_INTERVAL", "60.0")),
+        force_profile=os.getenv("PIPELINE_PROFILE") or None,
+    )

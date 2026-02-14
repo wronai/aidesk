@@ -505,7 +505,17 @@ FastAPI App
 ├── CQRS / Event Sourcing Endpoints
 │   ├── GET  /events - Query event store (type, source, correlation_id, since)
 │   ├── GET  /events/stats - Event bus statistics
-│   └── GET  /pipeline - Pipeline steps and execution stats
+│   ├── GET  /pipeline - Pipeline steps and execution stats
+│   ├── GET  /read-model - CQRS materialized views
+│   ├── GET  /read-model/pipeline - Pipeline execution view
+│   └── GET  /read-model/stats - Enriched stats + event metrics
+├── Configuration Endpoints
+│   ├── GET  /config - Full config: .env values + schema + audio devices
+│   ├── POST /config - Update .env configuration
+│   ├── GET  /config/ui - Browser-based configuration UI
+│   ├── GET  /audio/devices - PulseAudio/PipeWire device discovery
+│   ├── GET  /crops - List per-app crop files
+│   └── GET  /crops/{filename} - Serve crop file
 └── Background Tasks
     └── screen_analysis_loop() → PipelineOrchestrator
         └── 8 composable steps (see Pipeline section above)
@@ -846,4 +856,5 @@ MIT - See LICENSE file
 ---
 
 Dokument stworzony: 2025-02-14
-Wersja: 2.0.0 (Window Awareness + Shell Agent)
+Aktualizacja: 2026-02-14
+Wersja: 2.0.9 (SOLID / CQRS / Event Sourcing + Configuration UI)

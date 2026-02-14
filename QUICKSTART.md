@@ -139,22 +139,29 @@ Przy pierwszym uruchomieniu pojawi się dialog z prośbą o zgodę.
 ## 📊 Monitorowanie
 
 Statystyki dostępne pod:
-- http://localhost:8000/stats - Szczegółowe statystyki
-- http://localhost:8000/status - Bieżący status
+- `http://localhost:PORT/config/ui` — konfiguracja przez przeglądarkę
+- `http://localhost:PORT/stats` — szczegółowe statystyki
+- `http://localhost:PORT/health` — health check (12 komponentów)
+- `http://localhost:PORT/events` — event store (audit trail)
+- `http://localhost:PORT/pipeline` — metryki pipeline
+- `http://localhost:PORT/browser` — screenshot browser
 
 ## 🎯 Następne kroki
 
-1. Dostosuj czułość detekcji w `.env`
-2. Wypróbuj różne modele AI (gemini/openai/claude)
-3. Sprawdź koszty po 1 godzinie użytkowania
-4. Przeczytaj pełną dokumentację w README.md
+1. Skonfiguruj urządzenia audio w Config UI
+2. Wypróbuj różne modele AI (gemini/openai/claude/ollama)
+3. Wypróbuj tryb `hybrid` — 5-10x tańszy niż `vision_only`
+4. Sprawdź event store po 1 godzinie: `curl localhost:PORT/events`
+5. Uruchom testy: `make test` (75 testów)
+6. Przeczytaj ARCHITECTURE.md i PROVIDERS.md
 
 ## 💡 Wskazówki
 
-- **Oszczędzaj koszty**: Ustaw `CHANGE_THRESHOLD=12` i `MIN_CAPTURE_INTERVAL=2.0`
-- **Maksymalna jakość**: Użyj `VISION_PROVIDER=claude`
-- **Najszybsze działanie**: Pozostań przy `gemini` (0.53s latency)
-- **Offline STT**: Zainstaluj Faster-Whisper lokalnie
+- **Oszczędzaj koszty**: Ustaw `ANALYSIS_MODE=hybrid` i `CHANGE_THRESHOLD=12`
+- **Maksymalna jakość**: `VISION_MODEL=anthropic/claude-sonnet-4-20250514`
+- **Najszybsze działanie**: `VISION_MODEL=gemini/gemini-2.0-flash` (0.5s latency)
+- **Zero kosztów**: `VISION_MODEL=ollama/llava` + `ENABLE_STT=false`
+- **Zatrzymanie**: `make stop`
 
 ---
 

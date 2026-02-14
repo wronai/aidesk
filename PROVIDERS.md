@@ -545,7 +545,7 @@ ma wsparcie vision w dokumentacji providera. Bezpieczne wybory:
 ### Wydajność lokalna jest słaba
 
 1. **Użyj mniejszego modelu:** `ollama/llava-phi3` zamiast `ollama/llava:13b`
-2. **Zmniejsz rozdzielczość:** `SCREEN_WIDTH=960`, `SCREEN_HEIGHT=540`
+2. **Zmniejsz rozdzielczość:** `MAX_DIMENSION=960`
 3. **Zwiększ interwał:** `MIN_CAPTURE_INTERVAL=3.0`
 4. **Użyj GPU:** Ollama automatycznie wykrywa CUDA/ROCm/Metal
 
