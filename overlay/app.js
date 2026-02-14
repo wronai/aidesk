@@ -114,6 +114,11 @@ function connect() {
     handleBenchmarkResult(data);
   });
 
+  eventSource.addEventListener('diagnostics', (e) => {
+    const data = JSON.parse(e.data);
+    handleDiagnostics(data);
+  });
+
   eventSource.addEventListener('heartbeat', (e) => {
     // Just keep connection alive
     console.log('Heartbeat received');
@@ -591,6 +596,23 @@ async function approveAndExecute(actionId) {
     }
   } catch (error) {
     console.error('Agent execute error:', error);
+  }
+}
+
+/**
+ * Handle diagnostics broadcast from autodiagnostics loop
+ */
+function handleDiagnostics(data) {
+  if (!data.all_ok) {
+    const failed = data.checks.filter(c => !c.ok).map(c => c.name);
+    console.warn('Diagnostics issues:', failed);
+    // Flash connection indicator orange briefly
+    elements.connectionStatus.classList.add('warning');
+    elements.connectionStatus.title = `Diagnostics: ${failed.join(', ')}`;
+    setTimeout(() => {
+      elements.connectionStatus.classList.remove('warning');
+      elements.connectionStatus.title = 'Connected';
+    }, 5000);
   }
 }
 

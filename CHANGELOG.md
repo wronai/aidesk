@@ -1,3 +1,16 @@
+## [2.0.4] - 2026-02-14
+
+### Summary
+
+feat(overlay): deep code analysis engine with 3 supporting modules
+
+### Other
+
+- update backend/capture.py.bak
+- update overlay/app.js
+- update overlay/styles.css
+
+
 ## [2.0.3] - 2026-02-14
 
 ### Summary

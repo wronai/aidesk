@@ -100,6 +100,11 @@ body {
   box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
 }
 
+.status-indicator.warning .status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
