@@ -30,8 +30,11 @@ class AppCategory(str, Enum):
     CHAT = "chat"
     OFFICE = "office"
     MEDIA = "media"
+    GRAPHICS = "graphics"
+    GAME = "game"
     FILE_MANAGER = "file_manager"
     SYSTEM = "system"
+    UTILITY = "utility"
     UNKNOWN = "unknown"
 
 
@@ -41,35 +44,94 @@ APP_RULES: List[Tuple[str, AppCategory]] = [
     (r"mutter-x11-frames|gnome-shell|xwaylandvideobridge", AppCategory.SYSTEM),
     (r"jetbrains-toolbox|com-jetbrains-toolbox-entry", AppCategory.SYSTEM),
     (r"ai-desktop-assistant-overlay", AppCategory.SYSTEM),
+    (r"kwin_x11|kwin_wayland|plasmashell", AppCategory.SYSTEM),
+    (r"dunst|notify-osd|xfce4-notifyd", AppCategory.SYSTEM),
 
-    # IDEs
+    # IDEs & Editors
     (r"code|vscodium|codium", AppCategory.IDE),
-    (r"jetbrains|idea|pycharm|webstorm|clion|goland|rider|datagrip", AppCategory.IDE),
+    (r"jetbrains|idea|pycharm|webstorm|clion|goland|rider|datagrip|rubymine|phpstorm", AppCategory.IDE),
+    (r"android-studio", AppCategory.IDE),
     (r"sublime_text|subl", AppCategory.IDE),
     (r"atom", AppCategory.IDE),
-    (r"neovide", AppCategory.IDE),
+    (r"neovide|gvim", AppCategory.IDE),
     (r"emacs", AppCategory.IDE),
-    (r"eclipse|netbeans", AppCategory.IDE),
-    (r"kate|kwrite|geany|mousepad", AppCategory.IDE),
+    (r"eclipse|netbeans|arduino", AppCategory.IDE),
+    (r"kate|kwrite|geany|mousepad|leafpad|gedit|pluma|xed", AppCategory.IDE),
     (r"zed", AppCategory.IDE),
     (r"cursor", AppCategory.IDE),
     (r"windsurf", AppCategory.IDE),
+    (r"godot|unity|unreal", AppCategory.IDE),
+    (r"qtcreator", AppCategory.IDE),
+    (r"postman|insomnia|dbeaver|pgadmin|mysql-workbench", AppCategory.IDE),
+
     # Terminals
-    (r"gnome-terminal|konsole|xfce4-terminal|terminator|alacritty|kitty|wezterm|foot|tilix|\bst\b|urxvt|xterm|sakura|guake|yakuake|tilda", AppCategory.TERMINAL),
+    (r"gnome-terminal|konsole|xfce4-terminal|terminator|alacritty|kitty|wezterm|foot|tilix|\bst\b|urxvt|xterm|sakura|guake|yakuake|tilda|lxterminal|mate-terminal", AppCategory.TERMINAL),
+    (r"cool-retro-term|hyper|blackbox", AppCategory.TERMINAL),
+
     # Browsers
     (r"firefox|navigator|chromium|chrome|google-chrome|brave|vivaldi|opera|edge|epiphany|midori|qutebrowser|\bmin\b", AppCategory.BROWSER),
+    (r"tor-browser|waterfox|pale moon|librewolf|falkon", AppCategory.BROWSER),
+
     # Email
-    (r"thunderbird|evolution|geary|kmail|\bmutt\b|\bneomutt\b|mailspring|bluemail", AppCategory.EMAIL),
+    (r"thunderbird|evolution|geary|kmail|\bmutt\b|\bneomutt\b|mailspring|bluemail|sylpheed|claws-mail", AppCategory.EMAIL),
+
     # Chat / Communication
     (r"slack|discord|telegram|signal|element|teams|zoom|skype|matrix|hexchat|weechat|irssi", AppCategory.CHAT),
-    # Office
-    (r"libreoffice|soffice|abiword|gnumeric|calligra|okular|evince|zathura|xreader|atril", AppCategory.OFFICE),
-    # Media
-    (r"vlc|mpv|totem|celluloid|rhythmbox|spotify|audacious|clementine|gimp|inkscape|krita|blender|obs|kdenlive|shotcut", AppCategory.MEDIA),
+    (r"whatsapp|viber|messenger|caprine|ferdi|rambox|franchise", AppCategory.CHAT),
+    (r"mattermost|rocketchat", AppCategory.CHAT),
+
+    # Office / Productivity
+    (r"libreoffice|soffice|abiword|gnumeric|calligra|okular|evince|zathura|xreader|atril|mupdf", AppCategory.OFFICE),
+    (r"obsidian|joplin|notion|evernote|standard notes|cherrytree|zim", AppCategory.OFFICE),
+    (r"focuswriter|typora|marktext", AppCategory.OFFICE),
+
+    # Graphics / Design
+    (r"gimp|inkscape|krita|blender|darktable|rawtherapee|aseprite|mypaint", AppCategory.GRAPHICS),
+    (r"figma|penpot", AppCategory.GRAPHICS),
+    (r"freecad|kicad|librecad|openscad", AppCategory.GRAPHICS),
+
+    # Media (Video/Audio)
+    (r"vlc|mpv|totem|celluloid|rhythmbox|spotify|audacious|clementine|obs|kdenlive|shotcut|openshot|pitivi|audacity|ardour", AppCategory.MEDIA),
+    (r"plex|kodi|stremio", AppCategory.MEDIA),
+
+    # Games
+    (r"steam|heroic|lutris|minigalaxy|itch", AppCategory.GAME),
+    (r"minecraft|factorio|stardew|terraria|dota|csgo|tf2", AppCategory.GAME),
+    (r"retroarch|dolphin-emu|pcsx2|rpcs3|yuzu|ryujinx", AppCategory.GAME),
+
     # File managers
-    (r"nautilus|dolphin|thunar|pcmanfm|nemo|caja|ranger|nnn", AppCategory.FILE_MANAGER),
+    (r"nautilus|dolphin|thunar|pcmanfm|nemo|caja|ranger|nnn|mc|midnight commander|krusader", AppCategory.FILE_MANAGER),
+
     # System
     (r"systemsettings|gnome-control|xfce4-settings|lxappearance|pavucontrol|nm-connection-editor", AppCategory.SYSTEM),
+    (r"gnome-system-monitor|ksysguard|htop|btop", AppCategory.SYSTEM),
+    (r"virtualbox|vmware|virt-manager|qemu", AppCategory.SYSTEM),
+    (r"gparted|disks|baobab", AppCategory.SYSTEM),
+    (r"synaptic|pamac|discover|gnome-software", AppCategory.SYSTEM),
+
+    # Utilities
+    (r"calculator|gnome-calculator|kcalc|galculator", AppCategory.UTILITY),
+    (r"flameshot|shutter|scrot", AppCategory.UTILITY),
+    (r"keepass|bitwarden|1password|secrets", AppCategory.UTILITY),
+]
+
+
+# Process-based classification rules: (process_name_pattern, category)
+PROCESS_RULES: List[Tuple[str, AppCategory]] = [
+    # Electron wrappers often have generic window classes but specific process names
+    (r"electron|electron\d+", AppCategory.UNKNOWN),  # Skip generic electron
+    (r"slack", AppCategory.CHAT),
+    (r"discord", AppCategory.CHAT),
+    (r"code|vscode", AppCategory.IDE),
+    (r"obsidian", AppCategory.OFFICE),
+    (r"signal", AppCategory.CHAT),
+    (r"steam", AppCategory.GAME),
+    
+    # Java apps
+    (r"java", AppCategory.UNKNOWN),  # Generic java
+    
+    # Python apps
+    (r"python|python3", AppCategory.UNKNOWN),
 ]
 
 
@@ -81,6 +143,8 @@ class WindowInfo:
     wm_class: str = ""
     wm_class_name: str = ""
     pid: int = 0
+    process_name: str = ""
+    cmdline: str = ""
     x: int = 0
     y: int = 0
     width: int = 0
@@ -101,6 +165,8 @@ class WindowInfo:
             "wm_class": self.wm_class,
             "wm_class_name": self.wm_class_name,
             "pid": self.pid,
+            "process_name": self.process_name,
+            "cmdline": self.cmdline,
             "geometry": {"x": self.x, "y": self.y, "w": self.width, "h": self.height},
             "monitor_index": self.monitor_index,
             "category": self.category.value,
@@ -117,7 +183,8 @@ class WindowInfo:
     def to_context_string(self) -> str:
         """Format window info as context string for LLM prompt injection."""
         parts = [f"🪟 Aktywne okno: {self.title}"]
-        parts.append(f"📂 Aplikacja: {self.wm_class_name} ({self.category.value})")
+        app_name = self.wm_class_name or self.process_name or "Unknown"
+        parts.append(f"📂 Aplikacja: {app_name} ({self.category.value})")
         if self.cwd:
             parts.append(f"📁 CWD: {self.cwd}")
         if self.git_repo:
@@ -323,15 +390,42 @@ class WindowManager:
 
     def _enrich_window(self, info: WindowInfo):
         """Classify app, resolve CWD, add git context, detect monitor."""
-        info.category = self._classify_app(info.wm_class, info.wm_class_name, info.title)
-
         if info.pid > 0:
             info.cwd = self._get_cwd(info.pid)
+            info.process_name, info.cmdline = self._get_process_details(info.pid)
+
+        info.category = self._classify_app(
+            info.wm_class, 
+            info.wm_class_name, 
+            info.title,
+            info.process_name,
+            info.cmdline
+        )
 
         if self.enable_git and info.category in (AppCategory.IDE, AppCategory.TERMINAL):
             self._enrich_git(info)
 
         info.monitor_index = self._get_monitor_for_window(info)
+
+    def _get_process_details(self, pid: int) -> Tuple[str, str]:
+        """Get process name and cmdline from /proc."""
+        name = ""
+        cmdline = ""
+        try:
+            comm_path = f"/proc/{pid}/comm"
+            if os.path.exists(comm_path):
+                with open(comm_path, "r") as f:
+                    name = f.read().strip()
+            
+            cmdline_path = f"/proc/{pid}/cmdline"
+            if os.path.exists(cmdline_path):
+                with open(cmdline_path, "rb") as f:
+                    # cmdline is null-separated, replace with spaces
+                    raw = f.read()
+                    cmdline = raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").strip()
+        except (OSError, FileNotFoundError, PermissionError):
+            pass
+        return name, cmdline
 
     def _cache_and_return(self, info: WindowInfo, now: float) -> WindowInfo:
         self._last_window = info
@@ -339,25 +433,61 @@ class WindowManager:
         return info
 
     @staticmethod
-    def _classify_app(wm_class: str, wm_class_name: str, title: str) -> AppCategory:
-        """Classify application based on WM_CLASS and title."""
+    def _classify_app(
+        wm_class: str, 
+        wm_class_name: str, 
+        title: str,
+        process_name: str = "",
+        cmdline: str = ""
+    ) -> AppCategory:
+        """Classify application based on WM_CLASS, title, and process info."""
         # Combine class fields for matching
         combined = f"{wm_class or ''} {wm_class_name or ''}".lower()
         title_lower = (title or "").lower()
+        process_lower = (process_name or "").lower()
 
         # Helper/compositor titles that should never be treated as user apps
         if title_lower in {"mutter guard window", "sun-awt-x11-xcanvaspeer", "content window"}:
             return AppCategory.SYSTEM
 
+        # 1. Check WM_CLASS rules (most reliable for native apps)
         for pattern, category in APP_RULES:
             if re.search(pattern, combined):
                 return category
 
-        # Fallback: check title for clues
+        # 2. Check Process Name rules (reliable for known binaries)
+        if process_lower:
+            for pattern, category in PROCESS_RULES:
+                if re.search(pattern, process_lower):
+                    if category != AppCategory.UNKNOWN:
+                        return category
+                    # If UNKNOWN (e.g. generic electron), we might find more info in cmdline
+        
+        # 3. Check Command Line (useful for java -jar, python scripts, electron apps)
+        if cmdline:
+            cmd_lower = cmdline.lower()
+            # Detect specific java apps
+            if any(kw in cmd_lower for kw in ["jetbrains", "idea", "pycharm", "webstorm", "clion", "goland", "rider", "datagrip", "rubymine", "phpstorm"]):
+                return AppCategory.IDE
+            if "minecraft" in cmd_lower:
+                return AppCategory.GAME
+            # Detect electron apps via path
+            if "discord" in cmd_lower:
+                return AppCategory.CHAT
+            if "slack" in cmd_lower:
+                return AppCategory.CHAT
+            if "obsidian" in cmd_lower:
+                return AppCategory.OFFICE
+            if "cursor" in cmd_lower:
+                return AppCategory.IDE
+
+        # 4. Fallback: check title for clues
         if any(kw in title_lower for kw in ["vim", "nvim", "nano", "helix", "windsurf", "cursor"]):
             return AppCategory.IDE
         if any(kw in title_lower for kw in ["bash", "zsh", "fish", "sh -"]):
             return AppCategory.TERMINAL
+        if "mozilla firefox" in title_lower or "google chrome" in title_lower:
+            return AppCategory.BROWSER
 
         return AppCategory.UNKNOWN
 

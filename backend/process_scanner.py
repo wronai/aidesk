@@ -178,6 +178,23 @@ class ProcessScanner:
         for win in windows:
             if win.pid > 0:
                 win.process = self._get_process_info(win.pid)
+                # Re-classify with process info if available (improves detection for Electron apps, java, etc.)
+                if win.process:
+                    new_cat = WindowManager._classify_app(
+                        win.wm_class, 
+                        win.wm_class_name, 
+                        win.title, 
+                        win.process.name, 
+                        win.process.cmdline
+                    )
+                    # If we got a better classification, update it
+                    # (Don't overwrite if we had a specific one and got UNKNOWN, though _classify_app handles that well)
+                    if new_cat != AppCategory.UNKNOWN:
+                        win.category = new_cat
+                    elif win.category == AppCategory.UNKNOWN:
+                        # Even if new_cat is UNKNOWN, maybe we want to keep it? 
+                        # But _classify_app is the source of truth now.
+                        pass
 
         # Sort: active first, then by stacking order
         windows.sort(key=lambda w: (not w.is_active, w.stacking_order))

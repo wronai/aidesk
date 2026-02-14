@@ -355,13 +355,15 @@ if __name__ == "__main__":
 
     port = int(os.getenv("PORT", "8000"))
     host = os.getenv("HOST", "127.0.0.1")
+    reload_enabled = os.getenv("DEBUG", "false").lower() == "true"
+    app_target = "server:app" if reload_enabled else app
 
     logger.info("Starting server", host=host, port=port)
 
     uvicorn.run(
-        "server:app",
+        app_target,
         host=host,
         port=port,
         log_level=os.getenv("LOG_LEVEL", "info").lower(),
-        reload=os.getenv("DEBUG", "false").lower() == "true",
+        reload=reload_enabled,
     )

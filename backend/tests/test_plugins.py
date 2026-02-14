@@ -59,8 +59,8 @@ class TestPluginLoader:
         expected = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plugins")
         assert loader.plugin_dir == expected
 
-    @patch("pkgutil.iter_modules")
-    @patch("importlib.import_module")
+    @patch("plugins.loader.pkgutil.iter_modules")
+    @patch.object(PluginLoader, "_import_module")
     def test_discover_and_load_success(self, mock_import, mock_iter_modules):
         # Mock pkgutil to find one module "my_plugin"
         mock_iter_modules.return_value = [(None, "my_plugin", None)]
@@ -78,8 +78,44 @@ class TestPluginLoader:
         assert plugin.registered is True
         assert plugin.bus is loader.bus
 
-    @patch("pkgutil.iter_modules")
-    @patch("importlib.import_module")
+    @patch("plugins.loader.pkgutil.iter_modules")
+    @patch.object(PluginLoader, "_import_module")
+    def test_discover_skips_internal_modules(self, mock_import, mock_iter_modules):
+        mock_iter_modules.return_value = [
+            (None, "loader", None),
+            (None, "interface", None),
+            (None, "_private", None),
+            (None, "my_plugin", None),
+        ]
+
+        mock_module = MagicMock()
+        mock_module.Plugin = MockPlugin
+        mock_import.return_value = mock_module
+
+        loader = PluginLoader()
+        loader.discover_and_load()
+
+        mock_import.assert_called_once_with("my_plugin")
+        assert "mock_plugin" in loader.loaded_plugins
+
+    @patch("plugins.loader.pkgutil.iter_modules")
+    @patch.object(PluginLoader, "_import_module")
+    def test_discover_twice_skips_already_loaded_modules(self, mock_import, mock_iter_modules):
+        mock_iter_modules.return_value = [(None, "my_plugin", None)]
+
+        mock_module = MagicMock()
+        mock_module.Plugin = MockPlugin
+        mock_import.return_value = mock_module
+
+        loader = PluginLoader()
+        loader.discover_and_load()
+        loader.discover_and_load()
+
+        assert mock_import.call_count == 1
+        assert len(loader.loaded_plugins) == 1
+
+    @patch("plugins.loader.pkgutil.iter_modules")
+    @patch.object(PluginLoader, "_import_module")
     def test_discover_and_load_disabled(self, mock_import, mock_iter_modules):
         mock_iter_modules.return_value = [(None, "disabled_plugin", None)]
         
@@ -92,8 +128,8 @@ class TestPluginLoader:
 
         assert "disabled_plugin" not in loader.loaded_plugins
 
-    @patch("pkgutil.iter_modules")
-    @patch("importlib.import_module")
+    @patch("plugins.loader.pkgutil.iter_modules")
+    @patch.object(PluginLoader, "_import_module")
     def test_discover_and_load_invalid_class(self, mock_import, mock_iter_modules):
         mock_iter_modules.return_value = [(None, "bad_plugin", None)]
         
@@ -106,8 +142,18 @@ class TestPluginLoader:
 
         assert len(loader.loaded_plugins) == 0
 
-    @patch("pkgutil.iter_modules")
-    @patch("importlib.import_module")
+    def test_register_duplicate_plugin_name_skipped(self):
+        loader = PluginLoader()
+        first = MockPlugin()
+        second = MockPlugin()
+        second.version = "2.0.0"
+
+        assert loader._register_plugin(first) is True
+        assert loader._register_plugin(second) is False
+        assert loader.loaded_plugins["mock_plugin"].version == "1.0.0"
+
+    @patch("plugins.loader.pkgutil.iter_modules")
+    @patch.object(PluginLoader, "_import_module")
     def test_discover_and_load_no_plugin_class(self, mock_import, mock_iter_modules):
         mock_iter_modules.return_value = [(None, "no_class_plugin", None)]
         

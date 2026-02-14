@@ -77,6 +77,24 @@ class TestAppClassification:
         assert WindowManager._classify_app(None, None, None) == AppCategory.UNKNOWN
         assert WindowManager._classify_app(None, None, "Content window") == AppCategory.SYSTEM
 
+    def test_process_based_classification(self):
+        """Test classification based on process name."""
+        # Generic electron window class, but specific process name
+        assert WindowManager._classify_app("electron", "Electron", "Slack", process_name="slack") == AppCategory.CHAT
+        assert WindowManager._classify_app("electron", "Electron", "Discord", process_name="discord") == AppCategory.CHAT
+        assert WindowManager._classify_app("electron", "Electron", "VSCode", process_name="code") == AppCategory.IDE
+        assert WindowManager._classify_app("", "", "", process_name="steam") == AppCategory.GAME
+
+    def test_cmdline_based_classification(self):
+        """Test classification based on command line arguments."""
+        # Java apps
+        assert WindowManager._classify_app("sun-awt-X11-XFrame", "sun-awt-X11-XFrame", "Idea", cmdline="/usr/bin/java -jar /opt/idea/lib/idea.jar") == AppCategory.IDE
+        assert WindowManager._classify_app("java", "java", "Minecraft", cmdline="/usr/bin/java -jar minecraft.jar") == AppCategory.GAME
+        
+        # Electron apps launched via node/electron path
+        assert WindowManager._classify_app("electron", "Electron", "Obsidian", cmdline="/app/obsidian/obsidian") == AppCategory.OFFICE
+        assert WindowManager._classify_app("electron", "Electron", "Cursor", cmdline="/opt/Cursor/cursor") == AppCategory.IDE
+
 
 class TestWindowInfo:
     """Test WindowInfo dataclass serialization."""
@@ -87,6 +105,7 @@ class TestWindowInfo:
             wm_class_name="Code", pid=1234, x=100, y=200, width=1920,
             height=1080, category=AppCategory.IDE, git_repo="aidesk",
             git_branch="main", git_status="2 changed", cwd="/home/tom",
+            process_name="code", cmdline="/usr/bin/code",
         )
         defaults.update(kwargs)
         return WindowInfo(**defaults)
@@ -99,6 +118,8 @@ class TestWindowInfo:
         assert d["geometry"]["w"] == 1920
         assert d["git"]["branch"] == "main"
         assert d["git"]["repo"] == "aidesk"
+        assert d["process_name"] == "code"
+        assert d["cmdline"] == "/usr/bin/code"
 
     def test_to_context_string(self):
         info = self._make_info()
