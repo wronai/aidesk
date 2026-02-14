@@ -246,52 +246,62 @@ class ProcessScanner:
             except ValueError:
                 continue
 
-            win = VisibleWindow(window_id=wid, stacking_order=idx)
-
-            # Get title
-            title = self._run(["xdotool", "getwindowname", str(wid)])
-            if title:
-                win.title = title
-
-            # Get geometry
-            geom = self._run(["xdotool", "getwindowgeometry", "--shell", str(wid)])
-            if geom:
-                for gline in geom.splitlines():
-                    if gline.startswith("X="):
-                        win.x = int(gline.split("=")[1])
-                    elif gline.startswith("Y="):
-                        win.y = int(gline.split("=")[1])
-                    elif gline.startswith("WIDTH="):
-                        win.width = int(gline.split("=")[1])
-                    elif gline.startswith("HEIGHT="):
-                        win.height = int(gline.split("=")[1])
-
-            # Get PID
-            pid_str = self._run(["xdotool", "getwindowpid", str(wid)])
-            if pid_str:
-                try:
-                    win.pid = int(pid_str)
-                except ValueError:
-                    pass
-
-            # Get WM_CLASS
-            if self._has_xprop:
-                xprop_out = self._run(["xprop", "-id", str(wid), "WM_CLASS"])
-                if xprop_out and "=" in xprop_out:
-                    match = re.search(r'"([^"]*)",\s*"([^"]*)"', xprop_out)
-                    if match:
-                        win.wm_class = match.group(1)
-                        win.wm_class_name = match.group(2)
-
-            # Classify
-            win.category = WindowManager._classify_app(win.wm_class, win.wm_class_name, win.title)
-            win.is_active = (wid == active_wid)
-
-            # Skip tiny/invalid windows
+            win = self._build_xdotool_window(wid, idx, active_wid)
             if win.width > 50 and win.height > 50:
                 windows.append(win)
 
         return windows
+
+    def _build_xdotool_window(self, wid: int, idx: int, active_wid: int) -> VisibleWindow:
+        """Query all properties for a single window via xdotool/xprop."""
+        win = VisibleWindow(window_id=wid, stacking_order=idx)
+
+        title = self._run(["xdotool", "getwindowname", str(wid)])
+        if title:
+            win.title = title
+
+        self._parse_xdotool_geometry(win)
+        self._parse_xdotool_pid(win)
+        self._parse_xprop_wm_class(win)
+
+        win.category = WindowManager._classify_app(win.wm_class, win.wm_class_name, win.title)
+        win.is_active = (wid == active_wid)
+        return win
+
+    def _parse_xdotool_geometry(self, win: VisibleWindow):
+        """Parse geometry from xdotool getwindowgeometry --shell."""
+        geom = self._run(["xdotool", "getwindowgeometry", "--shell", str(win.window_id)])
+        if not geom:
+            return
+        for gline in geom.splitlines():
+            if gline.startswith("X="):
+                win.x = int(gline.split("=")[1])
+            elif gline.startswith("Y="):
+                win.y = int(gline.split("=")[1])
+            elif gline.startswith("WIDTH="):
+                win.width = int(gline.split("=")[1])
+            elif gline.startswith("HEIGHT="):
+                win.height = int(gline.split("=")[1])
+
+    def _parse_xdotool_pid(self, win: VisibleWindow):
+        """Parse PID from xdotool getwindowpid."""
+        pid_str = self._run(["xdotool", "getwindowpid", str(win.window_id)])
+        if pid_str:
+            try:
+                win.pid = int(pid_str)
+            except ValueError:
+                pass
+
+    def _parse_xprop_wm_class(self, win: VisibleWindow):
+        """Parse WM_CLASS from xprop."""
+        if not self._has_xprop:
+            return
+        xprop_out = self._run(["xprop", "-id", str(win.window_id), "WM_CLASS"])
+        if xprop_out and "=" in xprop_out:
+            match = re.search(r'"([^"]*)",\s*"([^"]*)"', xprop_out)
+            if match:
+                win.wm_class = match.group(1)
+                win.wm_class_name = match.group(2)
 
     @staticmethod
     def _get_process_info(pid: int) -> Optional[ProcessInfo]:

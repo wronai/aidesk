@@ -30,13 +30,6 @@ import structlog
 from PIL import Image
 
 from event_bus import Event, EventBus, EventType
-from typed_events import (
-    typed_event,
-    WindowsScannedPayload, ActiveWindowPayload, ScreenCapturedPayload,
-    ScreenOrganizedPayload, ContextBuiltPayload, AnalysisCompletedPayload,
-    AgentSuggestedPayload, BroadcastSentPayload, PipelineCompletedPayload,
-    ClipboardUpdatedPayload, PasteSuggestedPayload,
-)
 
 logger = structlog.get_logger()
 
@@ -160,7 +153,6 @@ class PipelineContext:
     capture_result: Optional[Dict] = None
     fullscreen_image: Optional[Any] = None  # PIL.Image
     capture_image: Optional[Any] = None     # PIL.Image (resized) — avoids base64 re-decode
-    fullscreen_path: Optional[str] = None   # Path to full-res original frame (for high-quality cropping)
 
     # Phase 3+4: Cropping & organizing
     organized_screen: Optional[Any] = None  # OrganizedScreenData
@@ -179,28 +171,6 @@ class PipelineContext:
 
     # Broadcast payload
     broadcast_data: Optional[Dict] = None
-
-    # Tier 1: Multi-monitor
-    multi_monitor_snapshot: Optional[Any] = None  # MultiMonitorSnapshot
-    monitor_description: str = ""
-
-    # Tier 1: Semantic memory
-    recalled_memories: List[Any] = field(default_factory=list)
-
-    # Tier 1: Action templates (learned)
-    template_actions: List[Dict] = field(default_factory=list)
-
-    # Tier 1: OCR post-processing
-    ocr_enhanced: bool = False
-    ocr_corrections: int = 0
-
-    # Tier 1: Predictive pre-fetch
-    prediction: Optional[Any] = None  # PredictionResult
-    used_prefetch: bool = False
-
-    # Clipboard intelligence
-    clipboard_auto_copies: List[Dict] = field(default_factory=list)
-    clipboard_suggestions: List[Dict] = field(default_factory=list)
 
     # Pipeline profile for this run
     profile: str = "normal"  # PipelineProfile value
@@ -272,16 +242,13 @@ class ScanWindowsStep:
             ctx.all_windows = self._cached_windows
             logger.debug("scan_windows: using cache", age=round(cache_age, 1), total=len(self._cached_windows))
         else:
-            ctx.all_windows = await asyncio.to_thread(self._scanner.scan_all_windows)
+            ctx.all_windows = self._scanner.scan_all_windows()
             self._cached_windows = ctx.all_windows
             self._cache_time = now
 
-        await bus.publish(typed_event(
-            EventType.WINDOWS_SCANNED,
-            WindowsScannedPayload(
-                total=len(ctx.all_windows),
-                cached=ctx.profile != PipelineProfile.FULL.value and cache_age < self._cache_ttl,
-            ),
+        await bus.publish(Event(
+            type=EventType.WINDOWS_SCANNED.value,
+            data={"total": len(ctx.all_windows), "cached": ctx.profile != PipelineProfile.FULL.value and cache_age < self._cache_ttl},
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -300,16 +267,16 @@ class DetectActiveWindowStep:
         return self._wm is not None
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        info = await asyncio.to_thread(self._wm.get_active_window)
+        info = self._wm.get_active_window()
         ctx.active_window = info
         ctx.window_context_str = info.to_context_string()
 
         if self._use_roi and info.width > 0:
             ctx.roi = self._wm.get_window_roi(info)
 
-        await bus.publish(typed_event(
-            EventType.WINDOWS_SCANNED,
-            ActiveWindowPayload(active=info.to_dict()),
+        await bus.publish(Event(
+            type=EventType.WINDOWS_SCANNED.value,
+            data={"active": info.to_dict()},
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -334,18 +301,18 @@ class CaptureScreenStep:
 
         ctx.capture_result = result
         ctx.image_b64 = result["image_b64"]
-        ctx.fullscreen_path = result.get("fullscreen_path")
 
         # Store PIL image directly for downstream steps (avoids base64 re-decode)
         if hasattr(self._capture, '_last_resized_image') and self._capture._last_resized_image is not None:
             ctx.capture_image = self._capture._last_resized_image
 
-        await bus.publish(typed_event(
-            EventType.SCREEN_CAPTURED,
-            ScreenCapturedPayload(
-                size_kb=result.get("size_kb", 0),
-                changed=True,
-            ),
+        await bus.publish(Event(
+            type=EventType.SCREEN_CAPTURED.value,
+            data={
+                "size_kb": result.get("size_kb", 0),
+                "timestamp": result.get("timestamp", 0),
+                "has_change": True,
+            },
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -372,38 +339,24 @@ class CropWindowsStep:
         )
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        # Prefer full-resolution original frame for cropping (better OCR quality)
-        fullscreen_img = None
-        if ctx.fullscreen_path and os.path.exists(ctx.fullscreen_path):
-            try:
-                fullscreen_img = Image.open(ctx.fullscreen_path).convert("RGB")
-                logger.info(
-                    "Using full-res frame for cropping",
-                    path=ctx.fullscreen_path,
-                    size=f"{fullscreen_img.size[0]}x{fullscreen_img.size[1]}",
-                )
-            except Exception as e:
-                logger.warning("Failed to load full-res frame, using resized", error=str(e))
-
-        # Fallback: resized PIL image from capture or base64
-        if fullscreen_img is None:
-            if ctx.capture_image is not None:
-                fullscreen_img = ctx.capture_image
-            else:
-                img_bytes = base64.b64decode(ctx.image_b64)
-                fullscreen_img = Image.open(BytesIO(img_bytes))
+        # Prefer PIL image from capture (avoids base64 decode + JPEG re-parse)
+        if ctx.capture_image is not None:
+            fullscreen_img = ctx.capture_image
+        else:
+            img_bytes = base64.b64decode(ctx.image_b64)
+            fullscreen_img = Image.open(BytesIO(img_bytes))
 
         organized = self._cropper.organize_screen(fullscreen_img, ctx.all_windows)
         ctx.organized_screen = organized
         ctx.screen_summary = organized.screen_summary
 
-        await bus.publish(typed_event(
-            EventType.SCREEN_ORGANIZED,
-            ScreenOrganizedPayload(
-                total_windows=organized.total_windows,
-                categories=list(organized.by_category.keys()),
-                active_app=organized.active_app.window.wm_class_name if organized.active_app else "",
-            ),
+        await bus.publish(Event(
+            type=EventType.SCREEN_ORGANIZED.value,
+            data={
+                "total_windows": organized.total_windows,
+                "summary": organized.screen_summary,
+                "categories": list(organized.by_category.keys()),
+            },
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -425,85 +378,6 @@ class BuildContextStep:
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         # Base context from history
         ctx.context_str = self._context.get_context_string(n=5, max_length=500)
-
-        latest_transcript = self._state.get("latest_transcript", "")
-
-        tier1_blocks: List[str] = []
-        if ctx.monitor_description:
-            tier1_blocks.append(f"🖥️ Monitory: {ctx.monitor_description}")
-
-        sm = self._state.get("semantic_memory")
-        if sm:
-            try:
-                query_parts: List[str] = []
-                if ctx.active_window:
-                    title = getattr(ctx.active_window, "title", "") or ""
-                    if title:
-                        query_parts.append(title)
-                if ctx.window_context_str:
-                    query_parts.append(ctx.window_context_str)
-                if ctx.screen_summary:
-                    query_parts.append(ctx.screen_summary)
-                if latest_transcript:
-                    query_parts.append(latest_transcript)
-
-                query = "\n".join([p for p in query_parts if p]).strip()
-                recalled = sm.recall_relevant(query[:500], k=3) if query else sm.recall_recent(n=3)
-                ctx.recalled_memories = recalled or []
-
-                if ctx.recalled_memories:
-                    lines = ["🧠 Pamięć (podobne sytuacje):"]
-                    for item in ctx.recalled_memories[:3]:
-                        content = getattr(item, "content", "") or ""
-                        if len(content) > 220:
-                            content = content[:217] + "..."
-
-                        ts_val = getattr(item, "timestamp", 0.0) or 0.0
-                        ts = time.strftime("%H:%M", time.localtime(ts_val)) if ts_val else ""
-                        score = float(getattr(item, "relevance_score", 0.0) or 0.0)
-                        if score > 0:
-                            lines.append(f"- [{ts}] ({score:.2f}) {content}")
-                        else:
-                            lines.append(f"- [{ts}] {content}")
-
-                    tier1_blocks.append("\n".join(lines))
-            except Exception as e:
-                logger.warning("Semantic memory recall failed", error=str(e))
-
-        lib = self._state.get("action_library")
-        if lib and getattr(lib, "enabled", False) and ctx.active_window is not None:
-            try:
-                cat = (
-                    ctx.active_window.category.value
-                    if hasattr(ctx.active_window.category, "value")
-                    else str(ctx.active_window.category)
-                )
-                templates = [
-                    t for t in getattr(lib, "_templates", {}).values()
-                    if getattr(t, "app_category", "") == cat
-                ]
-                templates.sort(
-                    key=lambda t: (
-                        float(getattr(t, "confidence", 0.0) or 0.0),
-                        int(getattr(t, "times_approved", 0) or 0),
-                        float(getattr(t, "last_used", 0.0) or 0.0),
-                    ),
-                    reverse=True,
-                )
-                top_templates = templates[:5]
-                if top_templates:
-                    ctx.template_actions = [t.to_dict() for t in top_templates]
-                    lines = ["🧩 Szablony działań (sprawdzone):"]
-                    for t in top_templates:
-                        desc = (getattr(t, "description", "") or "").strip() or getattr(t, "template_id", "")
-                        cmd = getattr(t, "command_template", "") or ""
-                        risk = getattr(t, "risk_level", "") or ""
-                        conf = float(getattr(t, "confidence", 0.0) or 0.0)
-                        auto = " AUTO" if bool(getattr(t, "should_auto_execute", False)) else ""
-                        lines.append(f"- ({conf:.2f}, {risk}{auto}) {desc}: `{cmd}`")
-                    tier1_blocks.append("\n".join(lines))
-            except Exception as e:
-                logger.warning("Action template hinting failed", error=str(e))
 
         # Prepend focus window info (where user is actively working, based on diffs)
         if ctx.organized_screen and ctx.organized_screen.focus_window:
@@ -532,16 +406,14 @@ class BuildContextStep:
         if ctx.prompt_addon:
             ctx.full_context = f"{ctx.prompt_addon}\n\n{ctx.context_str}"
 
-        if tier1_blocks:
-            ctx.full_context = f"{'\n\n'.join(tier1_blocks)}\n\n{ctx.full_context}"
-
         # Include latest speech transcript
+        latest_transcript = self._state.get("latest_transcript", "")
         if latest_transcript:
             ctx.full_context = f"🎤 Użytkownik powiedział: {latest_transcript}\n\n{ctx.full_context}"
 
-        await bus.publish(typed_event(
-            EventType.CONTEXT_BUILT,
-            ContextBuiltPayload(context_length=len(ctx.full_context)),
+        await bus.publish(Event(
+            type=EventType.CONTEXT_BUILT.value,
+            data={"context_length": len(ctx.full_context)},
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -552,40 +424,25 @@ class AnalyzeStep:
     """Phase 6: Run OCR + LLM analysis."""
     name = "analyze"
 
-    def __init__(self, analyzer, cost_budget=None):
+    def __init__(self, analyzer):
         self._analyzer = analyzer
-        self._budget = cost_budget
 
     def can_run(self, ctx: PipelineContext) -> bool:
         return self._analyzer is not None and ctx.image_b64 is not None
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        # Check budget and potentially downgrade mode
-        if self._budget:
-            current_mode = self._analyzer.analysis_mode
-            safe_mode = self._budget.get_suggested_mode(current_mode)
-            if safe_mode != current_mode:
-                self._analyzer.set_mode(safe_mode)
-                # Revert mode after analysis? Ideally yes, or stick to safe mode.
-                # For now, we switch globally. Alternatively, we could pass mode to analyze()
-                # but set_mode affects global state. Let's switch and potentially switch back?
-                # Actually, simpler to just switch.
-
         analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
         ctx.analysis_result = analysis
 
-        # Record spend
-        if self._budget and analysis.get("cost"):
-            self._budget.record_spend(analysis["cost"])
-
-        await bus.publish(typed_event(
-            EventType.ANALYSIS_COMPLETED,
-            AnalysisCompletedPayload(
-                tokens=analysis.get("tokens", 0),
-                cost=analysis.get("cost", 0.0),
-                provider=analysis.get("provider", "unknown"),
-                mode=analysis.get("mode", "unknown"),
-            ),
+        await bus.publish(Event(
+            type=EventType.ANALYSIS_COMPLETED.value,
+            data={
+                "tokens": analysis.get("tokens", 0),
+                "cost": analysis.get("cost", 0.0),
+                "provider": analysis.get("provider", "unknown"),
+                "mode": analysis.get("mode", "unknown"),
+                "has_ocr": "ocr" in analysis,
+            },
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -621,94 +478,12 @@ class SuggestActionsStep:
         if actions:
             ctx.agent_actions = [a.to_dict() for a in actions]
 
-            await bus.publish(typed_event(
-                EventType.AGENT_SUGGESTED,
-                AgentSuggestedPayload(count=len(actions)),
+            await bus.publish(Event(
+                type=EventType.AGENT_SUGGESTED.value,
+                data={"count": len(actions)},
                 source=self.name,
                 correlation_id=ctx.correlation_id,
             ))
-        return ctx
-
-
-class ClipboardStep:
-    """Phase 7b: Clipboard intelligence — auto-copy + paste suggestions.
-
-    Scans analysis/OCR text for actionable content (errors, URLs, commands)
-    and suggests best clipboard item for current context. Zero LLM.
-
-    Skipped on FAST profile (clipboard analysis is lower priority).
-    """
-    name = "clipboard_intel"
-
-    def __init__(self, clipboard_manager):
-        self._clipboard = clipboard_manager
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        if self._clipboard is None:
-            return False
-        if ctx.profile == PipelineProfile.FAST.value:
-            return False
-        return ctx.analysis_result is not None or ctx.active_window is not None
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        category = ctx.active_window.category if ctx.active_window else None
-        if not category:
-            return ctx
-
-        # Build screen text from analysis + OCR
-        screen_text = ""
-        if ctx.analysis_result:
-            screen_text = ctx.analysis_result.get("text", "")
-            ocr_data = ctx.analysis_result.get("ocr")
-            if ocr_data and hasattr(ocr_data, "full_text"):
-                screen_text = f"{ocr_data.full_text}\n{screen_text}"
-
-        # Also add agent actions to clipboard queue
-        if ctx.agent_actions:
-            for action in ctx.agent_actions:
-                cmd = action.get("command", "")
-                if cmd:
-                    self._clipboard.push(
-                        cmd,
-                        source="agent",
-                        category=category.value,
-                        label=action.get("description", cmd[:40]),
-                    )
-
-        # Scan screen text for auto-copyable items
-        from clipboard_intel import ClipSource
-        auto_results = self._clipboard.scan_and_copy(screen_text, category)
-        ctx.clipboard_auto_copies = [r.to_dict() for r in auto_results]
-
-        # Generate paste suggestions
-        suggestions = self._clipboard.suggest_paste(category, screen_text)
-        ctx.clipboard_suggestions = [s.to_dict() for s in suggestions]
-
-        if auto_results:
-            await bus.publish(typed_event(
-                EventType.CLIPBOARD_UPDATED,
-                ClipboardUpdatedPayload(
-                    auto_copied=len(auto_results),
-                    queue_size=len(self._clipboard.queue),
-                    sources=[r.source.value for r in auto_results],
-                ),
-                source=self.name,
-                correlation_id=ctx.correlation_id,
-            ))
-
-        if suggestions:
-            top = suggestions[0]
-            await bus.publish(typed_event(
-                EventType.PASTE_SUGGESTED,
-                PasteSuggestedPayload(
-                    count=len(suggestions),
-                    top_score=top.score,
-                    top_label=top.label,
-                ),
-                source=self.name,
-                correlation_id=ctx.correlation_id,
-            ))
-
         return ctx
 
 
@@ -764,325 +539,16 @@ class BuildBroadcastStep:
 
         ctx.broadcast_data = data
 
-        await bus.publish(typed_event(
-            EventType.BROADCAST_SENT,
-            BroadcastSentPayload(keys=list(data.keys())),
+        await bus.publish(Event(
+            type=EventType.BROADCAST_SENT.value,
+            data={"keys": list(data.keys())},
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
         return ctx
 
 
-# ===== Tier 1 Pipeline Steps =====
-
-class MultiMonitorStep:
-    """Tier 1: Build multi-monitor snapshot and inject monitor description into context."""
-    name = "multi_monitor"
-
-    def __init__(self, multi_monitor, window_mgr=None):
-        self._mm = multi_monitor
-        self._wm = window_mgr
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        return self._mm is not None
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        monitors = self._wm.get_monitors() if self._wm else []
-        if not monitors or len(monitors) <= 1:
-            return ctx  # Single monitor — skip
-
-        snapshot = self._mm.build_snapshot(
-            monitors=monitors,
-            all_windows=ctx.all_windows,
-            active_window=ctx.active_window,
-            organized_screen=ctx.organized_screen,
-        )
-        ctx.multi_monitor_snapshot = snapshot
-        ctx.monitor_description = snapshot.description
-        return ctx
-
-
-class SemanticMemoryStep:
-    """Tier 1: Store context to semantic memory and recall relevant past memories."""
-    name = "semantic_memory"
-
-    def __init__(self, semantic_memory):
-        self._mem = semantic_memory
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        if ctx.profile == PipelineProfile.FAST.value:
-            return False  # skip memory on idle ticks
-        return self._mem is not None and ctx.analysis_result is not None
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        analysis_text = ctx.analysis_result.get("text", "")
-        if not analysis_text:
-            return ctx
-
-        # Store current analysis as memory
-        metadata = {
-            "window": ctx.active_window.title if ctx.active_window else None,
-            "category": ctx.active_window.category.value if ctx.active_window else None,
-            "run_id": ctx.run_id,
-        }
-        self._mem.add_memory(
-            content=analysis_text[:500],
-            context_type="screen",
-            metadata=metadata,
-        )
-
-        # Recall relevant past memories for enriching next pipeline runs
-        recalled = self._mem.recall_relevant(analysis_text[:200], k=3)
-        ctx.recalled_memories = recalled
-        return ctx
-
-
-class ActionTemplateStep:
-    """Tier 1: Suggest learned action templates with confidence scoring."""
-    name = "action_templates"
-
-    def __init__(self, action_library):
-        self._lib = action_library
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        if ctx.profile == PipelineProfile.FAST.value:
-            return False  # skip template matching on idle ticks
-        return (
-            self._lib is not None
-            and self._lib.enabled
-            and ctx.analysis_result is not None
-            and ctx.active_window is not None
-        )
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        analysis_text = ctx.analysis_result.get("text", "")
-        ocr_text = ""
-        if ctx.analysis_result.get("ocr") and ctx.analysis_result["ocr"].get("text"):
-            ocr_text = ctx.analysis_result["ocr"]["text"]
-        combined = f"{analysis_text}\n{ocr_text}"
-
-        scored = self._lib.suggest_with_confidence(
-            text=combined,
-            app_category=ctx.active_window.category.value,
-            cwd=getattr(ctx.active_window, "cwd", None),
-        )
-        if scored:
-            ctx.template_actions = [a.to_dict() for a in scored]
-        return ctx
-
-
-class OCRPostProcessStep:
-    """Tier 1: Enhance OCR output with post-processing corrections."""
-    name = "ocr_post_process"
-
-    def __init__(self, ocr_enhancer):
-        self._enhancer = ocr_enhancer
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        if ctx.profile == PipelineProfile.FAST.value:
-            return False  # skip OCR enhancement on idle ticks
-        return (
-            self._enhancer is not None
-            and self._enhancer.enabled
-            and ctx.analysis_result is not None
-            and ctx.analysis_result.get("ocr")
-            and ctx.analysis_result["ocr"].get("text")
-        )
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        ocr_data = ctx.analysis_result["ocr"]
-        raw_text = ocr_data.get("text", "")
-        if not raw_text:
-            return ctx
-
-        result = self._enhancer.enhance(raw_text)
-        if result.corrections_count > 0:
-            # Update OCR text in analysis result with enhanced version
-            ctx.analysis_result["ocr"]["text"] = result.enhanced_text
-            ctx.analysis_result["ocr"]["post_process"] = result.to_dict()
-            ctx.ocr_enhanced = True
-            ctx.ocr_corrections = result.corrections_count
-
-            logger.debug(
-                "OCR post-processed",
-                corrections=result.corrections_count,
-                text_type=result.text_type,
-                time_ms=round(result.processing_time_ms, 1),
-            )
-        return ctx
-
-
-class PredictiveStep:
-    """Tier 1: Observe window transitions and trigger pre-fetch for predicted next window."""
-    name = "predictive"
-
-    def __init__(self, predictive_engine):
-        self._engine = predictive_engine
-        self._prev_category = ""
-        self._prev_window_id = 0
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        if ctx.profile == PipelineProfile.FAST.value:
-            return False  # skip predictive analysis on idle ticks
-        return self._engine is not None and self._engine.enabled and ctx.active_window is not None
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        win = ctx.active_window
-        category = win.category.value if hasattr(win.category, 'value') else str(win.category)
-        wid = win.window_id
-
-        # Record transition if window changed
-        if category != self._prev_category or wid != self._prev_window_id:
-            self._engine.observe_window_change(category, wid)
-            self._prev_category = category
-            self._prev_window_id = wid
-
-        # Check if pre-fetched data is available for current window
-        cached = self._engine.get_prefetched(wid)
-        if not cached:
-            cached = self._engine.get_prefetched_for_category(category)
-        if cached:
-            ctx.used_prefetch = True
-
-        # Make prediction and store it
-        prediction = self._engine.predict_next_action(category)
-        ctx.prediction = prediction
-
-        # Trigger background pre-fetch (non-blocking)
-        if prediction:
-            await self._engine.maybe_prefetch(prediction)
-
-        # Cleanup expired cache entries
-        self._engine.cleanup_cache()
-        return ctx
-
-
-class ClipboardStep:
-    """Tier 1: Context-aware clipboard intelligence — auto-copy + paste suggestions."""
-    name = "clipboard"
-
-    def __init__(self, clipboard_manager):
-        self._mgr = clipboard_manager
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        if ctx.profile == PipelineProfile.FAST.value:
-            return False  # skip clipboard on idle ticks
-        return (
-            self._mgr is not None
-            and ctx.analysis_result is not None
-            and ctx.active_window is not None
-        )
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        from clipboard_intel import ClipSource
-        from typed_events import typed_event, ClipboardUpdatedPayload, PasteSuggestedPayload
-
-        # Extract screen text from analysis + OCR
-        screen_text = ctx.analysis_result.get("text", "")
-        ocr_data = ctx.analysis_result.get("ocr")
-        if ocr_data and ocr_data.get("text"):
-            screen_text = f"{screen_text}\n{ocr_data['text']}"
-
-        category = ctx.active_window.category
-
-        # Auto-copy actionable items from screen
-        auto_copied = self._mgr.scan_and_copy(screen_text, category)
-
-        # Also push any agent-suggested actions to clipboard queue
-        if ctx.agent_actions:
-            for action in ctx.agent_actions:
-                cmd = action.get("command", "") or action.get("cmd", "")
-                if cmd:
-                    self._mgr.push(
-                        cmd,
-                        source=ClipSource.AGENT,
-                        category=category.value,
-                        label=action.get("description", cmd[:60]),
-                    )
-
-        if auto_copied:
-            await bus.publish(typed_event(
-                EventType.CLIPBOARD_UPDATED,
-                ClipboardUpdatedPayload(
-                    auto_copied=len(auto_copied),
-                    queue_size=len(self._mgr.queue),
-                    sources=[r.source.value for r in auto_copied],
-                ),
-                source=self.name,
-                correlation_id=ctx.correlation_id,
-            ))
-
-        # Generate paste suggestions for current context
-        suggestions = self._mgr.suggest_paste(category, screen_text)
-        if suggestions:
-            ctx.clipboard_suggestions = [s.to_dict() for s in suggestions]
-            await bus.publish(typed_event(
-                EventType.PASTE_SUGGESTED,
-                PasteSuggestedPayload(
-                    count=len(suggestions),
-                    top_score=suggestions[0].score,
-                    top_label=suggestions[0].label,
-                ),
-                source=self.name,
-                correlation_id=ctx.correlation_id,
-            ))
-
-        return ctx
-
-
 # ===== Pipeline Orchestrator =====
-
-class ParallelGroup:
-    """
-    Wraps multiple independent steps and runs them concurrently.
-
-    Acts as a single PipelineStep from the orchestrator's perspective.
-    Steps that fail can_run() are skipped. Errors in one step don't
-    block others (each runs in its own asyncio task).
-
-    Usage:
-        pipeline.add_step(ParallelGroup([
-            SemanticMemoryStep(mem),
-            ActionTemplatesStep(lib),
-            PredictiveStep(engine),
-        ]))
-    """
-
-    def __init__(self, steps: List, name: str = ""):
-        self._steps = steps
-        self.name = name or "parallel(" + ",".join(s.name for s in steps) + ")"
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        return any(s.can_run(ctx) for s in self._steps)
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        runnable = [s for s in self._steps if s.can_run(ctx)]
-        if not runnable:
-            return ctx
-
-        from observability import get_tracer
-        tracer = get_tracer()
-
-        async def _run_one(step, parent_span=None):
-            with tracer.span(step.name, parent=parent_span) as span:
-                try:
-                    await step.execute(ctx, bus)
-                    return (step.name, None)
-                except Exception as e:
-                    span.set_error(str(e))
-                    return (step.name, e)
-
-        results = await asyncio.gather(*[_run_one(s) for s in runnable])
-
-        for step_name, error in results:
-            if error:
-                ctx.errors.append({"step": step_name, "error": str(error)})
-                logger.error("Parallel step failed", step=step_name, error=str(error))
-            else:
-                ctx.steps_executed.append(step_name)
-
-        return ctx
-
 
 class PipelineOrchestrator:
     """
@@ -1090,7 +556,6 @@ class PipelineOrchestrator:
 
     Open/Closed: add steps via add_step() without modifying orchestrator.
     Single Responsibility: orchestrator only manages execution order and timing.
-    Supports ParallelGroup for concurrent independent steps.
     """
 
     def __init__(self, bus: EventBus, steps: Optional[List] = None):
@@ -1139,49 +604,46 @@ class PipelineOrchestrator:
 
         self.total_runs += 1
 
-        from observability import get_tracer
-        tracer = get_tracer()
+        for step in self.steps:
+            step_name = step.name
 
-        with tracer.span("pipeline.run", attributes={"run_id": ctx.run_id, "profile": ctx.profile}) as pipeline_span:
-            for step in self.steps:
-                step_name = step.name
+            # Gate check
+            if not step.can_run(ctx):
+                ctx.skipped.append(step_name)
+                continue
 
-                # Gate check
-                if not step.can_run(ctx):
-                    ctx.skipped.append(step_name)
-                    continue
-
-                # Execute with timing + tracing
-                with tracer.span(step_name, parent=pipeline_span) as step_span:
-                    try:
-                        ctx = await step.execute(ctx, self.bus)
-                        ctx.steps_executed.append(step_name)
-                        ctx.step_timings[step_name] = step_span.duration_ms
-                    except Exception as e:
-                        step_span.set_error(str(e))
-                        self.total_errors += 1
-                        ctx.errors.append({
-                            "step": step_name,
-                            "error": str(e),
-                            "elapsed_ms": step_span.duration_ms,
-                        })
-                        logger.error(
-                            "Pipeline step failed",
-                            step=step_name,
-                            error=str(e),
-                            elapsed_ms=step_span.duration_ms,
-                        )
+            # Execute with timing
+            t0 = time.time()
+            try:
+                ctx = await step.execute(ctx, self.bus)
+                elapsed = time.time() - t0
+                ctx.steps_executed.append(step_name)
+                ctx.step_timings[step_name] = round(elapsed * 1000, 1)
+            except Exception as e:
+                elapsed = time.time() - t0
+                self.total_errors += 1
+                ctx.errors.append({
+                    "step": step_name,
+                    "error": str(e),
+                    "elapsed_ms": round(elapsed * 1000, 1),
+                })
+                logger.error(
+                    "Pipeline step failed",
+                    step=step_name,
+                    error=str(e),
+                    elapsed_ms=round(elapsed * 1000, 1),
+                )
 
         # Emit pipeline completion event for ReadModel projection
-        await self.bus.publish(typed_event(
-            EventType.PIPELINE_COMPLETED,
-            PipelineCompletedPayload(
-                run_id=ctx.run_id,
-                steps_run=len(ctx.steps_executed),
-                steps_skipped=len(ctx.skipped),
-                errors=[e["error"] for e in ctx.errors] if ctx.errors else [],
-                timings=ctx.step_timings,
-            ),
+        await self.bus.publish(Event(
+            type="pipeline.completed",
+            data={
+                "run_id": ctx.run_id,
+                "steps_executed": ctx.steps_executed,
+                "step_timings": ctx.step_timings,
+                "errors": ctx.errors,
+                "skipped": ctx.skipped,
+            },
             source="orchestrator",
             correlation_id=ctx.correlation_id,
         ))
@@ -1212,35 +674,12 @@ def create_pipeline(
     process_scanner=None,
     window_cropper=None,
     app_state_ref=None,
-    multi_monitor=None,
-    semantic_memory=None,
-    action_library=None,
-    ocr_enhancer=None,
-    predictive_engine=None,
-    clipboard_manager=None,
-    cost_budget=None,
 ) -> PipelineOrchestrator:
     """
     Factory: create the standard analysis pipeline from components.
 
     Dependency Inversion: components are injected, not imported.
     Open/Closed: caller can add_step() / remove_step() after creation.
-
-    Pipeline order (with Tier 1 additions marked with *):
-      1. ScanWindows
-      2. DetectActiveWindow
-      3. CaptureScreen
-      4. CropWindows
-      5* MultiMonitor          — multi-monitor snapshot + description
-      6. BuildContext
-      7. Analyze
-      8* OCRPostProcess         — enhance OCR text after analysis
-      9. SuggestActions
-     10* ClipboardIntel         — auto-copy + paste suggestions (zero LLM)
-     11* ActionTemplates        — learned action templates with confidence
-     12* SemanticMemory         — store + recall relevant past context
-     13* Predictive             — learn transitions + trigger pre-fetch
-     14. BuildBroadcast
     """
     use_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
     scan_cache_ttl = float(os.getenv("SCAN_CACHE_TTL", "3.0"))
@@ -1261,48 +700,17 @@ def create_pipeline(
     if window_cropper:
         pipeline.add_step(CropWindowsStep(window_cropper))
 
-    # Phase 5*: Multi-monitor intelligence (after cropping, before context)
-    if multi_monitor:
-        pipeline.add_step(MultiMonitorStep(multi_monitor, window_mgr))
-
-    # Phase 6: Build context
+    # Phase 5: Build context
     if context_mgr:
         pipeline.add_step(BuildContextStep(context_mgr, profile_mgr, app_state_ref))
 
-    # Phase 7: Analyze (wrapped with circuit breaker + retry for API resilience)
+    # Phase 6: Analyze
     if analyzer:
-        from circuit_breaker import wrap_step_with_guard
-        pipeline.add_step(wrap_step_with_guard(
-            AnalyzeStep(analyzer, cost_budget=cost_budget),
-            failure_threshold=int(os.getenv("ANALYZE_CIRCUIT_THRESHOLD", "5")),
-            reset_timeout=float(os.getenv("ANALYZE_CIRCUIT_RESET", "60.0")),
-            max_retries=int(os.getenv("ANALYZE_MAX_RETRIES", "2")),
-        ))
+        pipeline.add_step(AnalyzeStep(analyzer))
 
-    # Phase 8*: OCR post-processing (after analysis produces OCR text)
-    if ocr_enhancer:
-        pipeline.add_step(OCRPostProcessStep(ocr_enhancer))
-
-    # Phase 9: Suggest actions (shell agent)
+    # Phase 7: Suggest actions
     if shell_agent:
         pipeline.add_step(SuggestActionsStep(shell_agent))
-
-    # Phase 10*: Clipboard intelligence (after agent suggests, before parallel group)
-    if clipboard_manager:
-        pipeline.add_step(ClipboardStep(clipboard_manager))
-
-    # Phase 11-13*: Independent post-analysis steps (run in parallel)
-    parallel_steps = []
-    if action_library:
-        parallel_steps.append(ActionTemplateStep(action_library))
-    if semantic_memory:
-        parallel_steps.append(SemanticMemoryStep(semantic_memory))
-    if predictive_engine:
-        parallel_steps.append(PredictiveStep(predictive_engine))
-    if len(parallel_steps) > 1:
-        pipeline.add_step(ParallelGroup(parallel_steps))
-    elif parallel_steps:
-        pipeline.add_step(parallel_steps[0])
 
     # Final: build broadcast payload
     pipeline.add_step(BuildBroadcastStep())

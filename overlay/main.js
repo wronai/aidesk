@@ -39,20 +39,20 @@ function createOverlay() {
   const { width, height } = display.workAreaSize;
 
   const defaults = {
-    width: 480,
-    height: 850,
-    x: width - 500,
-    y: height - 870,
+    width: 600,
+    height: 1050,
+    x: width - 620,
+    y: height - 1070,
   };
 
   const bounds = prefs || defaults;
 
   overlay = new BrowserWindow({
     ...bounds,
-    minWidth: 360,
-    minHeight: 500,
-    maxWidth: 1000,
-    maxHeight: 1400,
+    minWidth: 400,
+    minHeight: 600,
+    maxWidth: 1200,
+    maxHeight: 1600,
     transparent: true,
     frame: false,
     alwaysOnTop: true,

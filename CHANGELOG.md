@@ -1,3 +1,17 @@
+## [2.1.9] - 2026-02-14
+
+### Summary
+
+refactor(backend): deep code analysis engine with 3 supporting modules
+
+### Other
+
+- update backend/pipeline.py
+- update backend/process_scanner.py
+- update overlay/index.html
+- update overlay/main.js
+
+
 ## [2.1.8] - 2026-02-14
 
 ### Summary

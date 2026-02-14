@@ -16,102 +16,18 @@
       </div>
       <div class="header-right">
         <button class="btn-header" id="btnMoveScreen" title="Przenieś na inny ekran (Ctrl+Shift+M)">🖥️</button>
-        <div class="status-indicator" id="connectionStatus" title="Connecting...">
-          <div class="status-dot"></div>
-        </div>
+        <connection-status></connection-status>
       </div>
     </div>
 
-    <!-- Transcript (speech) -->
-    <div class="transcript-section" id="transcriptSection" style="display: none;">
-      <div class="transcript-header">🎤 Transkrypcja</div>
-      <div class="transcript-text" id="transcript"></div>
-    </div>
-
-    <!-- Window Context Bar -->
-    <div class="window-context" id="windowContext" style="display: none;">
-      <div class="window-context-app">
-        <span class="window-context-emoji" id="windowEmoji">📝</span>
-        <span class="window-context-name" id="windowAppName">—</span>
-        <span class="window-context-category badge" id="windowCategory">—</span>
-      </div>
-      <div class="window-context-detail" id="windowDetail"></div>
-    </div>
-
-    <!-- Organized Screen Summary -->
-    <div class="screen-summary" id="screenSummary" style="display: none;">
-      <span class="screen-summary-icon">📊</span>
-      <span class="screen-summary-text" id="screenSummaryText"></span>
-      <span class="screen-summary-count" id="screenSummaryCount"></span>
-    </div>
-
-    <!-- Analysis (screen) -->
-    <div class="analysis-section">
-      <div class="analysis-header">🖥️ Analiza ekranu</div>
-      <div class="analysis-content" id="analysis">
-        <div class="loading">
-          <div class="loading-spinner"></div>
-          <div class="loading-text">Czekam na zmiany ekranu...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- OCR Controls -->
-    <div class="ocr-controls" id="ocrControls">
-      <div class="ocr-controls-header">
-        <span class="ocr-controls-title">🔤 OCR / Tryb analizy</span>
-        <button class="btn-benchmark" id="btnBenchmark" title="Benchmark OCR">⚡ Test</button>
-      </div>
-      <div class="ocr-selectors">
-        <div class="selector-group">
-          <label class="selector-label">Tryb</label>
-          <select id="modeSelect" class="ocr-select">
-            <option value="hybrid">Hybrid (OCR→LLM)</option>
-            <option value="vision_only">Vision Only</option>
-            <option value="ocr_only">OCR Only</option>
-            <option value="ocr_plus_vision">OCR + Vision</option>
-          </select>
-        </div>
-        <div class="selector-group">
-          <label class="selector-label">OCR Engine</label>
-          <select id="ocrEngineSelect" class="ocr-select">
-            <option value="paddleocr">PaddleOCR</option>
-            <option value="easyocr">EasyOCR</option>
-            <option value="tesseract">Tesseract</option>
-          </select>
-        </div>
-      </div>
-      <!-- Benchmark results (hidden by default) -->
-      <div class="benchmark-results" id="benchmarkResults" style="display: none;"></div>
-      <!-- OCR info bar -->
-      <div class="ocr-info" id="ocrInfo" style="display: none;">
-        <span id="ocrInfoText"></span>
-      </div>
-    </div>
-
-    <!-- Agent Actions -->
-    <div class="agent-actions" id="agentActions" style="display: none;">
-      <div class="agent-actions-header">
-        <span class="agent-actions-title">🤖 Sugerowane akcje</span>
-      </div>
-      <div class="agent-actions-list" id="agentActionsList"></div>
-    </div>
-
-    <!-- Selection Analysis Panel -->
-    <div class="selection-panel" id="selectionPanel" style="display: none;">
-      <div class="selection-panel-header">
-        <span class="selection-panel-title">🔍 Analiza zaznaczenia</span>
-        <button class="btn-close-panel" id="btnCloseSelection" title="Zamknij">✕</button>
-      </div>
-      <div class="selection-panel-input">
-        <textarea id="selectionInput" class="selection-textarea" placeholder="Wklej tekst do analizy lub użyj Ctrl+Shift+S..." rows="3"></textarea>
-        <button class="btn-analyze" id="btnAnalyze" title="Analizuj">▶ Analizuj</button>
-      </div>
-      <div class="selection-panel-response" id="selectionResponse"></div>
-      <div class="selection-panel-clipboard" id="selectionClipboard" style="display: none;">
-        <button class="btn-agent btn-copy" id="btnCopySelection" title="Kopiuj do schowka">📋 Kopiuj</button>
-      </div>
-    </div>
+    <!-- Web Components (each renders its own inner HTML) -->
+    <transcript-viewer></transcript-viewer>
+    <window-context></window-context>
+    <screen-summary></screen-summary>
+    <analysis-viewer></analysis-viewer>
+    <ocr-controls></ocr-controls>
+    <agent-actions></agent-actions>
+    <selection-panel></selection-panel>
 
     <!-- Footer with stats -->
     <div class="footer" id="footer">
