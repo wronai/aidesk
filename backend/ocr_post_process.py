@@ -556,11 +556,15 @@ class OCREnhancer:
         }
 
 
-def create_ocr_enhancer_from_env() -> OCREnhancer:
-    """Create OCREnhancer from environment variables."""
+def create_ocr_enhancer_from_env(settings=None) -> OCREnhancer:
+    """Create OCREnhancer from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
     return OCREnhancer(
-        enable_spell_check=os.getenv("OCR_SPELL_CHECK", "true").lower() == "true",
-        spell_dict_path=os.getenv("OCR_SPELL_DICT") or None,
-        max_edit_distance=int(os.getenv("OCR_MAX_EDIT_DISTANCE", "2")),
-        enabled=os.getenv("ENABLE_OCR_POST_PROCESS", "true").lower() == "true",
+        enable_spell_check=settings.ocr_spell_check,
+        spell_dict_path=os.getenv("OCR_SPELL_DICT") or None,  # TODO: add to settings if needed
+        max_edit_distance=settings.ocr_max_edit_distance,
+        enabled=settings.enable_ocr_post_process,
     )

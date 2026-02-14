@@ -6,6 +6,12 @@ const path = require('path');
 const fs = require('fs');
 
 let overlay;
+let selectionWatcher = null;
+let lastSelection = '';
+let selectionDebounceTimer = null;
+const SELECTION_POLL_MS = 500;
+const SELECTION_DEBOUNCE_MS = 800;
+const SELECTION_MIN_LENGTH = 5;
 
 // Persistent position/size storage
 const PREFS_PATH = path.join(app.getPath('userData'), 'overlay-prefs.json');
@@ -138,11 +144,15 @@ app.whenReady().then(() => {
     app.quit();
   });
 
+  // Start automatic selection monitoring (X11 PRIMARY buffer)
+  startSelectionWatcher();
+
   console.log('Global shortcuts registered:');
   console.log('  Ctrl+Shift+A: Toggle overlay');
   console.log('  Ctrl+Shift+S: Analyze selection');
   console.log('  Ctrl+Shift+M: Move to next screen');
   console.log('  Ctrl+Shift+Q: Quit');
+  console.log('  Auto-selection watcher: active (poll every', SELECTION_POLL_MS, 'ms)');
 });
 
 app.on('window-all-closed', () => {
@@ -158,10 +168,58 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
+  // Stop selection watcher
+  if (selectionWatcher) {
+    clearInterval(selectionWatcher);
+    selectionWatcher = null;
+  }
+  if (selectionDebounceTimer) {
+    clearTimeout(selectionDebounceTimer);
+  }
   // Unregister all shortcuts
   globalShortcut.unregisterAll();
   console.log('Shortcuts unregistered');
 });
+
+/**
+ * Poll X11 PRIMARY selection buffer for changes.
+ * When user selects text with mouse, X11 puts it in PRIMARY.
+ * We detect changes, debounce (wait for selection to stabilize),
+ * then auto-trigger analysis.
+ */
+function startSelectionWatcher() {
+  selectionWatcher = setInterval(() => {
+    try {
+      // Read X11 PRIMARY selection (mouse highlight)
+      const text = clipboard.readText('selection');
+      if (!text || text.trim().length < SELECTION_MIN_LENGTH) return;
+
+      const trimmed = text.trim();
+      if (trimmed === lastSelection) return;
+
+      // Selection changed — debounce before triggering
+      lastSelection = trimmed;
+
+      if (selectionDebounceTimer) {
+        clearTimeout(selectionDebounceTimer);
+      }
+
+      selectionDebounceTimer = setTimeout(() => {
+        // Re-read to confirm selection is still the same (user finished selecting)
+        const current = (clipboard.readText('selection') || '').trim();
+        if (current === lastSelection && current.length >= SELECTION_MIN_LENGTH) {
+          if (overlay && !overlay.isDestroyed()) {
+            overlay.webContents.send('analyze-selection', current);
+            if (!overlay.isVisible()) overlay.show();
+            console.log('Auto-selection analysis:', current.substring(0, 50));
+          }
+        }
+      }, SELECTION_DEBOUNCE_MS);
+    } catch (e) {
+      // Ignore clipboard read errors (e.g. Wayland without xwayland)
+    }
+  }, SELECTION_POLL_MS);
+}
 
 // Handle IPC from renderer
 ipcMain.on('log', (event, message) => {
@@ -185,6 +243,18 @@ ipcMain.on('resize-overlay', (event, width, height) => {
   if (overlay) {
     overlay.setSize(Math.round(width), Math.round(height));
     savePrefs();
+  }
+});
+
+// Toggle auto-selection watcher from renderer
+ipcMain.on('set-selection-watcher', (event, enabled) => {
+  if (enabled && !selectionWatcher) {
+    startSelectionWatcher();
+    console.log('Selection watcher resumed');
+  } else if (!enabled && selectionWatcher) {
+    clearInterval(selectionWatcher);
+    selectionWatcher = null;
+    console.log('Selection watcher paused');
   }
 });
 

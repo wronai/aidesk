@@ -483,19 +483,24 @@ class WindowCropper:
 def create_window_cropper(
     process_scanner: ProcessScanner,
     crops_dir: Optional[str] = None,
+    settings=None,
 ) -> WindowCropper:
-    """Create WindowCropper from environment."""
+    """Create WindowCropper from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
     if crops_dir is None:
-        crops_dir = os.getenv("CROPS_DIR", "/tmp/aidesk_crops")
+        crops_dir = settings.crops_dir
 
     return WindowCropper(
         process_scanner=process_scanner,
         crops_dir=crops_dir,
-        jpeg_quality=int(os.getenv("JPEG_QUALITY", "70")),
-        max_crop_dimension=int(os.getenv("MAX_DIMENSION", "1280")),
-        change_threshold=float(os.getenv("CROP_CHANGE_THRESHOLD", "3.0")),
-        max_crop_windows=int(os.getenv("MAX_CROP_WINDOWS", "0")),
-        save_to_disk=os.getenv("SAVE_CROPS", "true").lower() == "true",
+        jpeg_quality=settings.jpeg_quality,
+        max_crop_dimension=settings.max_dimension,
+        change_threshold=3.0,  # TODO: Add to settings if needed, currently hardcoded in env default as 3.0
+        max_crop_windows=settings.max_crop_windows,
+        save_to_disk=settings.save_crops,
     )
 
 

@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.send('set-focusable', focusable);
   },
 
+  // Pause/resume auto-selection watcher (pause while user types in textarea)
+  setSelectionWatcher: (enabled) => {
+    ipcRenderer.send('set-selection-watcher', enabled);
+  },
+
   // Listen for selection analysis trigger from main process
   onAnalyzeSelection: (callback) => {
     ipcRenderer.on('analyze-selection', (event, text) => callback(text));

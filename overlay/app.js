@@ -849,12 +849,18 @@ window.addEventListener('DOMContentLoaded', () => {
         if (text) analyzeSelection(text);
       }
     });
-    // Make overlay focusable when clicking textarea
+    // Make overlay focusable when clicking textarea + pause selection watcher
     elements.selectionInput.addEventListener('focus', () => {
-      if (window.electron) window.electron.setFocusable(true);
+      if (window.electron) {
+        window.electron.setFocusable(true);
+        window.electron.setSelectionWatcher(false); // pause auto-detection while typing
+      }
     });
     elements.selectionInput.addEventListener('blur', () => {
-      if (window.electron) window.electron.setFocusable(false);
+      if (window.electron) {
+        window.electron.setFocusable(false);
+        window.electron.setSelectionWatcher(true); // resume auto-detection
+      }
     });
   }
 

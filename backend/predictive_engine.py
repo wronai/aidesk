@@ -430,12 +430,16 @@ class PredictiveAnalyzer:
         }
 
 
-def create_predictive_engine_from_env() -> PredictiveAnalyzer:
-    """Create PredictiveAnalyzer from environment variables."""
+def create_predictive_engine_from_env(settings=None) -> PredictiveAnalyzer:
+    """Create PredictiveAnalyzer from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
     return PredictiveAnalyzer(
-        confidence_threshold=float(os.getenv("PREDICTIVE_THRESHOLD", "0.6")),
-        max_history=int(os.getenv("PREDICTIVE_MAX_HISTORY", "1000")),
-        prefetch_ttl=float(os.getenv("PREDICTIVE_PREFETCH_TTL", "10.0")),
-        min_observations=int(os.getenv("PREDICTIVE_MIN_OBS", "3")),
-        enabled=os.getenv("ENABLE_PREDICTIVE", "true").lower() == "true",
+        confidence_threshold=settings.predictive_threshold,
+        max_history=settings.predictive_max_history,
+        prefetch_ttl=settings.predictive_prefetch_ttl,
+        min_observations=settings.predictive_min_obs,
+        enabled=settings.enable_predictive,
     )

@@ -43,11 +43,6 @@ from clipboard_intel import create_clipboard_manager_from_env
 logger = structlog.get_logger()
 
 
-def _env_flag(key: str, default: str = "true") -> bool:
-    """Read a boolean env flag (true/false string)."""
-    return os.getenv(key, default).lower() == "true"
-
-
 def _init_optional(state: dict, key: str, factory, **kwargs) -> bool:
     """
     Try to initialize an optional component. Returns True on success.
@@ -79,20 +74,23 @@ class AppBootstrap:
     """
 
     def __init__(self, app_state: dict, broadcast_fn: Callable, version: str = ""):
+        from settings import get_settings
         self.state = app_state
         self.broadcast = broadcast_fn
         self.version = version
         self._tasks: List[asyncio.Task] = []
         self._init_results: Dict[str, bool] = {}
+        self.settings = get_settings()
 
     # ── Phase 1: Core (required) ──
 
     def init_core(self):
         """Initialize capture, OCR manager, and analyzer."""
-        self.state["capture"] = create_capture_from_env()
-        self.state["ocr_manager"] = create_ocr_manager_from_env()
+        self.state["capture"] = create_capture_from_env(settings=self.settings)
+        self.state["ocr_manager"] = create_ocr_manager_from_env(settings=self.settings)
         self.state["analyzer"] = create_analyzer_from_env(
-            ocr_manager=self.state["ocr_manager"]
+            ocr_manager=self.state["ocr_manager"],
+            settings=self.settings,
         )
         self._init_results["capture"] = True
         self._init_results["ocr_manager"] = True
@@ -103,17 +101,17 @@ class AppBootstrap:
 
     def init_window(self):
         """Initialize window manager, profile manager, and shell agent."""
-        if _env_flag("ENABLE_WINDOW_AWARE"):
-            ok = _init_optional(self.state, "window_manager", create_window_manager_from_env)
+        if self.settings.enable_window_aware:
+            ok = _init_optional(self.state, "window_manager", create_window_manager_from_env, settings=self.settings)
             self._init_results["window_manager"] = ok
             if ok:
                 logger.info("Window awareness enabled")
 
-        self.state["profile_manager"] = create_profile_manager()
+        self.state["profile_manager"] = create_profile_manager(settings=self.settings)
         self._init_results["profile_manager"] = True
 
-        if _env_flag("ENABLE_SHELL_AGENT"):
-            ok = _init_optional(self.state, "shell_agent", create_shell_agent_from_env)
+        if self.settings.enable_shell_agent:
+            ok = _init_optional(self.state, "shell_agent", create_shell_agent_from_env, settings=self.settings)
             self._init_results["shell_agent"] = ok
             if ok:
                 logger.info("Shell agent enabled")
@@ -124,10 +122,12 @@ class AppBootstrap:
         """Initialize process scanner and window cropper."""
         try:
             self.state["process_scanner"] = create_process_scanner(
-                window_manager=self.state.get("window_manager")
+                window_manager=self.state.get("window_manager"),
+                settings=self.settings,
             )
             self.state["window_cropper"] = create_window_cropper(
-                process_scanner=self.state["process_scanner"]
+                process_scanner=self.state["process_scanner"],
+                settings=self.settings,
             )
             self._init_results["process_scanner"] = True
             self._init_results["window_cropper"] = True
@@ -142,12 +142,12 @@ class AppBootstrap:
     def init_tier1(self):
         """Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR post-process, predictive."""
         tier1_components = [
-            ("multi_monitor", create_multi_monitor_from_env, {}),
-            ("semantic_memory", create_semantic_memory_from_env, {}),
-            ("action_library", create_action_library_from_env, {}),
-            ("ocr_enhancer", create_ocr_enhancer_from_env, {}),
-            ("predictive_engine", create_predictive_engine_from_env, {}),
-            ("clipboard_manager", create_clipboard_manager_from_env, {}),
+            ("multi_monitor", create_multi_monitor_from_env, {"settings": self.settings}),
+            ("semantic_memory", create_semantic_memory_from_env, {"settings": self.settings}),
+            ("action_library", create_action_library_from_env, {"settings": self.settings}),
+            ("ocr_enhancer", create_ocr_enhancer_from_env, {"settings": self.settings}),
+            ("predictive_engine", create_predictive_engine_from_env, {"settings": self.settings}),
+            ("clipboard_manager", create_clipboard_manager_from_env, {"settings": self.settings}),
         ]
         for key, factory, kwargs in tier1_components:
             ok = _init_optional(self.state, key, factory, **kwargs)
@@ -236,7 +236,7 @@ class AppBootstrap:
         self._tasks.append(screen_task)
 
         # STT
-        if _env_flag("ENABLE_STT"):
+        if self.settings.enable_stt:
             try:
                 from stt import create_stt_from_env
                 create_stt = create_stt_from_env
@@ -246,7 +246,7 @@ class AppBootstrap:
 
             if create_stt:
                 try:
-                    self.state["stt"] = create_stt()
+                    self.state["stt"] = create_stt(settings=self.settings)
                     if self.state["stt"]:
                         stt_task = asyncio.create_task(
                             self.state["stt"].start(on_transcript_cb)
@@ -257,7 +257,7 @@ class AppBootstrap:
                     logger.warning("STT initialization failed", error=str(e))
 
         # Auto-diagnostics
-        diag_interval = float(os.getenv("DIAG_INTERVAL", "30"))
+        diag_interval = float(os.getenv("DIAG_INTERVAL", "30"))  # TODO: add to settings if needed
         self.state["diagnostics"] = AutoDiagnostics(self.state, interval=diag_interval)
         diag_task = asyncio.create_task(
             self.state["diagnostics"].run_loop(self.broadcast)

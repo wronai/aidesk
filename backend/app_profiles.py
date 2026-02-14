@@ -298,6 +298,6 @@ class ProfileManager:
         }
 
 
-def create_profile_manager() -> ProfileManager:
+def create_profile_manager(settings=None) -> ProfileManager:
     """Create ProfileManager instance."""
     return ProfileManager()

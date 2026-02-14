@@ -455,9 +455,13 @@ class MonitorAwareCapture:
         }
 
 
-def create_multi_monitor_from_env() -> MonitorAwareCapture:
-    """Create MonitorAwareCapture from environment variables."""
+def create_multi_monitor_from_env(settings=None) -> MonitorAwareCapture:
+    """Create MonitorAwareCapture from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
     return MonitorAwareCapture(
-        active_only=os.getenv("MULTI_MONITOR_ACTIVE_ONLY", "true").lower() == "true",
-        include_description=os.getenv("MULTI_MONITOR_DESCRIPTION", "true").lower() == "true",
+        active_only=settings.multi_monitor_active_only,
+        include_description=settings.multi_monitor_description,
     )

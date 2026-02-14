@@ -439,3 +439,90 @@ class TestClipboardStep:
 
         # Agent action should be in clipboard queue
         assert any("pip install flask" in i.text for i in mgr.queue.get_all())
+
+
+# ===== SelectionAnalyzer =====
+
+class TestSelectionAnalyzer:
+    def _analyzer(self):
+        from clipboard_intel import SelectionAnalyzer
+        return SelectionAnalyzer()
+
+    def test_empty_text(self):
+        result = self._analyzer().analyze("")
+        assert result.rule_matched is False
+        assert "Pusty" in result.label
+
+    def test_python_module_error(self):
+        result = self._analyzer().analyze("ModuleNotFoundError: No module named 'flask'")
+        assert result.label == "Brakujący moduł Python"
+        assert "pip install flask" in result.response
+        assert result.clipboard_text == "pip install flask"
+
+    def test_node_module_error(self):
+        result = self._analyzer().analyze("Cannot find module 'express'")
+        assert "npm install express" in result.response
+        assert result.clipboard_text == "npm install express"
+
+    def test_python_exception(self):
+        result = self._analyzer().analyze("TypeError: unsupported operand type(s)")
+        assert "TypeError" in result.response
+        assert result.rule_matched is True
+
+    def test_git_error(self):
+        result = self._analyzer().analyze("fatal: unable to push to remote")
+        assert "Git" in result.label
+        assert result.clipboard_text == "git status"
+
+    def test_merge_conflict(self):
+        result = self._analyzer().analyze("CONFLICT (content): Merge conflict in src/main.py")
+        assert "Konflikt" in result.label
+        assert "src/main.py" in result.response
+
+    def test_url_detection(self):
+        result = self._analyzer().analyze("Check https://example.com/docs")
+        assert result.label == "URL"
+        assert result.clipboard_text == "https://example.com/docs"
+
+    def test_ip_detection(self):
+        result = self._analyzer().analyze("Server at 10.0.0.1:3000")
+        assert "10.0.0.1:3000" in result.response
+
+    def test_file_path(self):
+        result = self._analyzer().analyze("/home/user/project/main.py")
+        assert "Ścieżka" in result.label
+        assert result.clipboard_text == "/home/user/project/main.py"
+
+    def test_shell_command(self):
+        result = self._analyzer().analyze("docker compose up -d")
+        assert "Komenda" in result.label
+        assert result.clipboard_text == "docker compose up -d"
+
+    def test_email_detection(self):
+        result = self._analyzer().analyze("user@example.com")
+        assert result.label == "Adres email"
+        assert result.clipboard_text == "user@example.com"
+
+    def test_generic_text(self):
+        result = self._analyzer().analyze("just some random text here")
+        assert result.rule_matched is False
+        assert "Zaznaczony tekst" in result.response
+        assert result.clipboard_text == "just some random text here"
+
+    def test_to_dict(self):
+        result = self._analyzer().analyze("pip install flask")
+        d = result.to_dict()
+        assert "text" in d
+        assert "label" in d
+        assert "response" in d
+        assert "clipboard_text" in d
+        assert "rule_matched" in d
+
+    def test_traceback(self):
+        tb = """Traceback (most recent call last):
+  File "main.py", line 10, in <module>
+    foo()
+NameError: name 'foo' is not defined"""
+        result = self._analyzer().analyze(tb)
+        assert "Traceback" in result.label
+        assert "foo" in result.response

@@ -818,8 +818,10 @@ class SelectionAnalyzer:
 
 # ===== Factory =====
 
-def create_clipboard_manager_from_env() -> ClipboardManager:
-    """Create ClipboardManager from environment variables."""
-    import os
-    max_items = int(os.getenv("CLIPBOARD_MAX_ITEMS", "20"))
-    return ClipboardManager(max_items=max_items)
+def create_clipboard_manager_from_env(settings=None) -> ClipboardManager:
+    """Create ClipboardManager from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
+    return ClipboardManager(max_items=settings.clipboard_max_items)

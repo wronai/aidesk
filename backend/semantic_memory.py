@@ -566,14 +566,18 @@ class SemanticMemory:
             self._db = None
 
 
-def create_semantic_memory_from_env() -> SemanticMemory:
-    """Create SemanticMemory from environment variables."""
+def create_semantic_memory_from_env(settings=None) -> SemanticMemory:
+    """Create SemanticMemory from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
     return SemanticMemory(
-        model_name=os.getenv("SEMANTIC_MODEL", ""),
-        db_path=os.getenv("SEMANTIC_MEMORY_DB", "logs/semantic_memory.db"),
-        max_memories=int(os.getenv("SEMANTIC_MAX_MEMORIES", "5000")),
-        recall_top_k=int(os.getenv("SEMANTIC_RECALL_K", "3")),
-        similarity_threshold=float(os.getenv("SEMANTIC_THRESHOLD", "0.3")),
-        compress_after_hours=float(os.getenv("SEMANTIC_COMPRESS_HOURS", "1.0")),
-        enabled=os.getenv("ENABLE_SEMANTIC_MEMORY", "true").lower() == "true",
+        model_name=settings.semantic_model,
+        db_path=settings.semantic_memory_db,
+        max_memories=settings.semantic_max_memories,
+        recall_top_k=settings.semantic_recall_k,
+        similarity_threshold=settings.semantic_threshold,
+        compress_after_hours=settings.semantic_compress_hours,
+        enabled=settings.enable_semantic_memory,
     )

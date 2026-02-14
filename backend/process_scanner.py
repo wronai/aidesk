@@ -390,7 +390,7 @@ class ProcessScanner:
         }
 
 
-def create_process_scanner(window_manager: Optional[WindowManager] = None) -> ProcessScanner:
+def create_process_scanner(window_manager: Optional[WindowManager] = None, settings=None) -> ProcessScanner:
     """Create ProcessScanner instance."""
     return ProcessScanner(window_manager=window_manager)
 
