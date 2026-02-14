@@ -385,6 +385,47 @@ class AutoDiagnostics:
         except Exception as e:
             return {"name": "window_cropper", "ok": False, "detail": str(e)}
 
+    def _check_event_bus(self) -> Dict:
+        """Check event bus status."""
+        event_bus = self.app_state.get("event_bus")
+        if event_bus is None:
+            return {"name": "event_bus", "ok": False, "detail": "Not initialized"}
+
+        try:
+            stats = event_bus.get_stats()
+            return {
+                "name": "event_bus",
+                "ok": True,
+                "detail": {
+                    "total_events": stats.get("total_events", 0),
+                    "handlers_count": stats.get("handlers_count", 0),
+                    "middleware_count": stats.get("middleware_count", 0),
+                },
+            }
+        except Exception as e:
+            return {"name": "event_bus", "ok": False, "detail": str(e)}
+
+    def _check_pipeline(self) -> Dict:
+        """Check pipeline orchestrator status."""
+        pipeline = self.app_state.get("pipeline")
+        if pipeline is None:
+            return {"name": "pipeline", "ok": False, "detail": "Not initialized"}
+
+        try:
+            stats = pipeline.get_stats()
+            return {
+                "name": "pipeline",
+                "ok": True,
+                "detail": {
+                    "total_runs": stats.get("total_runs", 0),
+                    "last_run_duration_ms": stats.get("last_run_duration_ms", 0),
+                    "success_rate": stats.get("success_rate", 0),
+                    "steps_count": stats.get("steps_count", 0),
+                },
+            }
+        except Exception as e:
+            return {"name": "pipeline", "ok": False, "detail": str(e)}
+
     def get_latest(self) -> Optional[Dict]:
         """Return latest diagnostics result."""
         return self.last_result

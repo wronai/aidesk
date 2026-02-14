@@ -153,6 +153,7 @@ class PipelineContext:
     capture_result: Optional[Dict] = None
     fullscreen_image: Optional[Any] = None  # PIL.Image
     capture_image: Optional[Any] = None     # PIL.Image (resized) — avoids base64 re-decode
+    fullscreen_path: Optional[str] = None   # Path to full-res original frame (for high-quality cropping)
 
     # Phase 3+4: Cropping & organizing
     organized_screen: Optional[Any] = None  # OrganizedScreenData
@@ -301,6 +302,7 @@ class CaptureScreenStep:
 
         ctx.capture_result = result
         ctx.image_b64 = result["image_b64"]
+        ctx.fullscreen_path = result.get("fullscreen_path")
 
         # Store PIL image directly for downstream steps (avoids base64 re-decode)
         if hasattr(self._capture, '_last_resized_image') and self._capture._last_resized_image is not None:
@@ -339,12 +341,26 @@ class CropWindowsStep:
         )
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        # Prefer PIL image from capture (avoids base64 decode + JPEG re-parse)
-        if ctx.capture_image is not None:
-            fullscreen_img = ctx.capture_image
-        else:
-            img_bytes = base64.b64decode(ctx.image_b64)
-            fullscreen_img = Image.open(BytesIO(img_bytes))
+        # Prefer full-resolution original frame for cropping (better OCR quality)
+        fullscreen_img = None
+        if ctx.fullscreen_path and os.path.exists(ctx.fullscreen_path):
+            try:
+                fullscreen_img = Image.open(ctx.fullscreen_path).convert("RGB")
+                logger.info(
+                    "Using full-res frame for cropping",
+                    path=ctx.fullscreen_path,
+                    size=f"{fullscreen_img.size[0]}x{fullscreen_img.size[1]}",
+                )
+            except Exception as e:
+                logger.warning("Failed to load full-res frame, using resized", error=str(e))
+
+        # Fallback: resized PIL image from capture or base64
+        if fullscreen_img is None:
+            if ctx.capture_image is not None:
+                fullscreen_img = ctx.capture_image
+            else:
+                img_bytes = base64.b64decode(ctx.image_b64)
+                fullscreen_img = Image.open(BytesIO(img_bytes))
 
         organized = self._cropper.organize_screen(fullscreen_img, ctx.all_windows)
         ctx.organized_screen = organized

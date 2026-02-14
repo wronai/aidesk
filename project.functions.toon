@@ -1,15 +1,15 @@
 project: aidesk
-generated: "2026-02-14T09:04:03.396448"
-modules[25]{path,lang,items}:
+generated: "2026-02-14T10:09:02.858454"
+modules[26]{path,lang,items}:
   backend/process_scanner.py,python,13
   backend/stt.py,python,7
   backend/query_handlers.py,python,23
   backend/protocols.py,python,39
-  backend/window_cropper.py,python,9
+  backend/window_cropper.py,python,10
   backend/analyzer.py,python,9
   backend/capture.py,python,18
   backend/shell_agent.py,python,14
-  backend/diagnostics.py,python,20
+  backend/diagnostics.py,python,18
   backend/server.py,python,51
   backend/app_profiles.py,python,9
   backend/ocr_engines.py,python,27
@@ -18,14 +18,15 @@ modules[25]{path,lang,items}:
   backend/test_setup.py,python,2
   backend/wayland_screencast.py,python,21
   backend/event_bus.py,python,19
-  backend/pipeline.py,python,35
+  backend/pipeline.py,python,40
   backend/command_handlers.py,python,9
   backend/config_service.py,python,12
   overlay/preload.js,javascript,0
   overlay/main.js,javascript,1
   overlay/app.js,javascript,25
-  backend/tests/test_units.py,python,71
-  backend/tests/test_e2e.py,python,73
+  backend/tests/test_units.py,python,88
+  backend/tests/conftest.py,python,0
+  backend/tests/test_e2e.py,python,74
 
 function_details:
   backend/process_scanner.py:
@@ -119,16 +120,17 @@ function_details:
       SpeechToText.get_stats,method,() -> Dict,213-214,false,2,1,retrieves stats
       EventBroadcaster.broadcast,method,"(event_type:str, data:Dict) -> None",223-225,true,3,1,Send event to all connected SSE clients.
   backend/window_cropper.py:
-    functions[9]{name,kind,sig,loc,async,lines,cc,does}:
-      create_window_cropper,function,"(process_scanner:ProcessScanner, crops_dir:Optional[str]=None) -> WindowCropper",427-441,false,15,2,Create WindowCropper from environment.
+    functions[10]{name,kind,sig,loc,async,lines,cc,does}:
+      create_window_cropper,function,"(process_scanner:ProcessScanner, crops_dir:Optional[str]=None) -> WindowCropper",463-479,false,17,2,Create WindowCropper from environment.
       CroppedWindow.to_dict,method,() -> Dict,42-53,false,12,1,converts dict
       OrganizedScreenData.to_dict,method,() -> Dict,71-84,false,14,7,converts dict
       OrganizedScreenData.get_summary_for_tts,method,() -> str,86-137,false,52,20,Generate a structured text summary for TTS response.
-      WindowCropper.__init__,method,"(process_scanner:ProcessScanner, crops_dir:str='/tmp/aidesk_crops', jpeg_quality:int=70, min_window_size:int=100, max_crop_dimension:int=1280, change_threshold:float=3.0)",162-195,false,34,2,creates
-      WindowCropper.crop_all_windows,method,"(fullscreen_image:Any, windows:Optional[List[VisibleWindow]]=None) -> List[CroppedWindow]",198-318,false,121,17,Crop each visible window from the fullscreen screenshot.
-      WindowCropper.organize_screen,method,"(fullscreen_image:Any, windows:Optional[List[VisibleWindow]]=None) -> OrganizedScreenData",321-403,false,83,10,"Full pipeline: scan windows → crop each → organize by priority."
-      WindowCropper.crop_single_window,method,"(fullscreen_image:Any, window:VisibleWindow) -> Optional[CroppedWindow]",406-413,false,8,2,Crop a single specific window from the fullscreen image.
-      WindowCropper.get_stats,method,() -> Dict,415-424,false,10,1,retrieves stats
+      WindowCropper.__init__,method,"(process_scanner:ProcessScanner, crops_dir:str='/tmp/aidesk_crops', jpeg_quality:int=70, min_window_size:int=100, max_crop_dimension:int=1280, change_threshold:float=3.0, max_crop_windows:int=0)",162-201,false,40,2,creates
+      WindowCropper._select_top_k,method,"(windows:List[VisibleWindow], k:int) -> List[VisibleWindow]",203-227,false,25,3,Select the K most relevant windows for cropping.
+      WindowCropper.crop_all_windows,method,"(fullscreen_image:Any, windows:Optional[List[VisibleWindow]]=None) -> List[CroppedWindow]",230-354,false,125,20,Crop each visible window from the fullscreen screenshot.
+      WindowCropper.organize_screen,method,"(fullscreen_image:Any, windows:Optional[List[VisibleWindow]]=None) -> OrganizedScreenData",357-439,false,83,10,"Full pipeline: scan windows → crop each → organize by priority."
+      WindowCropper.crop_single_window,method,"(fullscreen_image:Any, window:VisibleWindow) -> Optional[CroppedWindow]",442-449,false,8,2,Crop a single specific window from the fullscreen image.
+      WindowCropper.get_stats,method,() -> Dict,451-460,false,10,1,retrieves stats
   backend/analyzer.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       create_analyzer_from_env,function,"(ocr_manager:Optional[OCRManager]=None) -> ScreenAnalyzer",358-373,false,16,3,Create analyzer from environment variables.
@@ -142,24 +144,24 @@ function_details:
       ScreenAnalyzer.get_stats,method,() -> Dict,337-355,false,19,4,Get analyzer statistics.
   backend/capture.py:
     functions[18]{name,kind,sig,loc,async,lines,cc,does}:
-      _detect_backend,function,() -> str,30-62,false,33,8,Detect the best screen capture backend for the current session.
-      _resize_preserve_aspect,function,"(img:Any, max_dim:int) -> Image.Image",65-82,false,18,3,"Resize image so longest side = max_dim, preserving aspect ratio."
-      create_capture_from_env,function,() -> SmartScreenCapture,508-522,false,15,1,Create capture instance from environment variables.
-      SmartScreenCapture.__init__,method,"(change_threshold:int=8, min_interval:float=1.0, idle_threshold:int=30, idle_interval:float=10.0, max_dimension:int=1280, jpeg_quality:int=60, captures_dir:str='/tmp/aidesk_captures')",90-148,false,59,4,Initialize screen capture.
-      SmartScreenCapture.capture,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Optional[Dict]",150-245,false,96,6,Capture screen and return if meaningful change detected.
-      SmartScreenCapture.adaptive_interval,method,() -> float,248-257,false,10,2,Adaptive polling interval based on screen activity.
-      SmartScreenCapture._start_screencast_daemon,method,(),261-307,false,47,6,Start the wayland_screencast.py daemon (uses system python3 + gi).
-      SmartScreenCapture._stop_screencast_daemon,method,(),309-321,false,13,5,Stop the wayland screencast daemon.
-      SmartScreenCapture._grab_screen,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",325-337,false,13,3,Grab screen using the detected backend.
-      SmartScreenCapture._grab_mss,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",339-354,false,16,4,Capture using mss (X11).
-      SmartScreenCapture._grab_grim,method,"(roi:Optional[Dict]=None) -> Image.Image",356-373,false,18,3,Capture using grim (wlroots Wayland).
-      SmartScreenCapture._grab_wayland_portal,method,"(roi:Optional[Dict]=None) -> Image.Image",375-394,false,20,4,Read latest frame from wayland_screencast.py daemon.
-      SmartScreenCapture.get_monitors,method,"() -> List[Dict]",398-414,false,17,4,Get list of available monitors.
-      SmartScreenCapture._get_monitors_xrandr,method,"() -> List[Dict]",416-437,false,22,5,Get monitors via xrandr (works on both X11 and Wayland).
-      SmartScreenCapture.capture_roi_image,method,"(roi:Dict) -> Optional[str]",441-460,false,20,2,Capture a specific screen region and return base64 JPEG.
-      SmartScreenCapture.get_screencast_status,method,"() -> Optional[Dict]",464-474,false,11,4,Get wayland screencast daemon status (if running).
-      SmartScreenCapture.get_stats,method,() -> Dict,476-497,false,22,4,Get capture statistics.
-      SmartScreenCapture.__del__,method,(),499-504,false,6,2,Cleanup screencast daemon on garbage collection.
+      _detect_backend,function,() -> str,33-65,false,33,8,Detect the best screen capture backend for the current session.
+      _resize_preserve_aspect,function,"(img:Any, max_dim:int) -> Image.Image",68-85,false,18,3,"Resize image so longest side = max_dim, preserving aspect ratio."
+      create_capture_from_env,function,() -> SmartScreenCapture,518-533,false,16,1,Create capture instance from environment variables.
+      SmartScreenCapture.__init__,method,"(change_threshold:int=8, min_interval:float=1.0, idle_threshold:int=30, idle_interval:float=10.0, max_dimension:int=1280, jpeg_quality:int=60, captures_dir:str='/tmp/aidesk_captures')",93-155,false,63,4,Initialize screen capture.
+      SmartScreenCapture.capture,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Optional[Dict]",157-255,false,99,7,Capture screen and return if meaningful change detected.
+      SmartScreenCapture.adaptive_interval,method,() -> float,258-267,false,10,2,Adaptive polling interval based on screen activity.
+      SmartScreenCapture._start_screencast_daemon,method,(),271-317,false,47,6,Start the wayland_screencast.py daemon (uses system python3 + gi).
+      SmartScreenCapture._stop_screencast_daemon,method,(),319-331,false,13,5,Stop the wayland screencast daemon.
+      SmartScreenCapture._grab_screen,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",335-347,false,13,3,Grab screen using the detected backend.
+      SmartScreenCapture._grab_mss,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",349-364,false,16,4,Capture using mss (X11).
+      SmartScreenCapture._grab_grim,method,"(roi:Optional[Dict]=None) -> Image.Image",366-383,false,18,3,Capture using grim (wlroots Wayland).
+      SmartScreenCapture._grab_wayland_portal,method,"(roi:Optional[Dict]=None) -> Image.Image",385-404,false,20,4,Read latest frame from wayland_screencast.py daemon.
+      SmartScreenCapture.get_monitors,method,"() -> List[Dict]",408-424,false,17,4,Get list of available monitors.
+      SmartScreenCapture._get_monitors_xrandr,method,"() -> List[Dict]",426-447,false,22,5,Get monitors via xrandr (works on both X11 and Wayland).
+      SmartScreenCapture.capture_roi_image,method,"(roi:Dict) -> Optional[str]",451-470,false,20,2,Capture a specific screen region and return base64 JPEG.
+      SmartScreenCapture.get_screencast_status,method,"() -> Optional[Dict]",474-484,false,11,4,Get wayland screencast daemon status (if running).
+      SmartScreenCapture.get_stats,method,() -> Dict,486-507,false,22,4,Get capture statistics.
+      SmartScreenCapture.__del__,method,(),509-514,false,6,2,Cleanup screencast daemon on garbage collection.
   backend/shell_agent.py:
     functions[14]{name,kind,sig,loc,async,lines,cc,does}:
       create_shell_agent_from_env,function,() -> ShellAgent,483-492,false,10,1,Create ShellAgent from environment variables.
@@ -177,7 +179,7 @@ function_details:
       ShellAgent.get_history,method,"(n:int=20) -> List[Dict]",467-469,false,3,2,Get recent action history.
       ShellAgent.get_stats,method,() -> Dict,471-480,false,10,1,Get ShellAgent statistics.
   backend/diagnostics.py:
-    functions[20]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[18]{name,kind,sig,loc,async,lines,cc,does}:
       AutoDiagnostics.__init__,method,"(app_state:dict, interval:float=30.0)",29-35,false,7,1,creates
       AutoDiagnostics.run_loop,method,"(broadcast_fn:Callable)",37-74,true,38,9,Main diagnostics loop.
       AutoDiagnostics._run_checks,method,() -> Dict,76-106,false,31,2,Execute all diagnostic checks and return results.
@@ -194,63 +196,61 @@ function_details:
       AutoDiagnostics._check_shell_agent,method,() -> Dict,324-346,false,23,4,Check shell agent status.
       AutoDiagnostics._check_process_scanner,method,() -> Dict,348-366,false,19,3,Check process scanner status.
       AutoDiagnostics._check_window_cropper,method,() -> Dict,368-386,false,19,3,Check window cropper status.
-      AutoDiagnostics._check_event_bus,method,() -> Dict,388-407,false,20,3,Check event bus status.
-      AutoDiagnostics._check_pipeline,method,() -> Dict,409-428,false,20,3,Check pipeline orchestrator status.
-      AutoDiagnostics.get_latest,method,"() -> Optional[Dict]",430-432,false,3,1,Return latest diagnostics result.
-      AutoDiagnostics.get_history,method,"() -> List[Dict]",434-436,false,3,1,Return diagnostics history.
+      AutoDiagnostics.get_latest,method,"() -> Optional[Dict]",388-390,false,3,1,Return latest diagnostics result.
+      AutoDiagnostics.get_history,method,"() -> List[Dict]",392-394,false,3,1,Return diagnostics history.
   backend/server.py:
     functions[51]{name,kind,sig,loc,async,lines,cc,does}:
       _import_stt,function,(),39-45,false,7,2,import stt
       _read_version,function,() -> str,51-57,false,7,2,retrieves version
       setup_logging,function,(),72-121,false,50,1,initializes logging
-      broadcast,function,"(event_type:str, data:Dict)",158-182,true,25,5,Broadcast SSE event to all connected overlay clients.
-      screen_analysis_loop,function,(),185-290,true,106,16,"Main loop: delegates to PipelineOrchestrator (SOLID/CQRS/Event Sourcing)."
-      on_transcript,function,"(text:str, is_final:bool)",293-319,true,27,4,Callback for STT transcripts.
-      _nfo_validate_startup,function,"(state:Dict)",323-356,false,34,5,nfo-instrumented startup validation.
-      lifespan,function,"(app:FastAPI)",360-499,true,140,15,FastAPI lifespan context manager for startup/shutdown.
-      root,function,(),521-556,true,36,1,Root endpoint.
-      sse_stream,function,"(request:Request)",560-606,true,47,1,Server-Sent Events endpoint for real-time updates.
-      status,function,(),610-617,true,8,1,Get current status and latest data.
-      stats,function,(),621-664,true,44,10,Get detailed statistics.
-      health,function,(),668-693,true,26,4,Health check endpoint.
-      ocr_engines,function,(),699-706,true,8,2,List available OCR engines and their status.
-      set_ocr_engine,function,"(engine_name:str)",710-730,true,21,3,Switch active OCR engine at runtime.
-      ocr_benchmark,function,(),734-787,true,54,5,"Run benchmark: all OCR engines on current screen capture."
-      ocr_stats,function,(),791-795,true,5,2,Get OCR engine statistics.
-      get_analysis_mode,function,(),801-814,true,14,2,Get current analysis mode.
-      set_analysis_mode,function,"(mode_name:str)",818-836,true,19,3,Switch analysis mode at runtime.
-      diagnostics,function,(),842-847,true,6,3,Get latest autodiagnostics result.
-      diagnostics_history,function,(),851-856,true,6,2,Get diagnostics history.
-      get_active_window,function,(),862-868,true,7,2,Get current active window information.
-      get_latest_window,function,(),872-877,true,6,2,Get latest cached window info (no subprocess call).
-      get_monitors,function,(),881-895,true,15,4,Get list of connected monitors.
-      window_stats,function,(),899-904,true,6,2,Get window manager statistics.
-      get_all_processes,function,(),910-918,true,9,2,Scan all visible windows with process info.
-      get_all_windows,function,(),922-931,true,10,3,Get all visible windows with geometry and process details.
-      get_organized_screen,function,(),935-940,true,6,2,Get latest organized screen data (per-app crops + categories).
-      get_screen_stats,function,(),944-953,true,10,3,Get process scanner and window cropper statistics.
-      get_nfo_validation,function,(),957-959,true,3,1,Get latest nfo startup validation result.
-      query_events,function,"(type:Optional[str]=None, source:Optional[str]=None, correlation_id:Optional[str]=None, since:Optional[float]=None, limit:int=50)",965-986,true,22,3,Query the event store (Event Sourcing read side).
-      event_bus_stats,function,(),990-995,true,6,2,Get event bus and event store statistics.
-      pipeline_info,function,(),999-1007,true,9,2,"Get pipeline configuration, steps, and execution statistics."
-      get_read_model,function,(),1011-1020,true,10,2,Get CQRS read model — materialized views of pipeline and analysis state.
-      get_read_model_pipeline,function,(),1024-1029,true,6,2,Get pipeline execution view from CQRS read model.
-      get_read_model_stats,function,(),1033-1038,true,6,2,Get enriched stats from CQRS read model (includes event bus + pipeline metrics).
-      get_profiles,function,(),1044-1053,true,10,3,Get all available per-app analysis profiles.
-      get_pending_actions,function,(),1059-1067,true,9,2,Get pending agent actions awaiting approval.
-      approve_action,function,"(action_id:str)",1071-1081,true,11,3,Approve a pending agent action.
-      execute_action,function,"(action_id:str)",1085-1102,true,18,5,Execute an approved agent action.
-      agent_history,function,(),1106-1114,true,9,2,Get agent action execution history.
-      agent_run_safe,function,"(request:Request)",1118-1135,true,18,3,Run a safe (read-only) command directly.
-      list_screenshots,function,(),1141-1161,true,21,4,List all saved screenshots.
-      get_screenshot,function,"(filename:str)",1165-1177,true,13,3,Serve a specific screenshot file.
-      list_crops,function,(),1181-1200,true,20,4,List all saved per-app crop files.
-      get_crop,function,"(filename:str)",1204-1212,true,9,3,Serve a specific crop file.
-      screenshot_browser,function,(),1216-1218,true,3,1,Serve the screenshot browser UI.
-      get_config,function,(),1224-1226,true,3,1,"Get full configuration: current .env values + schema + audio devices."
-      post_config,function,"(request:Request)",1230-1249,true,20,6,Update .env configuration.
-      get_audio_devices,function,(),1253-1255,true,3,1,List all available audio devices (PulseAudio/PipeWire + sounddevice).
-      config_ui,function,(),1259-1261,true,3,1,Serve the configuration UI.
+      broadcast,function,"(event_type:str, data:Dict)",159-183,true,25,5,Broadcast SSE event to all connected overlay clients.
+      screen_analysis_loop,function,(),186-307,true,122,19,"Main loop: delegates to PipelineOrchestrator (SOLID/CQRS/Event Sourcing)."
+      on_transcript,function,"(text:str, is_final:bool)",310-336,true,27,4,Callback for STT transcripts.
+      _nfo_validate_startup,function,"(state:Dict)",340-373,false,34,5,nfo-instrumented startup validation.
+      lifespan,function,"(app:FastAPI)",377-519,true,143,15,FastAPI lifespan context manager for startup/shutdown.
+      root,function,(),541-576,true,36,1,Root endpoint.
+      sse_stream,function,"(request:Request)",580-626,true,47,1,Server-Sent Events endpoint for real-time updates.
+      status,function,(),630-637,true,8,1,Get current status and latest data.
+      stats,function,(),641-687,true,47,11,Get detailed statistics.
+      health,function,(),691-716,true,26,4,Health check endpoint.
+      ocr_engines,function,(),722-729,true,8,2,List available OCR engines and their status.
+      set_ocr_engine,function,"(engine_name:str)",733-753,true,21,3,Switch active OCR engine at runtime.
+      ocr_benchmark,function,(),757-810,true,54,5,"Run benchmark: all OCR engines on current screen capture."
+      ocr_stats,function,(),814-818,true,5,2,Get OCR engine statistics.
+      get_analysis_mode,function,(),824-837,true,14,2,Get current analysis mode.
+      set_analysis_mode,function,"(mode_name:str)",841-859,true,19,3,Switch analysis mode at runtime.
+      diagnostics,function,(),865-870,true,6,3,Get latest autodiagnostics result.
+      diagnostics_history,function,(),874-879,true,6,2,Get diagnostics history.
+      get_active_window,function,(),885-891,true,7,2,Get current active window information.
+      get_latest_window,function,(),895-900,true,6,2,Get latest cached window info (no subprocess call).
+      get_monitors,function,(),904-918,true,15,4,Get list of connected monitors.
+      window_stats,function,(),922-927,true,6,2,Get window manager statistics.
+      get_all_processes,function,(),933-941,true,9,2,Scan all visible windows with process info.
+      get_all_windows,function,(),945-954,true,10,3,Get all visible windows with geometry and process details.
+      get_organized_screen,function,(),958-963,true,6,2,Get latest organized screen data (per-app crops + categories).
+      get_screen_stats,function,(),967-976,true,10,3,Get process scanner and window cropper statistics.
+      get_nfo_validation,function,(),980-982,true,3,1,Get latest nfo startup validation result.
+      query_events,function,"(type:Optional[str]=None, source:Optional[str]=None, correlation_id:Optional[str]=None, since:Optional[float]=None, limit:int=50)",988-1009,true,22,3,Query the event store (Event Sourcing read side).
+      event_bus_stats,function,(),1013-1018,true,6,2,Get event bus and event store statistics.
+      pipeline_info,function,(),1022-1034,true,13,3,"Get pipeline configuration, steps, and execution statistics."
+      get_read_model,function,(),1038-1047,true,10,2,Get CQRS read model — materialized views of pipeline and analysis state.
+      get_read_model_pipeline,function,(),1051-1056,true,6,2,Get pipeline execution view from CQRS read model.
+      get_read_model_stats,function,(),1060-1065,true,6,2,Get enriched stats from CQRS read model (includes event bus + pipeline metrics).
+      get_profiles,function,(),1071-1080,true,10,3,Get all available per-app analysis profiles.
+      get_pending_actions,function,(),1086-1094,true,9,2,Get pending agent actions awaiting approval.
+      approve_action,function,"(action_id:str)",1098-1108,true,11,3,Approve a pending agent action.
+      execute_action,function,"(action_id:str)",1112-1129,true,18,5,Execute an approved agent action.
+      agent_history,function,(),1133-1141,true,9,2,Get agent action execution history.
+      agent_run_safe,function,"(request:Request)",1145-1162,true,18,3,Run a safe (read-only) command directly.
+      list_screenshots,function,(),1168-1188,true,21,4,List all saved screenshots.
+      get_screenshot,function,"(filename:str)",1192-1204,true,13,3,Serve a specific screenshot file.
+      list_crops,function,(),1208-1227,true,20,4,List all saved per-app crop files.
+      get_crop,function,"(filename:str)",1231-1239,true,9,3,Serve a specific crop file.
+      screenshot_browser,function,(),1243-1245,true,3,1,Serve the screenshot browser UI.
+      get_config,function,(),1251-1253,true,3,1,"Get full configuration: current .env values + schema + audio devices."
+      post_config,function,"(request:Request)",1257-1276,true,20,6,Update .env configuration.
+      get_audio_devices,function,(),1280-1282,true,3,1,List all available audio devices (PulseAudio/PipeWire + sounddevice).
+      config_ui,function,(),1286-1288,true,3,1,Serve the configuration UI.
   backend/app_profiles.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       create_profile_manager,function,() -> ProfileManager,301-303,false,3,1,Create ProfileManager instance.
@@ -368,42 +368,47 @@ function_details:
       EventBus.new_correlation_id,method,() -> str,401-403,false,3,1,Generate a new correlation ID for linking pipeline events.
       EventBus.get_stats,method,() -> Dict,405-417,false,13,3,Get event bus statistics.
   backend/pipeline.py:
-    functions[35]{name,kind,sig,loc,async,lines,cc,does}:
-      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",535-592,false,58,8,"Factory: create the standard analysis pipeline from components."
-      PipelineContext.__post_init__,method,(),85-91,false,7,4,creates init
-      PipelineStep.can_run,method,"(ctx:PipelineContext) -> bool",108-110,false,3,1,Check if this step should run given current context.
-      PipelineStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",112-114,true,3,1,"Execute step, update context, emit events."
-      ScanWindowsStep.__init__,method,(process_scanner),123-124,false,2,1,creates
-      ScanWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",126-127,false,2,1,checks run
-      ScanWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",129-137,true,9,1,starts
-      DetectActiveWindowStep.__init__,method,"(window_manager, use_window_roi:bool=False)",144-146,false,3,1,creates
-      DetectActiveWindowStep.can_run,method,"(ctx:PipelineContext) -> bool",148-149,false,2,1,checks run
-      DetectActiveWindowStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",151-165,true,15,3,starts
-      CaptureScreenStep.__init__,method,(capture),172-173,false,2,1,creates
-      CaptureScreenStep.can_run,method,"(ctx:PipelineContext) -> bool",175-176,false,2,1,checks run
-      CaptureScreenStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",178-197,true,20,2,starts
-      CropWindowsStep.__init__,method,(window_cropper),204-205,false,2,1,creates
-      CropWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",207-212,false,6,3,checks run
-      CropWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",214-232,true,19,1,starts
-      BuildContextStep.__init__,method,"(context_mgr, profile_mgr=None, app_state_ref=None)",239-242,false,4,2,creates
-      BuildContextStep.can_run,method,"(ctx:PipelineContext) -> bool",244-245,false,2,1,checks run
-      BuildContextStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",247-289,true,43,10,starts
-      AnalyzeStep.__init__,method,(analyzer),296-297,false,2,1,creates
-      AnalyzeStep.can_run,method,"(ctx:PipelineContext) -> bool",299-300,false,2,2,checks run
-      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",302-318,true,17,1,starts
-      SuggestActionsStep.__init__,method,(shell_agent),325-326,false,2,1,creates
-      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",328-333,false,6,3,checks run
-      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",335-356,true,22,5,starts
-      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",363-364,false,2,2,checks run
-      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",366-417,true,52,6,starts
-      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None)",430-434,false,5,2,creates
-      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",436-439,false,4,1,Add a step to the pipeline (builder pattern).
-      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",441-444,false,4,3,Remove a step by name.
-      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",446-453,false,8,3,Insert a step before another step by name.
-      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",455-462,false,8,3,Insert a step after another step by name.
-      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",464-520,true,57,5,Execute all pipeline steps in order.
-      PipelineOrchestrator.get_step_names,method,"() -> List[str]",522-524,false,3,2,Get ordered list of step names.
-      PipelineOrchestrator.get_stats,method,() -> Dict,526-532,false,7,1,retrieves stats
+    functions[40]{name,kind,sig,loc,async,lines,cc,does}:
+      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",666-724,false,59,8,"Factory: create the standard analysis pipeline from components."
+      create_profile_selector,function,() -> ProfileSelector,727-732,false,6,2,Create ProfileSelector from environment variables.
+      ProfileSelector.__init__,method,"(full_interval:float=60.0, force_profile:Optional[str]=None)",63-74,false,12,3,creates
+      ProfileSelector.select,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",76-113,false,38,6,Choose optimal profile for this pipeline tick.
+      ProfileSelector.notify_active_window_changed,method,"(new_wid:int)",115-119,false,5,2,Signal that active window changed — next tick should be FULL.
+      ProfileSelector.get_stats,method,() -> Dict,121-127,false,7,3,retrieves stats
+      PipelineContext.__post_init__,method,(),184-190,false,7,4,creates init
+      PipelineStep.can_run,method,"(ctx:PipelineContext) -> bool",207-209,false,3,1,Check if this step should run given current context.
+      PipelineStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",211-213,true,3,1,"Execute step, update context, emit events."
+      ScanWindowsStep.__init__,method,"(process_scanner, cache_ttl:float=3.0)",227-231,false,5,1,creates
+      ScanWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",233-234,false,2,1,checks run
+      ScanWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",236-255,true,20,5,starts
+      DetectActiveWindowStep.__init__,method,"(window_manager, use_window_roi:bool=False)",262-264,false,3,1,creates
+      DetectActiveWindowStep.can_run,method,"(ctx:PipelineContext) -> bool",266-267,false,2,1,checks run
+      DetectActiveWindowStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",269-283,true,15,3,starts
+      CaptureScreenStep.__init__,method,(capture),290-291,false,2,1,creates
+      CaptureScreenStep.can_run,method,"(ctx:PipelineContext) -> bool",293-294,false,2,1,checks run
+      CaptureScreenStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",296-319,true,24,4,starts
+      CropWindowsStep.__init__,method,(window_cropper),329-330,false,2,1,creates
+      CropWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",332-339,false,8,4,checks run
+      CropWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",341-363,true,23,2,starts
+      BuildContextStep.__init__,method,"(context_mgr, profile_mgr=None, app_state_ref=None)",370-373,false,4,2,creates
+      BuildContextStep.can_run,method,"(ctx:PipelineContext) -> bool",375-376,false,2,1,checks run
+      BuildContextStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",378-420,true,43,10,starts
+      AnalyzeStep.__init__,method,(analyzer),427-428,false,2,1,creates
+      AnalyzeStep.can_run,method,"(ctx:PipelineContext) -> bool",430-431,false,2,2,checks run
+      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",433-449,true,17,1,starts
+      SuggestActionsStep.__init__,method,(shell_agent),456-457,false,2,1,creates
+      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",459-464,false,6,3,checks run
+      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",466-487,true,22,5,starts
+      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",494-495,false,2,2,checks run
+      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",497-548,true,52,6,starts
+      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None)",561-565,false,5,2,creates
+      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",567-570,false,4,1,Add a step to the pipeline (builder pattern).
+      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",572-575,false,4,3,Remove a step by name.
+      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",577-584,false,8,3,Insert a step before another step by name.
+      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",586-593,false,8,3,Insert a step after another step by name.
+      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",595-651,true,57,5,Execute all pipeline steps in order.
+      PipelineOrchestrator.get_step_names,method,"() -> List[str]",653-655,false,3,2,Get ordered list of step names.
+      PipelineOrchestrator.get_stats,method,() -> Dict,657-663,false,7,1,retrieves stats
   backend/command_handlers.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       CommandHandlers.__init__,method,"(bus:EventBus, app_state:Dict[str,Any])",30-33,false,4,1,creates
@@ -460,7 +465,7 @@ function_details:
       copyCommand,function,(command),652-658,false,7,1,copy command
       setupMouseForwarding,function,(),664-681,false,18,1,initializes mouse forwarding
   backend/tests/test_units.py:
-    functions[71]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[88]{name,kind,sig,loc,async,lines,cc,does}:
       TestAppClassification.test_ide_detection,method,(),27-31,false,5,1,checks ide detection
       TestAppClassification.test_terminal_detection,method,(),33-36,false,4,1,checks terminal detection
       TestAppClassification.test_browser_detection,method,(),38-41,false,4,1,checks browser detection
@@ -532,78 +537,96 @@ function_details:
       TestReadModel.test_on_agent_suggested,method,(),684-689,false,6,1,checks on agent suggested
       TestReadModel.test_on_pipeline_completed,method,(),691-697,false,7,1,checks on pipeline completed
       TestReadModel.test_event_counts,method,(),699-706,false,8,1,checks event counts
+      TestPipelineProfile.test_enum_values,method,(),712-715,false,4,1,checks enum values
+      TestPipelineProfile.test_context_has_profile_field,method,(),717-721,false,5,1,checks context has profile field
+      TestProfileSelector.test_first_tick_is_full,method,(),725-730,false,6,1,First tick should always be FULL (last_full_time=0).
+      TestProfileSelector.test_second_tick_is_normal,method,(),732-738,false,7,1,"After FULL, next tick should be NORMAL (not idle)."
+      TestProfileSelector.test_force_profile,method,(),740-745,false,6,1,force_profile overrides all heuristics.
+      TestProfileSelector.test_idle_triggers_fast,method,(),747-758,false,12,1,"When capture is idle, selector should return FAST."
+      TestProfileSelector.test_active_window_change_forces_full,method,(),760-773,false,14,1,Changing active window should force FULL on next tick.
+      TestProfileSelector.test_get_stats,method,(),775-780,false,6,1,checks get stats
+      TestProfileSelector.test_profile_counts_tracked,method,(),782-788,false,7,1,checks profile counts tracked
+      TestTopKCropSelection.test_select_top_k_prioritizes_active,method,(),792-807,false,16,1,Active window should always be in top-K.
+      TestTopKCropSelection.test_top_k_respects_category_priority,method,(),809-820,false,12,1,IDE should rank higher than UNKNOWN.
+      TestTopKCropSelection.test_crop_all_with_max_crop_windows,method,(),822-834,false,13,1,"With max_crop_windows=1, only 1 window should be cropped."
+      TestSaveToDiskFlags.test_cropper_save_to_disk_false,method,(),838-849,false,12,1,"With save_to_disk=False, crops should have empty filepath."
+      TestScanWindowsCaching.test_cached_scan_on_fast_profile,method,(),854-878,true,25,1,FAST profile should use cached windows if cache is fresh.
+      TestScanWindowsCaching.test_full_profile_always_rescans,method,(),881-901,true,21,1,FULL profile should always call scanner.
+      TestCropWindowsProfileGating.test_crop_skipped_on_fast_profile,method,(),906-919,true,14,1,CropWindowsStep should skip on FAST profile.
+      TestCropWindowsProfileGating.test_crop_runs_on_normal_profile,method,(),922-935,true,14,1,CropWindowsStep should run on NORMAL profile.
   backend/tests/test_e2e.py:
-    functions[73]{name,kind,sig,loc,async,lines,cc,does}:
-      client,function,(),34-37,false,4,1,Create a TestClient with lifespan (triggers full startup/shutdown).
-      TestCoreEndpoints.test_root_returns_200,method,(client),47-53,false,7,1,checks root returns 200
-      TestCoreEndpoints.test_root_lists_all_endpoint_groups,method,(client),55-60,false,6,4,checks root lists all endpoint groups
-      TestCoreEndpoints.test_health_structure,method,(client),62-71,false,10,2,checks health structure
-      TestCoreEndpoints.test_health_components_are_bool,method,(client),73-76,false,4,2,checks health components are bool
-      TestCoreEndpoints.test_status_endpoint,method,(client),78-85,false,8,1,checks status endpoint
-      TestCoreEndpoints.test_stats_endpoint,method,(client),87-95,false,9,1,checks stats endpoint
-      TestCoreEndpoints.test_stats_includes_component_stats,method,(client),97-101,false,5,1,checks stats includes component stats
-      TestEventSourcingEndpoints.test_events_returns_list,method,(client),111-117,false,7,1,checks events returns list
-      TestEventSourcingEndpoints.test_events_limit,method,(client),119-122,false,4,1,checks events limit
-      TestEventSourcingEndpoints.test_events_filter_by_type,method,(client),124-128,false,5,2,checks events filter by type
-      TestEventSourcingEndpoints.test_events_filter_by_source,method,(client),130-134,false,5,2,checks events filter by source
-      TestEventSourcingEndpoints.test_events_have_required_fields,method,(client),136-141,false,6,3,checks events have required fields
-      TestEventSourcingEndpoints.test_events_stats,method,(client),143-150,false,8,1,checks events stats
-      TestEventSourcingEndpoints.test_events_stats_includes_store,method,(client),152-157,false,6,1,checks events stats includes store
-      TestEventSourcingEndpoints.test_pipeline_info,method,(client),159-166,false,8,1,checks pipeline info
-      TestEventSourcingEndpoints.test_pipeline_step_names,method,(client),168-175,false,8,1,checks pipeline step names
-      TestEventSourcingEndpoints.test_pipeline_stats_structure,method,(client),177-182,false,6,1,checks pipeline stats structure
-      TestEventSourcingEndpoints.test_read_model_root,method,(client),184-190,false,7,1,checks read model root
-      TestEventSourcingEndpoints.test_read_model_pipeline,method,(client),192-198,false,7,1,checks read model pipeline
-      TestEventSourcingEndpoints.test_read_model_stats,method,(client),200-208,false,9,1,checks read model stats
-      TestEventSourcingEndpoints.test_startup_event_in_store,method,(client),210-216,false,7,1,The lifespan should have emitted a system.startup event.
-      TestConfigServiceEndpoints.test_config_get,method,(client),226-234,false,9,1,checks config get
-      TestConfigServiceEndpoints.test_config_schema_groups,method,(client),236-243,false,8,2,checks config schema groups
-      TestConfigServiceEndpoints.test_config_schema_field_structure,method,(client),245-253,false,9,3,checks config schema field structure
-      TestConfigServiceEndpoints.test_config_values_has_known_keys,method,(client),255-258,false,4,3,checks config values has known keys
-      TestConfigServiceEndpoints.test_audio_devices,method,(client),260-268,false,9,1,checks audio devices
-      TestConfigServiceEndpoints.test_config_ui_serves_html,method,(client),270-273,false,4,1,checks config ui serves html
-      TestConfigServiceEndpoints.test_config_post_rejects_empty,method,(client),275-277,false,3,1,checks config post rejects empty
-      TestConfigServiceEndpoints.test_config_post_rejects_non_string_values,method,(client),279-281,false,3,1,checks config post rejects non string values
-      TestWindowAwarenessEndpoints.test_window_active,method,(client),291-298,false,8,2,checks window active
-      TestWindowAwarenessEndpoints.test_window_latest,method,(client),300-302,false,3,1,checks window latest
-      TestWindowAwarenessEndpoints.test_monitors,method,(client),304-309,false,6,1,checks monitors
-      TestWindowAwarenessEndpoints.test_window_stats,method,(client),311-313,false,3,1,checks window stats
-      TestWindowAwarenessEndpoints.test_processes,method,(client),315-321,false,7,2,checks processes
-      TestWindowAwarenessEndpoints.test_windows_all,method,(client),323-330,false,8,2,checks windows all
-      TestWindowAwarenessEndpoints.test_screen_organized,method,(client),332-334,false,3,1,checks screen organized
-      TestWindowAwarenessEndpoints.test_screen_stats,method,(client),336-341,false,6,1,checks screen stats
-      TestOCREndpoints.test_ocr_engines_list,method,(client),351-358,false,8,2,checks ocr engines list
-      TestOCREndpoints.test_ocr_stats,method,(client),360-362,false,3,1,checks ocr stats
-      TestOCREndpoints.test_ocr_switch_invalid_engine,method,(client),364-366,false,3,1,checks ocr switch invalid engine
-      TestOCREndpoints.test_analysis_mode_get,method,(client),368-375,false,8,2,checks analysis mode get
-      TestOCREndpoints.test_analysis_mode_valid_switch,method,(client),377-381,false,5,2,checks analysis mode valid switch
-      TestOCREndpoints.test_analysis_mode_invalid_switch,method,(client),383-385,false,3,1,checks analysis mode invalid switch
-      TestShellAgentEndpoints.test_agent_actions,method,(client),395-402,false,8,2,checks agent actions
-      TestShellAgentEndpoints.test_agent_history,method,(client),404-410,false,7,2,checks agent history
-      TestShellAgentEndpoints.test_agent_approve_nonexistent,method,(client),412-414,false,3,1,checks agent approve nonexistent
-      TestShellAgentEndpoints.test_agent_execute_nonexistent,method,(client),416-418,false,3,1,checks agent execute nonexistent
-      TestShellAgentEndpoints.test_agent_run_safe_command,method,(client),420-428,false,9,2,checks agent run safe command
-      TestShellAgentEndpoints.test_agent_run_safe_uptime,method,(client),430-434,false,5,2,checks agent run safe uptime
-      TestShellAgentEndpoints.test_agent_run_missing_command,method,(client),436-438,false,3,1,checks agent run missing command
-      TestShellAgentEndpoints.test_agent_run_blocked_command,method,(client),440-447,false,8,3,Dangerous commands should be blocked.
-      TestShellAgentEndpoints.test_agent_stats_structure,method,(client),449-455,false,7,2,checks agent stats structure
-      TestProfilesEndpoints.test_profiles_list,method,(client),465-472,false,8,2,checks profiles list
-      TestProfilesEndpoints.test_profile_structure,method,(client),474-479,false,6,3,checks profile structure
-      TestDiagnosticsEndpoints.test_diagnostics,method,(client),489-492,false,4,1,checks diagnostics
-      TestDiagnosticsEndpoints.test_diagnostics_history,method,(client),494-497,false,4,1,checks diagnostics history
-      TestDiagnosticsEndpoints.test_nfo_validation,method,(client),499-505,false,7,1,checks nfo validation
-      TestScreenshotEndpoints.test_screenshots_list,method,(client),515-519,false,5,1,checks screenshots list
-      TestScreenshotEndpoints.test_screenshot_browser_html,method,(client),521-524,false,4,1,checks screenshot browser html
-      TestScreenshotEndpoints.test_screenshot_not_found,method,(client),526-528,false,3,1,checks screenshot not found
-      TestScreenshotEndpoints.test_screenshot_directory_traversal_blocked,method,(client),530-532,false,3,1,checks screenshot directory traversal blocked
-      TestScreenshotEndpoints.test_crops_list,method,(client),534-537,false,4,1,checks crops list
-      TestSSEStreaming.test_sse_connects_and_receives_connected_event,method,(client),547-560,false,14,3,SSE stream should immediately send a 'connected' event.
-      TestCrossComponentFlows.test_startup_event_populates_read_model,method,(client),570-575,false,6,1,ReadModel event_counts should include system.startup after boot.
-      TestCrossComponentFlows.test_events_and_pipeline_are_correlated,method,(client),577-585,false,9,4,Events from a single pipeline run should share a correlation_id.
-      TestCrossComponentFlows.test_health_matches_read_model_components,method,(client),587-594,false,8,1,Health check and read-model should agree on component availability.
-      TestCrossComponentFlows.test_pipeline_runs_tracked_in_stats,method,(client),596-601,false,6,1,Pipeline stats should be accessible from multiple endpoints.
-      TestCrossComponentFlows.test_config_audio_matches_devices,method,(client),603-610,false,8,1,Config endpoint audio section should match /audio/devices.
-      TestCrossComponentFlows.test_agent_run_command_increments_stats,method,(client),612-626,false,15,2,Running a safe command should increment execution count.
-      TestCrossComponentFlows.test_event_store_grows_over_time,method,(client),628-633,false,6,1,Event store total should increase as pipeline runs.
-      TestCrossComponentFlows.test_mode_switch_reflected_in_mode_endpoint,method,(client),635-640,false,6,2,Switching analysis mode via POST should be reflected in GET.
-      TestCrossComponentFlows.test_full_endpoint_inventory,method,(client),642-678,false,37,3,"Smoke test: all documented endpoints should respond (not 500)."
+    functions[74]{name,kind,sig,loc,async,lines,cc,does}:
+      client,function,(),29-32,false,4,1,Create a TestClient with lifespan (triggers full startup/shutdown).
+      TestCoreEndpoints.test_root_returns_200,method,(client),42-48,false,7,1,checks root returns 200
+      TestCoreEndpoints.test_root_lists_all_endpoint_groups,method,(client),50-55,false,6,4,checks root lists all endpoint groups
+      TestCoreEndpoints.test_health_structure,method,(client),57-66,false,10,2,checks health structure
+      TestCoreEndpoints.test_health_components_are_bool,method,(client),68-71,false,4,2,checks health components are bool
+      TestCoreEndpoints.test_status_endpoint,method,(client),73-80,false,8,1,checks status endpoint
+      TestCoreEndpoints.test_stats_endpoint,method,(client),82-90,false,9,1,checks stats endpoint
+      TestCoreEndpoints.test_stats_includes_component_stats,method,(client),92-96,false,5,1,checks stats includes component stats
+      TestEventSourcingEndpoints.test_events_returns_list,method,(client),106-112,false,7,1,checks events returns list
+      TestEventSourcingEndpoints.test_events_limit,method,(client),114-117,false,4,1,checks events limit
+      TestEventSourcingEndpoints.test_events_filter_by_type,method,(client),119-123,false,5,2,checks events filter by type
+      TestEventSourcingEndpoints.test_events_filter_by_source,method,(client),125-129,false,5,2,checks events filter by source
+      TestEventSourcingEndpoints.test_events_have_required_fields,method,(client),131-136,false,6,3,checks events have required fields
+      TestEventSourcingEndpoints.test_events_stats,method,(client),138-145,false,8,1,checks events stats
+      TestEventSourcingEndpoints.test_events_stats_includes_store,method,(client),147-152,false,6,1,checks events stats includes store
+      TestEventSourcingEndpoints.test_pipeline_info,method,(client),154-161,false,8,1,checks pipeline info
+      TestEventSourcingEndpoints.test_pipeline_step_names,method,(client),163-170,false,8,1,checks pipeline step names
+      TestEventSourcingEndpoints.test_pipeline_stats_structure,method,(client),172-177,false,6,1,checks pipeline stats structure
+      TestEventSourcingEndpoints.test_read_model_root,method,(client),179-185,false,7,1,checks read model root
+      TestEventSourcingEndpoints.test_read_model_pipeline,method,(client),187-193,false,7,1,checks read model pipeline
+      TestEventSourcingEndpoints.test_read_model_stats,method,(client),195-203,false,9,1,checks read model stats
+      TestEventSourcingEndpoints.test_startup_event_in_store,method,(client),205-211,false,7,1,The lifespan should have emitted a system.startup event.
+      TestConfigServiceEndpoints.test_config_get,method,(client),221-229,false,9,1,checks config get
+      TestConfigServiceEndpoints.test_config_schema_groups,method,(client),231-238,false,8,2,checks config schema groups
+      TestConfigServiceEndpoints.test_config_schema_field_structure,method,(client),240-248,false,9,3,checks config schema field structure
+      TestConfigServiceEndpoints.test_config_values_has_known_keys,method,(client),250-253,false,4,3,checks config values has known keys
+      TestConfigServiceEndpoints.test_audio_devices,method,(client),255-263,false,9,1,checks audio devices
+      TestConfigServiceEndpoints.test_config_ui_serves_html,method,(client),265-268,false,4,1,checks config ui serves html
+      TestConfigServiceEndpoints.test_config_post_rejects_empty,method,(client),270-272,false,3,1,checks config post rejects empty
+      TestConfigServiceEndpoints.test_config_post_rejects_non_string_values,method,(client),274-276,false,3,1,checks config post rejects non string values
+      TestWindowAwarenessEndpoints.test_window_active,method,(client),286-293,false,8,2,checks window active
+      TestWindowAwarenessEndpoints.test_window_latest,method,(client),295-297,false,3,1,checks window latest
+      TestWindowAwarenessEndpoints.test_monitors,method,(client),299-304,false,6,1,checks monitors
+      TestWindowAwarenessEndpoints.test_window_stats,method,(client),306-308,false,3,1,checks window stats
+      TestWindowAwarenessEndpoints.test_processes,method,(client),310-316,false,7,2,checks processes
+      TestWindowAwarenessEndpoints.test_windows_all,method,(client),318-325,false,8,2,checks windows all
+      TestWindowAwarenessEndpoints.test_screen_organized,method,(client),327-329,false,3,1,checks screen organized
+      TestWindowAwarenessEndpoints.test_screen_stats,method,(client),331-336,false,6,1,checks screen stats
+      TestOCREndpoints.test_ocr_engines_list,method,(client),346-353,false,8,2,checks ocr engines list
+      TestOCREndpoints.test_ocr_stats,method,(client),355-357,false,3,1,checks ocr stats
+      TestOCREndpoints.test_ocr_switch_invalid_engine,method,(client),359-361,false,3,1,checks ocr switch invalid engine
+      TestOCREndpoints.test_analysis_mode_get,method,(client),363-370,false,8,2,checks analysis mode get
+      TestOCREndpoints.test_analysis_mode_valid_switch,method,(client),372-376,false,5,2,checks analysis mode valid switch
+      TestOCREndpoints.test_analysis_mode_invalid_switch,method,(client),378-380,false,3,1,checks analysis mode invalid switch
+      TestShellAgentEndpoints.test_agent_actions,method,(client),390-397,false,8,2,checks agent actions
+      TestShellAgentEndpoints.test_agent_history,method,(client),399-405,false,7,2,checks agent history
+      TestShellAgentEndpoints.test_agent_approve_nonexistent,method,(client),407-409,false,3,1,checks agent approve nonexistent
+      TestShellAgentEndpoints.test_agent_execute_nonexistent,method,(client),411-413,false,3,1,checks agent execute nonexistent
+      TestShellAgentEndpoints.test_agent_run_safe_command,method,(client),415-423,false,9,2,checks agent run safe command
+      TestShellAgentEndpoints.test_agent_run_safe_uptime,method,(client),425-429,false,5,2,checks agent run safe uptime
+      TestShellAgentEndpoints.test_agent_run_missing_command,method,(client),431-433,false,3,1,checks agent run missing command
+      TestShellAgentEndpoints.test_agent_run_blocked_command,method,(client),435-442,false,8,3,Dangerous commands should be blocked.
+      TestShellAgentEndpoints.test_agent_stats_structure,method,(client),444-450,false,7,2,checks agent stats structure
+      TestProfilesEndpoints.test_profiles_list,method,(client),460-467,false,8,2,checks profiles list
+      TestProfilesEndpoints.test_profile_structure,method,(client),469-474,false,6,3,checks profile structure
+      TestDiagnosticsEndpoints.test_diagnostics,method,(client),484-487,false,4,1,checks diagnostics
+      TestDiagnosticsEndpoints.test_diagnostics_history,method,(client),489-492,false,4,1,checks diagnostics history
+      TestDiagnosticsEndpoints.test_nfo_validation,method,(client),494-502,false,9,1,checks nfo validation
+      TestScreenshotEndpoints.test_screenshots_list,method,(client),512-516,false,5,1,checks screenshots list
+      TestScreenshotEndpoints.test_screenshot_browser_html,method,(client),518-521,false,4,1,checks screenshot browser html
+      TestScreenshotEndpoints.test_screenshot_not_found,method,(client),523-525,false,3,1,checks screenshot not found
+      TestScreenshotEndpoints.test_screenshot_directory_traversal_blocked,method,(client),527-529,false,3,1,checks screenshot directory traversal blocked
+      TestScreenshotEndpoints.test_crops_list,method,(client),531-534,false,4,1,checks crops list
+      TestSSEStreaming.test_sse_endpoint_registered,method,(client),550-553,false,4,3,The /stream SSE endpoint should be registered in the app.
+      TestSSEStreaming.test_sse_endpoint_listed_in_root,method,(client),555-559,false,5,3,Root endpoint should advertise the /stream endpoint.
+      TestCrossComponentFlows.test_startup_event_populates_read_model,method,(client),569-574,false,6,1,ReadModel event_counts should include system.startup after boot.
+      TestCrossComponentFlows.test_events_and_pipeline_are_correlated,method,(client),576-584,false,9,4,Events from a single pipeline run should share a correlation_id.
+      TestCrossComponentFlows.test_health_matches_read_model_components,method,(client),586-593,false,8,1,Health check and read-model should agree on component availability.
+      TestCrossComponentFlows.test_pipeline_runs_tracked_in_stats,method,(client),595-600,false,6,1,Pipeline stats should be accessible from multiple endpoints.
+      TestCrossComponentFlows.test_config_audio_matches_devices,method,(client),602-609,false,8,1,Config endpoint audio section should match /audio/devices.
+      TestCrossComponentFlows.test_agent_run_command_increments_stats,method,(client),611-625,false,15,2,Running a safe command should increment execution count.
+      TestCrossComponentFlows.test_event_store_grows_over_time,method,(client),627-632,false,6,1,Event store total should increase as pipeline runs.
+      TestCrossComponentFlows.test_mode_switch_reflected_in_mode_endpoint,method,(client),634-639,false,6,2,Switching analysis mode via POST should be reflected in GET.
+      TestCrossComponentFlows.test_full_endpoint_inventory,method,(client),641-677,false,37,3,"Smoke test: all documented endpoints should respond (not 500)."

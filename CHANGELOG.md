@@ -1,3 +1,18 @@
+## [2.0.12] - 2026-02-14
+
+### Summary
+
+feat(tests): configuration management system
+
+### Other
+
+- update backend/capture.py
+- update backend/diagnostics.py
+- update backend/pipeline.py
+- update backend/tests/test_e2e.py
+- update project.functions.toon
+
+
 ## [2.0.11] - 2026-02-14
 
 ### Summary

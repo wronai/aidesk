@@ -239,6 +239,11 @@ class SmartScreenCapture:
                 detection_rate=f"{(self.changes_detected / self.total_captures * 100):.1f}%",
             )
 
+            # Path to full-resolution original frame (for high-quality cropping/OCR)
+            fullscreen_path = None
+            if self.backend == "wayland_portal" and os.path.exists(WAYLAND_FRAME_PATH):
+                fullscreen_path = WAYLAND_FRAME_PATH
+
             return {
                 "image_b64": b64,
                 "timestamp": now,
@@ -248,6 +253,7 @@ class SmartScreenCapture:
                 "hash_diff": hash_diff,
                 "monitor_index": monitor_index,
                 "roi": roi,
+                "fullscreen_path": fullscreen_path,
             }
 
         except Exception as e:
