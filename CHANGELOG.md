@@ -1,3 +1,24 @@
+## [2.1.27] - 2026-02-14
+
+### Summary
+
+refactor(examples): configuration management system
+
+### Other
+
+- update backend/.env.backup
+- update backend/.env.example
+- update backend/clipboard_intel_pkg/models.py
+- update backend/pipeline.py
+- update backend/pipeline/__init__.py
+- update backend/pipeline/context.py
+- update backend/pipeline/orchestrator.py
+- update backend/pipeline/protocol.py
+- update backend/pipeline/steps_core.py
+- update backend/pipeline/steps_tier1.py
+- ... and 1 more
+
+
 ## [2.1.26] - 2026-02-14
 
 ### Summary

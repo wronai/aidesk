@@ -10,7 +10,8 @@ from settings import Settings, get_settings, reload_settings
 
 
 class TestSettingsDefaults:
-    def test_default_vision_model(self):
+    def test_default_vision_model(self, monkeypatch):
+        monkeypatch.delenv("VISION_MODEL", raising=False)
         s = Settings(_env_file=None)
         assert s.vision_model == "ollama/llava"
 
@@ -19,11 +20,13 @@ class TestSettingsDefaults:
         s = Settings(_env_file=None)
         assert s.port == 8000
 
-    def test_default_analysis_mode(self):
+    def test_default_analysis_mode(self, monkeypatch):
+        monkeypatch.delenv("ANALYSIS_MODE", raising=False)
         s = Settings(_env_file=None)
         assert s.analysis_mode == "hybrid"
 
-    def test_default_ocr_engine(self):
+    def test_default_ocr_engine(self, monkeypatch):
+        monkeypatch.delenv("OCR_ENGINE", raising=False)
         s = Settings(_env_file=None)
         assert s.ocr_engine == "paddleocr"
 
@@ -48,6 +51,10 @@ class TestSettingsValidation:
     def test_invalid_analysis_mode_rejected(self):
         with pytest.raises(Exception):
             Settings(_env_file=None, analysis_mode="invalid_mode")
+
+    def test_vlm_ocr_engine_accepted(self):
+        s = Settings(_env_file=None, ocr_engine="vlm_ocr")
+        assert s.ocr_engine == "vlm_ocr"
 
     def test_invalid_ocr_engine_rejected(self):
         with pytest.raises(Exception):
