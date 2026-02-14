@@ -125,7 +125,12 @@ class TestCheckApiKeys:
             openrouter_api_key="",
         )
         pf = PreflightDiagnostics(settings)
-        results = pf._check_api_keys()
+        # Ensure real env vars don't leak into the test
+        env_patch = {k: "" for k in ("OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY")}
+        with patch.dict(os.environ, env_patch, clear=False):
+            for k in env_patch:
+                os.environ.pop(k, None)
+            results = pf._check_api_keys()
         or_checks = [r for r in results if r.name == "OPENROUTER_API_KEY"]
         assert len(or_checks) == 1
         assert or_checks[0].ok is False
