@@ -214,7 +214,7 @@ def create_pipeline(
         (capture,           lambda: CaptureScreenStep(capture)),
         (window_cropper,    lambda: CropWindowsStep(window_cropper)),
         (multi_monitor,     lambda: MultiMonitorStep(multi_monitor, window_mgr)),
-        (context_mgr,       lambda: BuildContextStep(context_mgr, profile_mgr, app_state_ref)),
+        (context_mgr,       lambda: BuildContextStep(context_mgr, profile_mgr, app_state_ref, semantic_memory=semantic_memory)),
         (analyzer,          lambda: AnalyzeStep(analyzer, cost_budget=cost_budget)),
         (ocr_enhancer,      lambda: OCRPostProcessStep(ocr_enhancer)),
         (shell_agent,       lambda: SuggestActionsStep(shell_agent)),

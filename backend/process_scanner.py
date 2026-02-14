@@ -209,19 +209,12 @@ class ProcessScanner:
 
         return self._is_service_window_fields(wm_class, wm_class_name, title)
 
-    @nfo.log_call(level="INFO")
-    def scan_all_windows(self) -> List[VisibleWindow]:
-        """
-        Scan all visible windows on the desktop.
-        Returns list of VisibleWindow sorted by stacking order (topmost first).
-        """
-        self.total_scans += 1
-        self.last_scan_time = time.time()
+    def _resolve_active_wid(self) -> tuple:
+        """Determine the active user-work window ID (cursor preferred over focus).
 
-        windows = []
-
-        # Get active user-work window ID for marking (cursor preferred over focus).
-        active_wid = 0
+        Returns:
+            (active_wid, cursor_wid, focused_wid) tuple.
+        """
         cursor_wid = self._query_mouse_window_id()
         focused_wid = self._query_active_window_id()
         cursor_is_service = self._is_service_window_id(cursor_wid) if cursor_wid else False
@@ -236,39 +229,59 @@ class ProcessScanner:
         else:
             active_wid = 0
 
+        return active_wid, cursor_wid, focused_wid
+
+    def _scan_via_backend(self, active_wid: int) -> List[VisibleWindow]:
+        """Scan windows using the best available backend."""
         if self._xlib:
-            windows = self._scan_via_xlib(active_wid)
+            return self._scan_via_xlib(active_wid)
         elif self._has_wmctrl:
-            windows = self._scan_via_wmctrl(active_wid)
+            return self._scan_via_wmctrl(active_wid)
         elif self._has_xdotool:
-            windows = self._scan_via_xdotool(active_wid)
+            return self._scan_via_xdotool(active_wid)
+        return []
 
-        # Drop compositor/helper/service windows before enrichment/cropping.
-        before_filter = len(windows)
-        windows = [w for w in windows if not self._is_service_window(w)]
-        filtered_service_windows = before_filter - len(windows)
+    def _filter_service_windows(self, windows: List[VisibleWindow]) -> tuple:
+        """Drop compositor/helper/service windows before enrichment/cropping.
 
-        # Enrich with process info
+        Returns:
+            (filtered_windows, count_removed) tuple.
+        """
+        before = len(windows)
+        filtered = [w for w in windows if not self._is_service_window(w)]
+        return filtered, before - len(filtered)
+
+    def _enrich_with_process_info(self, windows: List[VisibleWindow]) -> None:
+        """Enrich windows with process info and re-classify using process metadata."""
         for win in windows:
-            if win.pid > 0:
-                win.process = self._get_process_info(win.pid)
-                # Re-classify with process info if available (improves detection for Electron apps, java, etc.)
-                if win.process:
-                    new_cat = WindowManager._classify_app(
-                        win.wm_class, 
-                        win.wm_class_name, 
-                        win.title, 
-                        win.process.name, 
-                        win.process.cmdline
-                    )
-                    # If we got a better classification, update it
-                    # (Don't overwrite if we had a specific one and got UNKNOWN, though _classify_app handles that well)
-                    if new_cat != AppCategory.UNKNOWN:
-                        win.category = new_cat
-                    elif win.category == AppCategory.UNKNOWN:
-                        # Even if new_cat is UNKNOWN, maybe we want to keep it? 
-                        # But _classify_app is the source of truth now.
-                        pass
+            if win.pid <= 0:
+                continue
+            win.process = self._get_process_info(win.pid)
+            if not win.process:
+                continue
+            new_cat = WindowManager._classify_app(
+                win.wm_class,
+                win.wm_class_name,
+                win.title,
+                win.process.name,
+                win.process.cmdline,
+            )
+            if new_cat != AppCategory.UNKNOWN:
+                win.category = new_cat
+
+    @nfo.log_call(level="INFO")
+    def scan_all_windows(self) -> List[VisibleWindow]:
+        """
+        Scan all visible windows on the desktop.
+        Returns list of VisibleWindow sorted by stacking order (topmost first).
+        """
+        self.total_scans += 1
+        self.last_scan_time = time.time()
+
+        active_wid, cursor_wid, focused_wid = self._resolve_active_wid()
+        windows = self._scan_via_backend(active_wid)
+        windows, filtered_service_windows = self._filter_service_windows(windows)
+        self._enrich_with_process_info(windows)
 
         # Sort: active first, then by stacking order
         windows.sort(key=lambda w: (not w.is_active, w.stacking_order))

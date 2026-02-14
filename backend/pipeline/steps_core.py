@@ -166,10 +166,11 @@ class BuildContextStep:
     """Phase 5: Build rich context from window info, screen summary, profiles, transcript."""
     name = "build_context"
 
-    def __init__(self, context_mgr, profile_mgr=None, app_state_ref=None):
+    def __init__(self, context_mgr, profile_mgr=None, app_state_ref=None, semantic_memory=None):
         self._context = context_mgr
         self._profiles = profile_mgr
         self._state = app_state_ref or {}
+        self._semantic = semantic_memory
         self._cached_key: Optional[tuple] = None
         self._cached_context_str = ""
         self._cached_full_context = ""
@@ -203,8 +204,30 @@ class BuildContextStep:
             "Skup się na tym oknie — tu użytkownik aktualnie pracuje."
         )
 
+    def _recall_semantic_context(self, query: str, max_chars: int = 400) -> str:
+        """Recall relevant past memories from SemanticMemory to enrich context."""
+        if not self._semantic or not query:
+            return ""
+        try:
+            recalled = self._semantic.recall_relevant(query, k=2)
+            if not recalled:
+                return ""
+            snippets = []
+            total = 0
+            for mem in recalled:
+                text = mem.content[:150] if hasattr(mem, 'content') else str(mem)[:150]
+                if total + len(text) > max_chars:
+                    break
+                snippets.append(text)
+                total += len(text)
+            if snippets:
+                return "🧠 Relevant memories:\n" + "\n".join(f"- {s}" for s in snippets)
+        except Exception as e:
+            logger.debug("Semantic recall in BuildContextStep failed", error=str(e))
+        return ""
+
     def _assemble_context_parts(self, ctx: PipelineContext, focus_prefix: str) -> str:
-        """Build context string from window info, screen summary, focus, and history."""
+        """Build context string from window info, screen summary, focus, semantic memory, and history."""
         base_context = self._context.get_context_string(n=5, max_length=500)
         parts = []
         if ctx.window_context_str:
@@ -213,6 +236,11 @@ class BuildContextStep:
             parts.append(f"📊 Ekran: {ctx.screen_summary}")
         if focus_prefix:
             parts.append(focus_prefix)
+        # Enrich with semantic memory recall (uses screen summary or window context as query)
+        recall_query = ctx.screen_summary or ctx.window_context_str or ""
+        semantic_ctx = self._recall_semantic_context(recall_query)
+        if semantic_ctx:
+            parts.append(semantic_ctx)
         if base_context:
             parts.append(base_context)
         return "\n\n".join(parts)
