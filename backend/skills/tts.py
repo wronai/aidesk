@@ -3,24 +3,25 @@ TTSSkill — Detect native language text, offer text-to-speech.
 
 Auto-detects available TTS engines on the system:
 1. piper (neural, best quality, offline)
-2. espeak-ng (lightweight, always available on most Linux)
-3. festival (medium quality)
-4. spd-say (speech-dispatcher, common on GNOME)
+2. pico2wave (small-footprint, clear voice, offline)
+3. spd-say (speech-dispatcher, common on GNOME)
+4. festival (medium quality)
+5. espeak-ng/espeak (basic fallback, only when explicitly selected)
 
 Falls back to whatever is installed. Generates audio and plays it.
 """
 import asyncio
 import os
-import re
+import shlex
 import shutil
-import subprocess
 import tempfile
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import structlog
 
+from settings import get_settings
 from skills.base import (
-    BaseSkill, SkillCategory, SkillContext, SkillOption, SkillResult, OptionRisk,
+    BaseSkill, SkillCategory, SkillContext, SkillOption, SkillResult,
 )
 
 logger = structlog.get_logger()
@@ -31,60 +32,180 @@ _TTS_ENGINES = [
     {
         "name": "piper",
         "check": "piper --help",
-        "speak": "echo {text} | piper --output_file {file}",
-        "play": "aplay {file}",
+        "speak": "echo {text} | piper --model {piper_model}{speed} --output_file {file}",
         "quality": "neural",
+        "tier": "high",
     },
     {
-        "name": "espeak-ng",
-        "check": "espeak-ng --version",
-        "speak": "espeak-ng -v {lang} -w {file} {text}",
-        "play": "aplay {file}",
-        "quality": "basic",
-    },
-    {
-        "name": "espeak",
-        "check": "espeak --version",
-        "speak": "espeak -v {lang} -w {file} {text}",
-        "play": "aplay {file}",
-        "quality": "basic",
+        "name": "pico2wave",
+        "check": "pico2wave --help",
+        "speak": "pico2wave -l {lang} -w {file} {text}",
+        "quality": "high",
+        "tier": "high",
     },
     {
         "name": "spd-say",
         "check": "spd-say --version",
-        "speak_direct": "spd-say -l {lang} -w -- {text}",
+        "speak_direct": "spd-say -l {lang}{speed} -- {text}",
         "quality": "system",
+        "tier": "high",
     },
     {
         "name": "festival",
         "check": "festival --version",
         "speak_direct": "echo {text} | festival --tts",
         "quality": "medium",
+        "tier": "high",
+    },
+    {
+        "name": "espeak-ng",
+        "check": "espeak-ng --version",
+        "speak": "espeak-ng -v {lang}{speed} -w {file} {text}",
+        "quality": "basic",
+        "tier": "basic",
+    },
+    {
+        "name": "espeak",
+        "check": "espeak --version",
+        "speak": "espeak -v {lang}{speed} -w {file} {text}",
+        "quality": "basic",
+        "tier": "basic",
     },
 ]
 
-# Language code mapping for espeak
-_ESPEAK_LANGS = {
+_AUDIO_PLAYERS = [
+    {"check": "aplay", "play": "aplay {file}"},
+    {"check": "paplay", "play": "paplay {file}"},
+    {"check": "ffplay", "play": "ffplay -nodisp -autoexit -loglevel error {file}"},
+]
+
+# Language code mapping for most engines
+_GENERIC_LANGS = {
     "pl": "pl", "en": "en", "de": "de", "fr": "fr", "es": "es",
     "ru": "ru", "uk": "uk", "it": "it", "pt": "pt", "nl": "nl",
     "cs": "cs", "sk": "sk", "ja": "ja", "zh": "zh",
 }
 
 
+# pico2wave language mapping
+_PICO_LANGS = {
+    "de": "de-DE",
+    "en": "en-US",
+    "es": "es-ES",
+    "fr": "fr-FR",
+    "it": "it-IT",
+}
+
+
+def _resolve_piper_model(configured: str) -> str:
+    """Return path to a piper .onnx model, if available."""
+    if configured:
+        explicit = os.path.expanduser(configured)
+        if os.path.isfile(explicit):
+            return explicit
+        logger.warning("Configured piper model not found", path=explicit)
+
+    search_dirs = [
+        "~/.local/share/piper",
+        "/usr/local/share/piper",
+        "/usr/share/piper",
+    ]
+    for search_dir in search_dirs:
+        root_dir = os.path.expanduser(search_dir)
+        if not os.path.isdir(root_dir):
+            continue
+        for root, _, files in os.walk(root_dir):
+            for file_name in files:
+                if file_name.endswith(".onnx"):
+                    return os.path.join(root, file_name)
+    return ""
+
+
+def _map_lang(engine_name: str, locale: str) -> str:
+    base = (locale or "en").split("-")[0].lower()
+    if engine_name == "pico2wave":
+        return _PICO_LANGS.get(base, "en-US")
+    return _GENERIC_LANGS.get(base, "en")
+
+
+def _build_speed_flag(engine_name: str, slow: bool) -> str:
+    if not slow:
+        return ""
+    if engine_name == "piper":
+        return " --length_scale 1.25"
+    if engine_name in {"espeak-ng", "espeak"}:
+        return " -s 135"
+    if engine_name == "spd-say":
+        return " -r -40"
+    return ""
+
+
+def _pick_play_command(file_path: str) -> Optional[str]:
+    quoted = shlex.quote(file_path)
+    for player in _AUDIO_PLAYERS:
+        if shutil.which(player["check"]):
+            return player["play"].format(file=quoted)
+    return None
+
+
+async def _run_shell(cmd: str, timeout: float = 30.0) -> Tuple[int, str, str]:
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    out = stdout.decode("utf-8", "ignore") if stdout else ""
+    err = stderr.decode("utf-8", "ignore") if stderr else ""
+    return proc.returncode, out, err
+
+
 def detect_tts_engines() -> List[dict]:
     """Detect available TTS engines on the system."""
+    settings = get_settings()
+    piper_model = _resolve_piper_model(settings.tts_piper_model)
+
     available = []
     for engine in _TTS_ENGINES:
         check_cmd = engine["check"].split()[0]
-        if shutil.which(check_cmd):
-            available.append(engine)
+        if not shutil.which(check_cmd):
+            continue
+
+        candidate = dict(engine)
+        if candidate["name"] == "piper":
+            if not piper_model:
+                logger.debug("Skipping piper: no model found", hint="Set TTS_PIPER_MODEL")
+                continue
+            candidate["piper_model"] = piper_model
+
+        available.append(candidate)
+
     return available
 
 
-def get_best_tts_engine() -> Optional[dict]:
-    """Get the best available TTS engine."""
+def get_best_tts_engine(preferred: str = "auto") -> Optional[dict]:
+    """Get best available TTS engine, honoring explicit config selection."""
     engines = detect_tts_engines()
-    return engines[0] if engines else None
+    if not engines:
+        return None
+
+    if preferred and preferred != "auto":
+        for engine in engines:
+            if engine["name"] == preferred:
+                return engine
+        logger.warning(
+            "Configured TTS engine not available",
+            configured=preferred,
+            available=[e["name"] for e in engines],
+        )
+        return None
+
+    for engine in engines:
+        if engine.get("tier") != "basic":
+            return engine
+
+    # In auto mode we intentionally avoid espeak/espeak-ng for dictation quality.
+    return None
 
 
 class TTSSkill(BaseSkill):

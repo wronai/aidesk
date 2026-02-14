@@ -1,6 +1,8 @@
 /**
  * Service to manage Server-Sent Events (SSE) connection.
  */
+import { SSE_URL } from '../config.js';
+
 export class SSEService {
   constructor(url, reconnectInterval = 3000) {
     this.url = url;
@@ -103,4 +105,4 @@ export class SSEService {
   }
 }
 
-export const sseService = new SSEService('http://localhost:8001/stream');
+export const sseService = new SSEService(SSE_URL);

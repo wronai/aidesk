@@ -1,3 +1,26 @@
+## [2.1.15] - 2026-02-14
+
+### Summary
+
+fix(examples): CLI interface improvements
+
+### Docs
+
+- docs: update TODO.md
+
+### Other
+
+- update backend/plugins/example_logger.py
+- update backend/plugins/example_window_notifier.py
+- update backend/routes/clipboard.py
+- update backend/skills/tts.py
+- update backend/stt.py
+- update backend/tests/test_routes.py
+- update overlay/app.js
+- update overlay/config.js
+- update overlay/services/sse.js
+
+
 ## [2.1.14] - 2026-02-14
 
 ### Summary

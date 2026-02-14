@@ -22,8 +22,8 @@ Backlog został przygotowany na podstawie aktualnego kodu oraz indeksu `project.
 
 ## P2 — testy i jakość
 
-- [ ] Dodać test regresyjny dla scenariusza clipboard w `_broadcast_state` (żeby wykrywać brak pól w `PipelineContext`).
-- [ ] Rozszerzyć testy tras skill/clipboard o scenariusze z realnym kontekstem schowka (`/analyze-selection`, `/skill/execute`).
+- [x] Dodać test regresyjny dla scenariusza clipboard w `_broadcast_state` (żeby wykrywać brak pól w `PipelineContext`).
+- [x] Rozszerzyć testy tras skill/clipboard o scenariusze z realnym kontekstem schowka (`/analyze-selection`, `/skill/execute`).
 - [ ] Uporządkować warningi markdownlint w `CHANGELOG.md` (historyczny dług formatowania).
 
 ## P3 — UX/operacyjne

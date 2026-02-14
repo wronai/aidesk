@@ -1,6 +1,7 @@
 /**
  * AI Desktop Assistant - Overlay App (Web Components Architecture)
  */
+import { BACKEND_URL } from './config.js';
 import { sseService } from './services/sse.js';
 import './components/connection-status.js';
 import './components/analysis-viewer.js';
@@ -10,8 +11,6 @@ import './components/screen-summary.js';
 import './components/ocr-controls.js';
 import './components/agent-actions.js';
 import './components/selection-panel.js';
-
-const BACKEND_URL = 'http://localhost:8001';
 
 class App {
   constructor() {

@@ -780,6 +780,169 @@ class TestClipboardRoutes:
         assert ctx.clipboard_top == "clip content"
 
 
+# ===== Clipboard-Aware Skill Route Tests (P2b) =====
+
+class TestSkillRoutesWithRealClipboard:
+    """P2b: End-to-end tests for skill routes with real clipboard context.
+
+    Uses actual SkillRouter (not mocked) to verify clipboard-aware
+    intent detection works through the HTTP routes.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from routes import clipboard as clip_mod
+        from clipboard_intel import ClipboardManager
+        mgr = ClipboardManager(max_items=10)
+        state = _make_app_state()
+        state["clipboard_manager"] = mgr
+        # Do NOT set skill_router — let the route create a real one
+        state.pop("skill_router", None)
+        app = FastAPI()
+        broadcast = AsyncMock()
+        clip_mod.init(state, broadcast)
+        app.include_router(clip_mod.router)
+        self.client = TestClient(app)
+        self.state = state
+        self.broadcast = broadcast
+        self.mgr = mgr
+
+    def test_clipboard_relation_already_copied(self):
+        """Selection == clipboard → already_copied intent detected."""
+        r = self.client.post("/analyze-selection", json={
+            "text": "hello world",
+            "clipboard_text": "hello world",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["matches"]
+        # Should detect clipboard_relation skill with already_copied
+        clip_match = next((m for m in data["matches"] if m.get("skill") == "clipboard_relation"), None)
+        assert clip_match is not None
+        assert clip_match["confidence"] > 0.9
+
+    def test_clipboard_relation_error_file(self):
+        """Selection is filename, clipboard has traceback → error_file_match."""
+        r = self.client.post("/analyze-selection", json={
+            "text": "app.py",
+            "clipboard_text": 'Traceback (most recent call last):\n  File "app.py", line 10\nValueError: bad',
+        })
+        assert r.status_code == 200
+        data = r.json()
+        clip_match = next((m for m in data["matches"] if m.get("skill") == "clipboard_relation"), None)
+        assert clip_match is not None
+        assert clip_match["confidence"] > 0.8
+
+    def test_clipboard_relation_json_pair(self):
+        """Both are JSON → json_pair intent."""
+        r = self.client.post("/analyze-selection", json={
+            "text": '{"name": "Alice"}',
+            "clipboard_text": '{"name": "Bob"}',
+        })
+        assert r.status_code == 200
+        data = r.json()
+        clip_match = next((m for m in data["matches"] if m.get("skill") == "clipboard_relation"), None)
+        assert clip_match is not None
+
+    def test_no_clipboard_no_clipboard_skill(self):
+        """Without clipboard content, clipboard_relation should not appear."""
+        r = self.client.post("/analyze-selection", json={
+            "text": "pip install flask",
+            # no clipboard_text, and manager is empty
+        })
+        assert r.status_code == 200
+        data = r.json()
+        clip_match = next((m for m in data["matches"] if m.get("skill") == "clipboard_relation"), None)
+        # Either not present or very low confidence
+        if clip_match:
+            assert clip_match["confidence"] < 0.1
+
+    def test_execute_skill_with_clipboard_context(self):
+        """Execute copy_both on clipboard_relation with real context."""
+        # First analyze to get the router cached
+        self.client.post("/analyze-selection", json={
+            "text": "hello",
+            "clipboard_text": "hello",
+        })
+
+        r = self.client.post("/skill/execute", json={
+            "skill": "clipboard_relation",
+            "option_id": "copy_both",
+            "text": "hello",
+            "clipboard_text": "world",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        assert "hello" in data.get("clipboard_text", "")
+        assert "world" in data.get("clipboard_text", "")
+
+    def test_execute_json_diff(self):
+        """Execute json_diff handler through the route."""
+        self.client.post("/analyze-selection", json={"text": "{}", "clipboard_text": "{}"})
+
+        r = self.client.post("/skill/execute", json={
+            "skill": "clipboard_relation",
+            "option_id": "json_diff",
+            "text": '{"a": 1}',
+            "clipboard_text": '{"b": 2}',
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        assert "JSON diff" in data.get("message", "")
+
+    def test_execute_regex_match(self):
+        """Execute regex_match handler through the route."""
+        self.client.post("/analyze-selection", json={"text": "x", "clipboard_text": "x"})
+
+        r = self.client.post("/skill/execute", json={
+            "skill": "clipboard_relation",
+            "option_id": "regex_match",
+            "text": r"\d+",
+            "clipboard_text": "abc 123 def 456",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        assert "123" in data.get("output", "")
+
+    def test_execute_env_export(self):
+        """Execute env_export handler through the route."""
+        self.client.post("/analyze-selection", json={"text": "x", "clipboard_text": "x"})
+
+        r = self.client.post("/skill/execute", json={
+            "skill": "clipboard_relation",
+            "option_id": "env_export",
+            "text": "DATABASE_URL=postgres://localhost/db",
+            "clipboard_text": "some config",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        assert data["clipboard_text"].startswith("export DATABASE_URL=")
+
+    def test_clipboard_items_populated_from_manager(self):
+        """Verify clipboard_items is populated from ClipboardManager queue."""
+        from clipboard_intel import ClipSource
+        self.mgr.push("item1", source=ClipSource.USER)
+        self.mgr.push("item2", source=ClipSource.USER)
+
+        mock_router = MagicMock()
+        mock_router.analyze.return_value = []
+        self.state["skill_router"] = mock_router
+
+        r = self.client.post("/analyze-selection", json={
+            "text": "test",
+            "clipboard_text": "explicit",
+        })
+        assert r.status_code == 200
+
+        ctx = mock_router.analyze.call_args[0][1]
+        assert ctx.clipboard_top == "explicit"
+        assert len(ctx.clipboard_items) == 2
+
+
 # ===== Init function tests =====
 
 class TestRouteInit:

@@ -173,7 +173,7 @@ async def analyze_selection(request: Request):
         "matches": [m.to_dict() for m in matches[:5]],
         "top_skill": matches[0].skill_name if matches else None,
         "top_label": matches[0].label if matches else "Tekst",
-        "top_icon": matches[0].icon if matches else "\ud83d\udcdd",
+        "top_icon": matches[0].icon if matches else "\U0001f4dd",
     }
 
     # Auto-push extracted text to clipboard queue

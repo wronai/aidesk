@@ -223,6 +223,7 @@ class RealtimeSTT:
             return
 
         self.is_running = False
+        self._loop = None
 
         if self.connection:
             try:
