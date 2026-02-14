@@ -148,7 +148,17 @@ function updateConnectionStatus(status) {
  * Handle screen analysis event
  */
 function handleAnalysis(data) {
-  const { text, timestamp, size_kb, tokens, cost, provider, mode, ocr } = data;
+  const { text, timestamp, size_kb, tokens, cost, provider, mode, ocr, window: windowData, agent_actions } = data;
+
+  // Update window context bar if window data is present
+  if (windowData) {
+    handleWindowUpdate(windowData);
+  }
+
+  // Update agent actions if present
+  if (agent_actions && agent_actions.length > 0) {
+    handleAgentActions({ actions: agent_actions });
+  }
 
   // Update analysis content with fade effect
   elements.analysis.classList.add('updating');
@@ -158,9 +168,10 @@ function handleAnalysis(data) {
     elements.analysis.innerHTML = formatAnalysisText(text);
     elements.analysis.classList.remove('updating');
 
-    // Update stats with mode info
+    // Update stats with mode info and window category
     const modeLabel = mode || 'vision';
-    const statsText = `${provider} • ${modeLabel} • ${Math.round(tokens)} tok • $${cost.toFixed(6)}`;
+    const catLabel = windowData ? ` • ${windowData.category}` : '';
+    const statsText = `${provider} • ${modeLabel}${catLabel} • ${Math.round(tokens)} tok • $${cost.toFixed(6)}`;
     elements.statsText.textContent = statsText;
 
     // Show OCR info if available

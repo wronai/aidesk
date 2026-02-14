@@ -1,5 +1,6 @@
 """
 Screen capture module with intelligent change detection.
+Supports X11 (mss) and Wayland (grim) backends.
 """
 import mss
 import imagehash
@@ -8,11 +9,26 @@ from PIL import Image
 from io import BytesIO
 import base64
 import time
+import subprocess
+import shutil
+import tempfile
 from typing import Optional, Dict, List
 import structlog
 import os
 
 logger = structlog.get_logger()
+
+
+def _detect_backend() -> str:
+    """Detect whether to use mss (X11) or grim (Wayland)."""
+    session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
+    wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
+
+    if session_type == "wayland" or wayland_display:
+        if shutil.which("grim"):
+            return "grim"
+        logger.warning("Wayland detected but grim not found, falling back to mss")
+    return "mss"
 
 
 class SmartScreenCapture:
@@ -44,7 +60,8 @@ class SmartScreenCapture:
             jpeg_quality: JPEG compression quality (1-100)
             captures_dir: Directory to save debug screenshots
         """
-        self.sct = mss.mss()
+        self.backend = _detect_backend()
+        self.sct = mss.mss() if self.backend == "mss" else None
         self.last_hash = None
         self.last_capture_time = 0
         self.change_threshold = change_threshold
@@ -65,6 +82,7 @@ class SmartScreenCapture:
 
         logger.info(
             "Screen capture initialized",
+            backend=self.backend,
             threshold=change_threshold,
             interval=min_interval,
             resolution=f"{screen_width}x{screen_height}",
@@ -96,23 +114,7 @@ class SmartScreenCapture:
         self.total_captures += 1
 
         try:
-            # Select monitor
-            if roi:
-                # ROI capture (e.g., active window region)
-                monitor = {
-                    "left": roi["left"],
-                    "top": roi["top"],
-                    "width": roi["width"],
-                    "height": roi["height"],
-                }
-            elif monitor_index is not None and 0 <= monitor_index < len(self.sct.monitors):
-                monitor = self.sct.monitors[monitor_index]
-            else:
-                # Default: primary monitor (index 1)
-                monitor = self.sct.monitors[1]
-
-            raw = self.sct.grab(monitor)
-            img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+            img = self._grab_screen(monitor_index=monitor_index, roi=roi)
 
             # Resize for cheaper AI processing
             img_resized = img.resize(
@@ -191,8 +193,58 @@ class SmartScreenCapture:
             return self.idle_interval  # Idle mode
         return self.min_interval  # Active mode
 
+    def _grab_screen(self, monitor_index: Optional[int] = None, roi: Optional[Dict] = None) -> Image.Image:
+        """
+        Grab screen using the detected backend (mss or grim).
+
+        Returns:
+            PIL Image of the captured screen
+        """
+        if self.backend == "grim":
+            return self._grab_grim(roi=roi)
+        else:
+            return self._grab_mss(monitor_index=monitor_index, roi=roi)
+
+    def _grab_mss(self, monitor_index: Optional[int] = None, roi: Optional[Dict] = None) -> Image.Image:
+        """Capture using mss (X11)."""
+        if roi:
+            monitor = {
+                "left": roi["left"],
+                "top": roi["top"],
+                "width": roi["width"],
+                "height": roi["height"],
+            }
+        elif monitor_index is not None and 0 <= monitor_index < len(self.sct.monitors):
+            monitor = self.sct.monitors[monitor_index]
+        else:
+            monitor = self.sct.monitors[1]
+
+        raw = self.sct.grab(monitor)
+        return Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+
+    def _grab_grim(self, roi: Optional[Dict] = None) -> Image.Image:
+        """Capture using grim (Wayland)."""
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            cmd = ["grim"]
+            if roi:
+                geometry = f"{roi['left']},{roi['top']} {roi['width']}x{roi['height']}"
+                cmd += ["-g", geometry]
+            cmd.append(tmp_path)
+
+            subprocess.run(cmd, check=True, capture_output=True, timeout=5)
+            img = Image.open(tmp_path).convert("RGB")
+            return img
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
     def get_monitors(self) -> List[Dict]:
-        """Get list of available monitors from mss."""
+        """Get list of available monitors."""
+        if self.backend == "grim":
+            return self._get_monitors_wayland()
         monitors = []
         for i, mon in enumerate(self.sct.monitors):
             monitors.append({
@@ -201,9 +253,14 @@ class SmartScreenCapture:
                 "top": mon["top"],
                 "width": mon["width"],
                 "height": mon["height"],
-                "is_combined": i == 0,  # index 0 is the combined virtual screen
+                "is_combined": i == 0,
             })
         return monitors
+
+    def _get_monitors_wayland(self) -> List[Dict]:
+        """Get monitors via wlr-randr or swaymsg."""
+        # Fallback: return a single "unknown" monitor
+        return [{"index": 0, "left": 0, "top": 0, "width": 0, "height": 0, "is_combined": True}]
 
     def capture_roi_image(self, roi: Dict) -> Optional[str]:
         """
@@ -217,8 +274,7 @@ class SmartScreenCapture:
             Base64-encoded JPEG string, or None on error
         """
         try:
-            raw = self.sct.grab(roi)
-            img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+            img = self._grab_screen(roi=roi)
             img_resized = img.resize(
                 (self.screen_width, self.screen_height), Image.Resampling.LANCZOS
             )
@@ -242,7 +298,8 @@ class SmartScreenCapture:
             "consecutive_unchanged": self.consecutive_unchanged,
             "current_interval": self.adaptive_interval,
             "is_idle": self.consecutive_unchanged > self.idle_threshold,
-            "monitors": len(self.sct.monitors),
+            "backend": self.backend,
+            "monitors": len(self.sct.monitors) if self.sct else 0,
         }
 
 
