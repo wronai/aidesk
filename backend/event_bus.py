@@ -60,6 +60,7 @@ class EventType(str, Enum):
     CLIPBOARD_UPDATED = "pipeline.clipboard_updated"
     CLIPBOARD_RELATION = "pipeline.clipboard_relation"
     PASTE_SUGGESTED = "pipeline.paste_suggested"
+    OCR_COST = "pipeline.ocr_cost"
 
     # Commands (CQRS write side)
     CMD_SWITCH_OCR_ENGINE = "cmd.switch_ocr_engine"

@@ -262,9 +262,20 @@ Zwróć odpowiedź jako JSON:
         return True
 
     def _run_ocr(self, image_b64: str) -> OCRResult:
-        """Run OCR pre-processing if available."""
+        """Run OCR pre-processing if available (synchronous)."""
         if self.ocr_manager and self.ocr_manager.enabled:
             result = self.ocr_manager.extract(image_b64)
+            self.last_ocr_result = result
+            return result
+        return OCRResult(text="", engine="disabled")
+
+    async def _arun_ocr(self, image_b64: str) -> OCRResult:
+        """Run OCR pre-processing asynchronously (preferred in pipeline path)."""
+        if self.ocr_manager and self.ocr_manager.enabled:
+            if hasattr(self.ocr_manager, "aextract"):
+                result = await self.ocr_manager.aextract(image_b64)
+            else:
+                result = self.ocr_manager.extract(image_b64)
             self.last_ocr_result = result
             return result
         return OCRResult(text="", engine="disabled")
@@ -296,7 +307,7 @@ Zwróć odpowiedź jako JSON:
             ocr_result = None
             ocr_context = ""
             if strategy.needs_ocr():
-                ocr_result = self._run_ocr(image_b64)
+                ocr_result = await self._arun_ocr(image_b64)
                 ocr_context = ocr_result.to_llm_context()
 
             # Step 2: OCR-only shortcut (no LLM call)

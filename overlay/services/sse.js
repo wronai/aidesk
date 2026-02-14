@@ -4,9 +4,11 @@
 import { SSE_URL } from '../config.js';
 
 export class SSEService {
-  constructor(url, reconnectInterval = 3000) {
+  constructor(url, reconnectInterval = 1000) {
     this.url = url;
+    this.baseReconnectInterval = reconnectInterval;
     this.reconnectInterval = reconnectInterval;
+    this.maxReconnectInterval = 30000;
     this.eventSource = null;
     this.reconnectTimer = null;
     this.listeners = new Map();
@@ -26,6 +28,7 @@ export class SSEService {
     this.eventSource.addEventListener('connected', (e) => {
       console.log('Connected to backend');
       this.isConnected = true;
+      this.reconnectInterval = this.baseReconnectInterval;
       this.emit('connected');
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
@@ -38,6 +41,7 @@ export class SSEService {
       // Some backends might not send explicit 'connected' event
       if (!this.isConnected) {
         this.isConnected = true;
+        this.reconnectInterval = this.baseReconnectInterval;
         this.emit('connected');
       }
     };
@@ -48,13 +52,15 @@ export class SSEService {
       this.emit('error', error);
       this.eventSource.close();
 
-      // Attempt reconnection
+      // Attempt reconnection with exponential backoff
       if (!this.reconnectTimer) {
         console.log(`Reconnecting in ${this.reconnectInterval / 1000}s...`);
+        const delay = this.reconnectInterval;
+        this.reconnectInterval = Math.min(this.reconnectInterval * 2, this.maxReconnectInterval);
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
           this.connect();
-        }, this.reconnectInterval);
+        }, delay);
       }
     };
 

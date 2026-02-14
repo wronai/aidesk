@@ -11,6 +11,7 @@ import io
 import os
 import sys
 import time
+import asyncio
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 
@@ -412,3 +413,11 @@ async def run_preflight(settings=None) -> Dict:
     """
     preflight = PreflightDiagnostics(settings)
     return await preflight.run()
+
+
+if __name__ == "__main__":
+    try:
+        report = asyncio.run(run_preflight())
+        sys.exit(0 if report.get("all_ok") else 1)
+    except KeyboardInterrupt:
+        sys.exit(130)

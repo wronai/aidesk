@@ -471,10 +471,82 @@ class OCRManager:
         return True
 
     def extract(self, image_b64: str) -> OCRResult:
-        """Extract text using active engine."""
+        """Extract text using active engine, with automatic fallback on failure."""
         if not self.enabled or not self.active_engine:
             return OCRResult(text="", engine="disabled", confidence=0.0)
-        return self.active_engine.extract_from_b64(image_b64)
+
+        try:
+            result = self.active_engine.extract_from_b64(image_b64)
+            if result.text.strip() or result.confidence > 0:
+                return result
+        except Exception as e:
+            logger.warning(
+                "Active OCR engine failed, trying fallback",
+                engine=self.active_engine_name,
+                error=str(e),
+            )
+
+        # Fallback: try other available engines
+        for name, engine in self.engines.items():
+            if name == self.active_engine_name:
+                continue
+            try:
+                result = engine.extract_from_b64(image_b64)
+                if result.text.strip():
+                    logger.info(
+                        "OCR fallback engine succeeded",
+                        fallback_engine=name,
+                        primary_engine=self.active_engine_name,
+                    )
+                    return result
+            except Exception as e:
+                logger.debug("OCR fallback engine also failed", engine=name, error=str(e))
+
+        return OCRResult(text="", engine=self.active_engine_name, confidence=0.0)
+
+    async def aextract(self, image_b64: str) -> OCRResult:
+        """Async extract: uses aextract_from_b64 if engine supports it, else runs sync in thread."""
+        import asyncio
+
+        if not self.enabled or not self.active_engine:
+            return OCRResult(text="", engine="disabled", confidence=0.0)
+
+        engine = self.active_engine
+
+        try:
+            if hasattr(engine, "aextract_from_b64"):
+                result = await engine.aextract_from_b64(image_b64)
+            else:
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(None, engine.extract_from_b64, image_b64)
+
+            if result.text.strip() or result.confidence > 0:
+                return result
+        except Exception as e:
+            logger.warning(
+                "Active OCR engine failed (async), trying fallback",
+                engine=self.active_engine_name,
+                error=str(e),
+            )
+
+        # Fallback: try other available engines
+        for name, fb_engine in self.engines.items():
+            if name == self.active_engine_name:
+                continue
+            try:
+                if hasattr(fb_engine, "aextract_from_b64"):
+                    result = await fb_engine.aextract_from_b64(image_b64)
+                else:
+                    loop = asyncio.get_running_loop()
+                    result = await loop.run_in_executor(None, fb_engine.extract_from_b64, image_b64)
+
+                if result.text.strip():
+                    logger.info("OCR fallback engine succeeded (async)", fallback_engine=name)
+                    return result
+            except Exception as e:
+                logger.debug("OCR fallback engine also failed (async)", engine=name, error=str(e))
+
+        return OCRResult(text="", engine=self.active_engine_name, confidence=0.0)
 
     def benchmark(self, image_b64: str) -> Dict:
         """

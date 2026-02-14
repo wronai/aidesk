@@ -185,6 +185,7 @@ class TestAnalyze:
         mock_ocr_result.to_llm_context.return_value = "screen text"
         mock_ocr_result.to_dict.return_value = {"text": "screen text", "engine": "tesseract"}
         mock_mgr.extract.return_value = mock_ocr_result
+        mock_mgr.aextract = AsyncMock(return_value=mock_ocr_result)
 
         self.analyzer.ocr_manager = mock_mgr
         self.analyzer.set_mode("ocr_only")

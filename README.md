@@ -73,7 +73,24 @@ Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym, rozpoznawaniem
 └───────────────────────────────────────────────┘
 ```
 
-> Szczegółowa dokumentacja: **[ARCHITECTURE.md](ARCHITECTURE.md)**
+> Szczegółowa dokumentacja techniczna: **[docs/README.md](docs/README.md)** oraz **[ARCHITECTURE.md](ARCHITECTURE.md)**
+
+## 📚 Dokumentacja (`docs/`)
+
+Nowa dokumentacja jest uporządkowana w katalogu `docs/`:
+
+- [docs/README.md](docs/README.md) — indeks dokumentacji i mapa tematów
+- [docs/system-overview.md](docs/system-overview.md) — jak działa system end-to-end
+- [docs/diagnostics.md](docs/diagnostics.md) — diagnostyka, `make diag`, interpretacja błędów
+
+Dokumenty uzupełniające (zachowane w root):
+
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [INSTALL.md](INSTALL.md)
+- [QUICKSTART.md](QUICKSTART.md)
+- [PROVIDERS.md](PROVIDERS.md)
+- [CHANGELOG.md](CHANGELOG.md)
+- [TODO.md](TODO.md)
 
 ## 📦 Instalacja
 
@@ -90,6 +107,7 @@ Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym, rozpoznawaniem
 
 ```bash
 make setup    # tworzy venv, instaluje deps, kopiuje .env
+make diag     # pełna diagnostyka setup + preflight
 make run      # uruchamia backend + overlay + otwiera config UI w przeglądarce
 ```
 
@@ -241,6 +259,7 @@ proxeen/
 │   ├── services/sse.js       # SSE service
 │   └── package.json
 ├── project.functions.toon     # Indeks modułów/funkcji projektu
+├── docs/                      # Uporządkowana dokumentacja systemu i diagnostyki
 ├── EXAMPLES/                  # Przykłady użycia wg grup użytkowników
 ├── README.md
 ├── ARCHITECTURE.md
@@ -283,6 +302,9 @@ ENABLE_STT=false
 ### Backend nie startuje
 
 ```bash
+# Uruchom pełną diagnostykę konfiguracji i preflight
+make diag
+
 # Sprawdź czy port z backend/.env (PORT) jest wolny
 lsof -i :PORT  # Linux/macOS
 netstat -ano | findstr :PORT  # Windows

@@ -332,9 +332,15 @@ class AnalyzeStep:
 
         try:
             analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
+        except Exception:
+            ctx.analysis_failed = True
+            raise
         finally:
             if mode_switched:
                 self._restore_mode(requested_mode)
+
+        if analysis.get("error"):
+            ctx.analysis_failed = True
 
         ctx.analysis_result = analysis
         analysis_cost = float(analysis.get("cost", 0.0) or 0.0)
@@ -360,6 +366,28 @@ class AnalyzeStep:
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
+
+        # Emit separate OCR cost event when VLM OCR reports cost
+        ocr_data = analysis.get("ocr")
+        if ocr_data and ocr_data.get("engine") == "vlm_ocr":
+            ocr_mgr = getattr(self._analyzer, "ocr_manager", None)
+            if ocr_mgr:
+                active = ocr_mgr.active_engine
+                ocr_cost = getattr(active, "_last_cost", 0.0) if active else 0.0
+                if ocr_cost > 0:
+                    self._record_spend(ocr_cost)
+                    await bus.publish(Event(
+                        type=EventType.OCR_COST.value,
+                        data={
+                            "engine": "vlm_ocr",
+                            "cost": round(ocr_cost, 6),
+                            "tokens": getattr(active, "_total_tokens_used", 0),
+                            "model": getattr(active, "model", "unknown"),
+                        },
+                        source=self.name,
+                        correlation_id=ctx.correlation_id,
+                    ))
+
         return ctx
 
 
@@ -374,6 +402,7 @@ class SuggestActionsStep:
         return (
             self._agent is not None
             and ctx.analysis_result is not None
+            and not ctx.analysis_failed
             and ctx.active_window is not None
         )
 

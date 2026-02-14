@@ -22,7 +22,7 @@ ifeq ($(PORT),)
   PORT := 8000
 endif
 
-.PHONY: help setup setup-backend setup-overlay env install install-system-deps diagnostics run run-backend run-overlay stop clean test test-setup test-units test-e2e status logs
+.PHONY: help setup setup-backend setup-overlay env install install-system-deps diag diagnostics run run-backend run-overlay stop clean test test-setup test-units test-e2e status logs
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -118,8 +118,25 @@ install-system-deps: ## Install Linux system dependencies (OCR/STT/TTS/window to
 		echo "⚠️ apt-get not found. Install system dependencies manually (see INSTALL.md)."; \
 	fi
 
-diagnostics: ## Run post-install diagnostics
-	$(PYTHON) $(BACKEND_DIR)/test_setup.py
+diag: ## Run full system diagnostics (setup + preflight)
+	@echo "🔎 Running setup diagnostics..."
+	@set +e; \
+	$(PYTHON) $(BACKEND_DIR)/test_setup.py; SETUP_RC=$$?; \
+	echo ""; \
+	echo "🔎 Running preflight diagnostics..."; \
+	$(PYTHON) $(BACKEND_DIR)/preflight.py; PREFLIGHT_RC=$$?; \
+	echo ""; \
+	if [ $$SETUP_RC -eq 0 ] && [ $$PREFLIGHT_RC -eq 0 ]; then \
+		echo "✅ System diagnostics passed"; \
+		exit 0; \
+	fi; \
+	echo "❌ System diagnostics failed"; \
+	echo "   - setup checks exit code: $$SETUP_RC"; \
+	echo "   - preflight checks exit code: $$PREFLIGHT_RC"; \
+	echo "   Review backend/.env, API keys, and missing dependencies shown above."; \
+	exit 1
+
+diagnostics: diag ## Backward-compatible alias for full diagnostics
 
 test: test-units test-e2e ## Run all tests (unit + e2e)
 

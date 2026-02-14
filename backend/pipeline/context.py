@@ -40,9 +40,11 @@ class ProfileSelector:
         self,
         full_interval: float = 60.0,
         force_profile: Optional[str] = None,
+        ocr_manager=None,
     ):
         self.full_interval = full_interval
         self.force_profile = PipelineProfile(force_profile) if force_profile else None
+        self._ocr_manager = ocr_manager
         self._last_full_time = 0.0
         self._last_active_wid = 0
         self._consecutive_fast = 0
@@ -79,6 +81,11 @@ class ProfileSelector:
             is_idle = capture.consecutive_unchanged > getattr(capture, 'idle_threshold', 30)
 
         if is_idle:
+            # VLM OCR is cloud-based and high-latency — FAST profile is an oxymoron
+            if self._is_vlm_ocr_active():
+                self._consecutive_fast = 0
+                self.profile_counts[PipelineProfile.NORMAL.value] += 1
+                return PipelineProfile.NORMAL
             self._consecutive_fast += 1
             self.profile_counts[PipelineProfile.FAST.value] += 1
             return PipelineProfile.FAST
@@ -87,6 +94,12 @@ class ProfileSelector:
         self._consecutive_fast = 0
         self.profile_counts[PipelineProfile.NORMAL.value] += 1
         return PipelineProfile.NORMAL
+
+    def _is_vlm_ocr_active(self) -> bool:
+        """Check if the active OCR engine is cloud-based VLM OCR (high latency)."""
+        if not self._ocr_manager:
+            return False
+        return getattr(self._ocr_manager, "active_engine_name", "") == "vlm_ocr"
 
     def notify_active_window_changed(self, new_wid: int):
         """Signal that active window changed — next tick should be FULL."""
@@ -141,6 +154,7 @@ class PipelineContext:
 
     # Phase 6: Analysis
     analysis_result: Optional[Dict] = None
+    analysis_failed: bool = False
 
     # Phase 7: Agent actions
     agent_actions: List[Dict] = field(default_factory=list)

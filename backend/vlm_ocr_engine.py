@@ -91,6 +91,8 @@ class VLMOCREngine(BaseOCREngine):
         # VLM-specific stats
         self._error_count = 0
         self._total_tokens_used = 0
+        self._total_cost = 0.0
+        self._last_cost = 0.0
         self._litellm = None
 
     def _initialize(self):
@@ -182,10 +184,18 @@ class VLMOCREngine(BaseOCREngine):
 
             text = self._clean_response(text)
 
-            # Track token usage
+            # Track token usage and cost
             usage = getattr(response, "usage", None)
             tokens_used = getattr(usage, "total_tokens", 0) if usage else 0
             self._total_tokens_used += tokens_used
+
+            cost = 0.0
+            try:
+                cost = self._litellm.completion_cost(completion_response=response)
+            except Exception:
+                pass
+            self._last_cost = cost
+            self._total_cost += cost
 
             self.total_calls += 1
             self.total_latency_ms += latency_ms
@@ -197,6 +207,7 @@ class VLMOCREngine(BaseOCREngine):
                 latency_ms=round(latency_ms, 1),
                 text_length=len(text.strip()),
                 tokens=tokens_used,
+                cost=round(cost, 6),
             )
 
             return OCRResult(
@@ -213,6 +224,122 @@ class VLMOCREngine(BaseOCREngine):
             self._error_count += 1
             logger.error(
                 "VLM OCR extraction failed",
+                engine=self.name,
+                error=str(e),
+                latency_ms=round(latency_ms, 1),
+            )
+            return OCRResult(
+                text="",
+                boxes=[],
+                confidence=0.0,
+                engine=self.name,
+                latency_ms=latency_ms,
+            )
+
+    async def aextract_from_b64(self, image_b64: str) -> OCRResult:
+        """
+        Async version of extract_from_b64 — uses litellm.acompletion.
+
+        Preferred in pipeline path where the caller is already async,
+        avoiding blocking the event loop on network I/O.
+        """
+        if not self.is_initialized:
+            try:
+                self._initialize()
+                self.is_initialized = True
+            except Exception as e:
+                logger.error("VLM OCR init failed", error=str(e))
+                return OCRResult(text="", engine=self.name, confidence=0.0)
+
+        start = time.time()
+
+        try:
+            system_prompt = (
+                VLM_OCR_SYSTEM_PROMPT_SHORT if self.short_prompt
+                else VLM_OCR_SYSTEM_PROMPT
+            )
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_b64}",
+                                "detail": self.image_detail,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "Extract all text:",
+                        },
+                    ],
+                },
+            ]
+
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+                "timeout": self.timeout,
+            }
+            if self.api_key:
+                kwargs["api_key"] = self.api_key
+            if self.api_base:
+                kwargs["api_base"] = self.api_base
+
+            response = await self._litellm.acompletion(**kwargs)
+
+            latency_ms = (time.time() - start) * 1000
+            text = response.choices[0].message.content or ""
+
+            if "NO_TEXT_DETECTED" in text:
+                text = ""
+
+            text = self._clean_response(text)
+
+            usage = getattr(response, "usage", None)
+            tokens_used = getattr(usage, "total_tokens", 0) if usage else 0
+            self._total_tokens_used += tokens_used
+
+            cost = 0.0
+            try:
+                cost = self._litellm.completion_cost(completion_response=response)
+            except Exception:
+                pass
+            self._last_cost = cost
+            self._total_cost += cost
+
+            self.total_calls += 1
+            self.total_latency_ms += latency_ms
+
+            logger.debug(
+                "VLM OCR async extraction complete",
+                engine=self.name,
+                model=self.model,
+                latency_ms=round(latency_ms, 1),
+                text_length=len(text.strip()),
+                tokens=tokens_used,
+                cost=round(cost, 6),
+            )
+
+            return OCRResult(
+                text=text.strip(),
+                boxes=[],
+                confidence=0.85 if text.strip() else 0.0,
+                engine=self.name,
+                latency_ms=latency_ms,
+                language=self.languages[0] if self.languages else "pl",
+            )
+
+        except Exception as e:
+            latency_ms = (time.time() - start) * 1000
+            self._error_count += 1
+            logger.error(
+                "VLM OCR async extraction failed",
                 engine=self.name,
                 error=str(e),
                 latency_ms=round(latency_ms, 1),
@@ -256,6 +383,8 @@ class VLMOCREngine(BaseOCREngine):
             "model": self.model,
             "errors": self._error_count,
             "total_tokens": self._total_tokens_used,
+            "total_cost_usd": round(self._total_cost, 6),
+            "last_cost_usd": round(self._last_cost, 6),
             "image_detail": self.image_detail,
         })
         return base

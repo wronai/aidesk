@@ -1,3 +1,32 @@
+## [2.1.30] - 2026-02-14
+
+### Summary
+
+refactor(docs): code analysis engine
+
+### Docs
+
+- docs: update README
+- docs: update TODO.md
+- docs: update README
+- docs: update diagnostics.md
+- docs: update system-overview.md
+
+### Other
+
+- build: update Makefile
+- update backend/analyzer.py
+- update backend/event_bus.py
+- update backend/ocr_engines.py
+- update backend/pipeline/context.py
+- update backend/pipeline/steps_core.py
+- update backend/preflight.py
+- update backend/shell_agent.py
+- update backend/tests/test_analyzer.py
+- update backend/vlm_ocr_engine.py
+- ... and 2 more
+
+
 ## [2.1.29] - 2026-02-14
 
 ### Summary
@@ -252,6 +281,20 @@ docs(docs): deep code analysis engine
   - doprecyzowane endpointy monitoringu (`/stats`, `/events`, `/pipeline`, `/read-model`, `/traces`, `/diagnostics`)
   - doprecyzowana zależność portu overlay (`8001`) względem backendu (`PORT`)
 - docs(todo): dodano techniczny backlog `TODO.md` na podstawie TODO w kodzie i aktualnego stanu projektu
+- docs(docs): uporządkowano dokumentację w katalogu `docs/`
+  - dodano `docs/README.md` jako indeks dokumentacji
+  - dodano `docs/system-overview.md` (opis działania systemu end-to-end)
+  - dodano `docs/diagnostics.md` (diagnozowanie konfiguracji i runtime)
+- docs(readme): podlinkowano dokumentację `docs/` w README
+  - dodano sekcję mapy dokumentacji i odnośniki do `CHANGELOG.md` oraz `TODO.md`
+  - uzupełniono instrukcje o `make diag` (instalacja + troubleshooting)
+
+### Other
+
+- build(makefile): dodano `make diag` jako pełną diagnostykę systemu
+  - `diag` uruchamia kolejno `backend/test_setup.py` i `backend/preflight.py`
+  - `diagnostics` działa jako alias kompatybilny wstecz
+- backend(preflight): dodano uruchamianie CLI `preflight.py` z poprawnym kodem wyjścia
 
 ## [2.1.17] - 2026-02-14
 
