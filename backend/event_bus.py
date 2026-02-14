@@ -16,6 +16,7 @@ import asyncio
 import json
 import os
 import sqlite3
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
@@ -136,15 +137,47 @@ class EventStore:
     - Query by type, source, time range, correlation_id
     """
 
-    def __init__(self, db_path: str = "logs/events.db", max_events: int = 50000):
+    def __init__(
+        self,
+        db_path: str = "logs/events.db",
+        max_events: int = 50000,
+        flush_every: int = 20,
+        prune_every: int = 100,
+    ):
         self.db_path = db_path
         self.max_events = max_events
+        db_dir = os.path.dirname(self.db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        self._flush_every = max(1, int(flush_every))
+        self._prune_every = max(1, int(prune_every))
+        self._pending_writes = 0
+        self._writes_since_prune = 0
+        self._lock = threading.Lock()
+        self._conn = self._open_connection()
         self._ensure_db()
 
+    def _open_connection(self):
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+
+        # Tuning for high-frequency append workload.
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA busy_timeout=3000")
+        return conn
+
     def _ensure_db(self):
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("""
+        db_dir = os.path.dirname(self.db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
+        with self._lock:
+            self._conn.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 event_id TEXT PRIMARY KEY,
                 type TEXT NOT NULL,
@@ -156,41 +189,75 @@ class EventStore:
                 data TEXT NOT NULL
             )
         """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_type ON events(type)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_corr ON events(correlation_id)")
-        conn.commit()
-        conn.close()
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_type ON events(type)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_corr ON events(correlation_id)")
+            self._conn.commit()
+
+    def _flush_if_needed(self):
+        if self._pending_writes > 0:
+            self._conn.commit()
+            self._pending_writes = 0
+
+    def _prune_old_events_if_needed(self):
+        if self.max_events <= 0:
+            return
+
+        count = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        over_limit = count - self.max_events
+        if over_limit <= 0:
+            return
+
+        self._conn.execute(
+            "DELETE FROM events WHERE event_id IN (SELECT event_id FROM events ORDER BY timestamp ASC LIMIT ?)",
+            (over_limit,),
+        )
+
+    def flush(self):
+        """Flush pending writes to disk."""
+        try:
+            with self._lock:
+                self._flush_if_needed()
+        except Exception as e:
+            logger.warning("Event store flush failed", error=str(e))
+
+    def close(self):
+        """Flush and close connection (call on app shutdown)."""
+        try:
+            with self._lock:
+                self._flush_if_needed()
+                self._conn.close()
+        except Exception as e:
+            logger.warning("Event store close failed", error=str(e))
 
     def append(self, event: Event):
         """Append event to store (fire-and-forget, never blocks pipeline)."""
         try:
-            conn = sqlite3.connect(self.db_path)
-            conn.execute(
-                "INSERT OR IGNORE INTO events (event_id, type, category, source, timestamp, correlation_id, version, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    event.event_id,
-                    event.type,
-                    event.category,
-                    event.source,
-                    event.timestamp,
-                    event.correlation_id,
-                    event.version,
-                    json.dumps(event.data, default=str),
-                ),
-            )
-            conn.commit()
-
-            # Prune old events if over limit
-            count = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
-            if count > self.max_events:
-                conn.execute(
-                    "DELETE FROM events WHERE event_id IN (SELECT event_id FROM events ORDER BY timestamp ASC LIMIT ?)",
-                    (count - self.max_events,),
+            payload = json.dumps(event.data, default=str)
+            with self._lock:
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO events (event_id, type, category, source, timestamp, correlation_id, version, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        event.event_id,
+                        event.type,
+                        event.category,
+                        event.source,
+                        event.timestamp,
+                        event.correlation_id,
+                        event.version,
+                        payload,
+                    ),
                 )
-                conn.commit()
 
-            conn.close()
+                self._pending_writes += 1
+                self._writes_since_prune += 1
+
+                if self._writes_since_prune >= self._prune_every:
+                    self._prune_old_events_if_needed()
+                    self._writes_since_prune = 0
+
+                if self._pending_writes >= self._flush_every:
+                    self._flush_if_needed()
         except Exception as e:
             logger.warning("Event store append failed", error=str(e))
 
@@ -203,9 +270,6 @@ class EventStore:
         limit: int = 100,
     ) -> List[Dict]:
         """Query events from store."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-
         where_clauses = []
         params = []
 
@@ -226,8 +290,9 @@ class EventStore:
         sql = f"SELECT * FROM events {where} ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
 
-        rows = conn.execute(sql, params).fetchall()
-        conn.close()
+        with self._lock:
+            self._flush_if_needed()
+            rows = self._conn.execute(sql, params).fetchall()
 
         results = []
         for row in rows:
@@ -246,14 +311,14 @@ class EventStore:
     def get_stats(self) -> Dict:
         """Get event store statistics."""
         try:
-            conn = sqlite3.connect(self.db_path)
-            total = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
-            types = conn.execute(
-                "SELECT type, COUNT(*) as cnt FROM events GROUP BY type ORDER BY cnt DESC LIMIT 10"
-            ).fetchall()
-            oldest = conn.execute("SELECT MIN(timestamp) FROM events").fetchone()[0]
-            newest = conn.execute("SELECT MAX(timestamp) FROM events").fetchone()[0]
-            conn.close()
+            with self._lock:
+                self._flush_if_needed()
+                total = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+                types = self._conn.execute(
+                    "SELECT type, COUNT(*) as cnt FROM events GROUP BY type ORDER BY cnt DESC LIMIT 10"
+                ).fetchall()
+                oldest = self._conn.execute("SELECT MIN(timestamp) FROM events").fetchone()[0]
+                newest = self._conn.execute("SELECT MAX(timestamp) FROM events").fetchone()[0]
 
             return {
                 "total_events": total,

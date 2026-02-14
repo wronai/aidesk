@@ -6,7 +6,6 @@ Provides:
 - Associate cropped regions with specific applications/processes
 - Organize crops by category and priority
 - Save individual per-app screenshots
-- nfo-instrumented for automatic logging validation
 """
 import base64
 import os
@@ -18,7 +17,6 @@ from typing import Dict, List, Optional, Tuple
 import imagehash
 import structlog
 from PIL import Image
-import nfo
 
 from process_scanner import VisibleWindow, ProcessScanner
 from window_aware import AppCategory
@@ -230,7 +228,6 @@ class WindowCropper:
         )
         return selected
 
-    @nfo.log_call(level="INFO")
     def crop_all_windows(
         self,
         fullscreen_image: Image.Image,
@@ -379,7 +376,6 @@ class WindowCropper:
             f.write(buffer.getvalue())
         return filepath
 
-    @nfo.log_call(level="INFO")
     def organize_screen(
         self,
         fullscreen_image: Image.Image,
@@ -464,7 +460,6 @@ class WindowCropper:
 
         return organized
 
-    @nfo.log_call(level="INFO")
     def crop_single_window(
         self,
         fullscreen_image: Image.Image,
@@ -508,7 +503,3 @@ def create_window_cropper(
         max_crop_windows=settings.max_crop_windows,
         save_to_disk=settings.save_crops,
     )
-
-
-# Auto-log all functions in this module via nfo
-nfo.auto_log()

@@ -316,16 +316,20 @@ class AppBootstrap:
             await loader.shutdown()
 
         bus = self.state.get("event_bus")
+        store = getattr(bus, "store", None) if bus else None
         if bus:
-            await bus.publish(typed_event(
-                EventType.SYSTEM_SHUTDOWN,
-                SystemShutdownPayload(
-                    uptime_seconds=round(
-                        time.time() - self.state["stats"]["start_time"], 1
-                    )
-                ),
-                source="bootstrap",
-            ))
+            try:
+                await bus.publish(typed_event(
+                    EventType.SYSTEM_SHUTDOWN,
+                    SystemShutdownPayload(
+                        uptime_seconds=round(
+                            time.time() - self.state["stats"]["start_time"], 1
+                        )
+                    ),
+                    source="bootstrap",
+                ))
+            except Exception as e:
+                logger.warning("Failed to publish shutdown event", error=str(e))
 
         for task in self._tasks:
             task.cancel()
@@ -333,6 +337,10 @@ class AppBootstrap:
         stt = self.state.get("stt")
         if stt:
             await stt.stop()
+
+        # Flush batched EventStore writes and close DB handle.
+        if store and hasattr(store, "close"):
+            store.close()
 
         logger.info("Backend shutdown complete")
 

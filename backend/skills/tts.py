@@ -4,9 +4,10 @@ TTSSkill — Detect native language text, offer text-to-speech.
 Auto-detects available TTS engines on the system:
 1. piper (neural, best quality, offline)
 2. pico2wave (small-footprint, clear voice, offline)
-3. spd-say (speech-dispatcher, common on GNOME)
-4. festival (medium quality)
-5. espeak-ng/espeak (basic fallback, only when explicitly selected)
+3. RHVoice / flite (offline alternatives)
+4. spd-say (speech-dispatcher, common on GNOME)
+5. festival (medium quality)
+6. espeak-ng/espeak (basic fallback, only when explicitly selected)
 
 Falls back to whatever is installed. Generates audio and plays it.
 """
@@ -41,6 +42,20 @@ _TTS_ENGINES = [
         "check": "pico2wave --help",
         "speak": "pico2wave -l {lang} -w {file} {text}",
         "quality": "high",
+        "tier": "high",
+    },
+    {
+        "name": "rhvoice",
+        "check": "RHVoice-client",
+        "speak_direct": "echo {text} | RHVoice-client",
+        "quality": "high",
+        "tier": "high",
+    },
+    {
+        "name": "flite",
+        "check": "flite --help",
+        "speak": "flite -t {text} -o {file}",
+        "quality": "medium",
         "tier": "high",
     },
     {
@@ -160,6 +175,13 @@ async def _run_shell(cmd: str, timeout: float = 30.0) -> Tuple[int, str, str]:
     return proc.returncode, out, err
 
 
+def _format_engine_command(template: str, values: Dict[str, str]) -> str:
+    cmd = template
+    for key, value in values.items():
+        cmd = cmd.replace(f"{{{key}}}", value)
+    return cmd
+
+
 def detect_tts_engines() -> List[dict]:
     """Detect available TTS engines on the system."""
     settings = get_settings()
@@ -198,7 +220,7 @@ def get_best_tts_engine(preferred: str = "auto") -> Optional[dict]:
             configured=preferred,
             available=[e["name"] for e in engines],
         )
-        return None
+        # Fallback to auto selection if configured engine is missing.
 
     for engine in engines:
         if engine.get("tier") != "basic":
@@ -215,11 +237,22 @@ class TTSSkill(BaseSkill):
     priority = 40  # Lower than translation — only for native language
 
     def __init__(self):
-        self._engine = get_best_tts_engine()
+        settings = get_settings()
+        self._preferred_engine = settings.tts_engine
+        self._engine = get_best_tts_engine(self._preferred_engine)
         if self._engine:
-            logger.info("TTS engine detected", engine=self._engine["name"], quality=self._engine["quality"])
+            logger.info(
+                "TTS engine detected",
+                preferred=self._preferred_engine,
+                engine=self._engine["name"],
+                quality=self._engine["quality"],
+            )
         else:
-            logger.info("No TTS engine available")
+            logger.info(
+                "No suitable TTS engine available",
+                preferred=self._preferred_engine,
+                available=[e["name"] for e in detect_tts_engines()],
+            )
 
     def detect(self, text: str, ctx: SkillContext) -> float:
         if not self._engine:
@@ -260,10 +293,12 @@ class TTSSkill(BaseSkill):
             ),
         ]
 
-        # If multiple engines available, offer choice
+        # If multiple engines available, offer explicit alternatives.
         available = detect_tts_engines()
         if len(available) > 1:
-            for eng in available[1:2]:  # Show max 1 alternative
+            for eng in available:
+                if self._engine and eng["name"] == self._engine["name"]:
+                    continue
                 options.append(SkillOption(
                     id=f"speak_{eng['name']}",
                     label=f"🔊 Użyj {eng['name']} ({eng['quality']})",
@@ -278,34 +313,47 @@ class TTSSkill(BaseSkill):
         if not engine:
             return SkillResult(
                 success=False,
-                message="❌ Brak silnika TTS. Zainstaluj: `sudo apt install espeak-ng`",
+                message=(
+                    "❌ Brak wysokiej jakości silnika TTS. "
+                    "Zainstaluj np.: piper / pico2wave / spd-say / rhvoice / festival"
+                ),
                 error="No TTS engine",
             )
 
         # Select specific engine if requested
         if option_id.startswith("speak_") and option_id != "speak_slow":
             engine_name = option_id.replace("speak_", "")
+            engine = None
             for eng in detect_tts_engines():
                 if eng["name"] == engine_name:
                     engine = eng
                     break
+            if not engine:
+                return SkillResult(
+                    success=False,
+                    message=f"❌ Silnik TTS '{engine_name}' nie jest dostępny",
+                    error="Engine unavailable",
+                )
 
-        lang = _ESPEAK_LANGS.get(ctx.locale, "en")
+        lang = _map_lang(engine["name"], ctx.locale)
         slow = option_id == "speak_slow"
+        speed = _build_speed_flag(engine["name"], slow)
 
         try:
-            # Escape text for shell
-            import shlex
             escaped = shlex.quote(text[:2000])
+            cmd_data = {
+                "text": escaped,
+                "lang": lang,
+                "speed": speed,
+                "piper_model": shlex.quote(engine.get("piper_model", "")),
+            }
 
             if "speak_direct" in engine:
                 # Engine speaks directly (no file)
-                cmd = engine["speak_direct"]
-                cmd = cmd.replace("{text}", escaped).replace("{lang}", lang)
-                proc = await asyncio.create_subprocess_shell(
-                    cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                )
-                await asyncio.wait_for(proc.wait(), timeout=30)
+                cmd = _format_engine_command(engine["speak_direct"], cmd_data)
+                rc, _out, err = await _run_shell(cmd)
+                if rc != 0:
+                    return SkillResult(success=False, message="❌ TTS execution failed", error=err[:500])
                 return SkillResult(
                     success=True,
                     message=f"🔊 Odczytano ({engine['name']})",
@@ -315,21 +363,31 @@ class TTSSkill(BaseSkill):
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                     wav_path = f.name
 
-                cmd = engine["speak"]
-                cmd = cmd.replace("{text}", escaped).replace("{file}", wav_path).replace("{lang}", lang)
+                cmd_data["file"] = shlex.quote(wav_path)
+                cmd = _format_engine_command(engine["speak"], cmd_data)
 
-                proc = await asyncio.create_subprocess_shell(
-                    cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                )
-                await asyncio.wait_for(proc.wait(), timeout=30)
+                rc, _out, err = await _run_shell(cmd)
+                if rc != 0:
+                    return SkillResult(success=False, message="❌ TTS execution failed", error=err[:500])
 
                 if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
                     # Play the audio
-                    play_cmd = engine.get("play", "aplay {file}").replace("{file}", wav_path)
-                    play_proc = await asyncio.create_subprocess_shell(
-                        play_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                    )
-                    await asyncio.wait_for(play_proc.wait(), timeout=30)
+                    play_cmd = _pick_play_command(wav_path)
+                    if not play_cmd:
+                        return SkillResult(
+                            success=True,
+                            message=f"🔊 Wygenerowano audio ({engine['name']}); brak odtwarzacza systemowego",
+                            audio_file=wav_path,
+                        )
+
+                    play_rc, _play_out, play_err = await _run_shell(play_cmd, timeout=30.0)
+                    if play_rc != 0:
+                        return SkillResult(
+                            success=True,
+                            message=f"⚠️ Wygenerowano audio ({engine['name']}), ale odtwarzanie nie powiodło się",
+                            audio_file=wav_path,
+                            error=play_err[:500],
+                        )
 
                     return SkillResult(
                         success=True,

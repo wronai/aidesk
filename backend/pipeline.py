@@ -417,7 +417,6 @@ class BuildContextStep:
             "Skup się na tym oknie — tu użytkownik aktualnie pracuje."
         )
 
-    @nfo.log_call(level="INFO")
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         prompt_addon = ""
         if self._profiles and ctx.active_window:
@@ -480,24 +479,104 @@ class AnalyzeStep:
     """Phase 6: Run OCR + LLM analysis."""
     name = "analyze"
 
-    def __init__(self, analyzer):
+    def __init__(self, analyzer, cost_budget=None):
         self._analyzer = analyzer
+        self._budget = cost_budget
 
     def can_run(self, ctx: PipelineContext) -> bool:
         return self._analyzer is not None and ctx.image_b64 is not None
 
+    @nfo.log_call(level="INFO")
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
+        t0 = time.time()
+        requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
+        effective_mode = requested_mode
+        mode_switched = False
+
+        # Budget-aware mode downgrade (e.g. HYBRID -> OCR_ONLY) for this run only.
+        if self._budget and hasattr(self._budget, "get_suggested_mode"):
+            try:
+                effective_mode = self._budget.get_suggested_mode(requested_mode)
+            except Exception as e:
+                logger.warning("Budget mode suggestion failed", error=str(e))
+                effective_mode = requested_mode
+
+            if effective_mode != requested_mode and not hasattr(self._analyzer, "set_mode"):
+                logger.warning(
+                    "Budget requested mode downgrade but analyzer has no set_mode",
+                    requested_mode=requested_mode,
+                    suggested_mode=effective_mode,
+                )
+                effective_mode = requested_mode
+
+            if effective_mode != requested_mode and hasattr(self._analyzer, "set_mode"):
+                logger.warning(
+                    "Budget exceeded, downgrading mode",
+                    from_mode=requested_mode,
+                    to_mode=effective_mode,
+                )
+                try:
+                    switched = self._analyzer.set_mode(effective_mode)
+                    if switched is False:
+                        logger.warning(
+                            "Analyzer rejected budget-safe mode switch",
+                            mode=effective_mode,
+                        )
+                        effective_mode = requested_mode
+                    else:
+                        mode_switched = True
+                except Exception as e:
+                    logger.warning(
+                        "Failed to switch to budget-safe mode",
+                        mode=effective_mode,
+                        error=str(e),
+                    )
+                    effective_mode = requested_mode
+
+        try:
+            analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
+        finally:
+            # Restore requested mode so future ticks can re-evaluate budget from user-selected mode.
+            if mode_switched:
+                try:
+                    restored = self._analyzer.set_mode(requested_mode)
+                    if restored is False:
+                        logger.warning(
+                            "Analyzer rejected restore of requested mode",
+                            mode=requested_mode,
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to restore analysis mode after budget downgrade",
+                        mode=requested_mode,
+                        error=str(e),
+                    )
+
         ctx.analysis_result = analysis
+        analysis_cost = float(analysis.get("cost", 0.0) or 0.0)
+        actual_mode = analysis.get("mode", effective_mode)
+        latency_ms = round((time.time() - t0) * 1000)
+
+        # Record spend
+        if self._budget and analysis_cost > 0 and hasattr(self._budget, "record_spend"):
+            try:
+                self._budget.record_spend(analysis_cost)
+            except Exception as e:
+                logger.warning("Failed to record analysis spend", error=str(e), cost=analysis_cost)
 
         await bus.publish(Event(
             type=EventType.ANALYSIS_COMPLETED.value,
             data={
                 "tokens": analysis.get("tokens", 0),
-                "cost": analysis.get("cost", 0.0),
+                "cost": analysis_cost,
                 "provider": analysis.get("provider", "unknown"),
-                "mode": analysis.get("mode", "unknown"),
+                "model": analysis.get("model", "unknown"),
+                "mode": actual_mode,
+                "latency_ms": latency_ms,
                 "has_ocr": "ocr" in analysis,
+                "requested_mode": requested_mode,
+                "effective_mode": actual_mode,
+                "budget_degraded": actual_mode != requested_mode,
             },
             source=self.name,
             correlation_id=ctx.correlation_id,
@@ -601,48 +680,6 @@ class BuildBroadcastStep:
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
-        return ctx
-
-
-# ===== Parallel Group (concurrent step execution) =====
-
-class ParallelGroup:
-    """
-    Runs multiple pipeline steps concurrently via asyncio.gather.
-
-    Acts as a single PipelineStep from the orchestrator's perspective,
-    but internally fans out to N sub-steps in parallel.
-    """
-
-    def __init__(self, steps: List, name: Optional[str] = None):
-        self._steps = steps
-        self.name = name or f"parallel({','.join(s.name for s in steps)})"
-
-    def can_run(self, ctx: PipelineContext) -> bool:
-        return any(s.can_run(ctx) for s in self._steps)
-
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        runnable = [(s, s.can_run(ctx)) for s in self._steps]
-
-        async def _run_one(step):
-            t0 = time.time()
-            try:
-                await step.execute(ctx, bus)
-                elapsed = time.time() - t0
-                ctx.steps_executed.append(step.name)
-                ctx.step_timings[step.name] = round(elapsed * 1000, 1)
-            except Exception as e:
-                elapsed = time.time() - t0
-                ctx.errors.append({
-                    "step": step.name,
-                    "error": str(e),
-                    "elapsed_ms": round(elapsed * 1000, 1),
-                })
-                logger.error("Parallel step failed", step=step.name, error=str(e))
-
-        tasks = [_run_one(s) for s, can in runnable if can]
-        if tasks:
-            await asyncio.gather(*tasks)
         return ctx
 
 
@@ -856,9 +893,18 @@ class ClipboardStep:
         suggestions = self._clipboard.suggest_paste(category=category, screen_text=analysis_text)
         ctx.clipboard_suggestions = [s.to_dict() if hasattr(s, 'to_dict') else {"text": str(s)} for s in suggestions]
 
+        stats = self._clipboard.get_stats() if hasattr(self._clipboard, "get_stats") else {}
+        sources = stats.get("sources", {}) if isinstance(stats, dict) else {}
+        non_zero_sources = [k for k, v in sources.items() if v] if isinstance(sources, dict) else []
+
         await bus.publish(Event(
-            type="pipeline.clipboard",
-            data={"suggestions": len(ctx.clipboard_suggestions)},
+            type=EventType.CLIPBOARD_UPDATED.value,
+            data={
+                "auto_copied": len(ctx.clipboard_auto_copies),
+                "suggestions": len(ctx.clipboard_suggestions),
+                "queue_size": stats.get("queue_size", 0),
+                "sources": non_zero_sources,
+            },
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -871,34 +917,39 @@ class ParallelGroup:
     """
     Runs multiple pipeline steps concurrently via asyncio.gather.
 
-    Acts as a single composite step — can be inserted into the pipeline
-    wherever independent steps can safely run in parallel.
+    Acts as a single PipelineStep from the orchestrator's perspective,
+    but internally fans out to N sub-steps in parallel.
     """
 
-    def __init__(self, steps: List, name: str = ""):
-        self.steps = steps
+    def __init__(self, steps: List, name: Optional[str] = None):
+        self._steps = steps
         self.name = name or f"parallel({','.join(s.name for s in steps)})"
 
     def can_run(self, ctx: PipelineContext) -> bool:
-        return any(s.can_run(ctx) for s in self.steps)
+        return any(s.can_run(ctx) for s in self._steps)
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        runnable = [s for s in self.steps if s.can_run(ctx)]
-        if not runnable:
-            return ctx
+        runnable = [(s, s.can_run(ctx)) for s in self._steps]
 
         async def _run_one(step):
+            t0 = time.time()
             try:
                 await step.execute(ctx, bus)
+                elapsed = time.time() - t0
                 ctx.steps_executed.append(step.name)
+                ctx.step_timings[step.name] = round(elapsed * 1000, 1)
             except Exception as e:
+                elapsed = time.time() - t0
                 ctx.errors.append({
                     "step": step.name,
                     "error": str(e),
+                    "elapsed_ms": round(elapsed * 1000, 1),
                 })
                 logger.error("Parallel step failed", step=step.name, error=str(e))
 
-        await asyncio.gather(*[_run_one(s) for s in runnable])
+        tasks = [_run_one(s) for s, can in runnable if can]
+        if tasks:
+            await asyncio.gather(*tasks)
         return ctx
 
 

@@ -317,6 +317,8 @@ CONFIG_SCHEMA = [
             {"key": "STT_LANGUAGE", "label": "Język STT", "type": "select", "options": ["pl", "en", "de", "fr", "es", "it", "pt", "nl", "ja", "ko", "zh"], "help": "Język rozpoznawania mowy."},
             {"key": "DEEPGRAM_MODEL", "label": "Model STT", "type": "select", "options": ["nova-3", "nova-2", "enhanced", "base"], "help": "Model Deepgram."},
             {"key": "DEEPGRAM_API_KEY", "label": "Deepgram API Key", "type": "password", "help": "Klucz API Deepgram (deepgram.com)."},
+            {"key": "TTS_ENGINE", "label": "Silnik TTS", "type": "select", "options": ["auto", "piper", "pico2wave", "rhvoice", "flite", "spd-say", "festival", "espeak-ng", "espeak"], "help": "auto = wybiera najwyższą jakość dostępną lokalnie (unika espeak, jeśli są lepsze opcje)."},
+            {"key": "TTS_PIPER_MODEL", "label": "Model Piper (.onnx)", "type": "text", "help": "Opcjonalna ścieżka do modelu Piper. Puste = auto-wyszukiwanie w ~/.local/share/piper i /usr/share/piper."},
         ],
     },
     {

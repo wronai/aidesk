@@ -12,6 +12,8 @@ import './components/ocr-controls.js';
 import './components/agent-actions.js';
 import './components/selection-panel.js';
 
+const VOICE_COMMAND_REGEX = /\b(przetłumacz|translate|tłumacz|uruchom|wykonaj|run|exec|odpal|przeczytaj|czytaj|read|mów|powiedz|kopiuj|copy|skopiuj|szukaj|search|wyszukaj|google|otwórz|open|otworz|zapisz|save|zachowaj|wyjaśnij|explain|opisz)\b/i;
+
 class App {
   constructor() {
     // UI Components
@@ -23,6 +25,9 @@ class App {
     this.ocrControls = document.querySelector('ocr-controls');
     this.agentActions = document.querySelector('agent-actions');
     this.selectionPanel = document.querySelector('selection-panel');
+
+    this.lastAutoVoiceTranscript = '';
+    this.lastAutoVoiceTs = 0;
     
     // Other elements
     this.timestampEl = document.getElementById('timestamp');
@@ -30,6 +35,54 @@ class App {
     this.btnMoveScreen = document.getElementById('btnMoveScreen');
 
     this.init();
+  }
+
+  handleTranscript(data) {
+    this.transcriptViewer.update(data.text, data.is_final);
+    this.maybeTriggerVoiceCommandAnalysis(data);
+  }
+
+  handleSelectionAnalysis(data) {
+    if (!this.selectionPanel) return;
+    this.selectionPanel.show(data.text || this.selectionPanel.lastText || '');
+    this.selectionPanel.showResult(data);
+  }
+
+  async maybeTriggerVoiceCommandAnalysis(data) {
+    if (!this.selectionPanel || !data || !data.is_final) return;
+
+    const transcript = (data.text || '').trim();
+    if (!transcript || !VOICE_COMMAND_REGEX.test(transcript)) return;
+
+    // Avoid duplicate auto-triggering on repeated final transcript frames
+    const now = Date.now();
+    if (this.lastAutoVoiceTranscript === transcript && (now - this.lastAutoVoiceTs) < 3000) {
+      return;
+    }
+    this.lastAutoVoiceTranscript = transcript;
+    this.lastAutoVoiceTs = now;
+
+    // If user is actively typing in the panel, do not override input.
+    if (document.activeElement === this.selectionPanel.textarea) return;
+
+    const contextText = await this.resolveVoiceContextText(transcript);
+    this.selectionPanel.show(contextText);
+    this.analyzeSelection(contextText);
+  }
+
+  async resolveVoiceContextText(transcript) {
+    const panelText = (this.selectionPanel.lastText || this.selectionPanel.textarea?.value || '').trim();
+    if (panelText.length >= 3) return panelText;
+
+    try {
+      const clip = (await navigator.clipboard.readText() || '').trim();
+      if (clip.length >= 3) return clip;
+    } catch (_) {
+      // Clipboard may be unavailable when overlay is unfocused.
+    }
+
+    // Fallback: use transcript itself so voice command options can still render.
+    return transcript;
   }
 
   init() {
@@ -50,11 +103,13 @@ class App {
 
     // Data events from SSE server
     sseService.on('analysis', (data) => this.handleAnalysis(data));
-    sseService.on('transcript', (data) => this.transcriptViewer.update(data.text, data.is_final));
+    sseService.on('transcript', (data) => this.handleTranscript(data));
     sseService.on('window', (data) => this.windowContext.update(data));
     sseService.on('organized_screen', (data) => this.screenSummary.update(data));
     sseService.on('agent_actions', (data) => this.agentActions.update(data.actions));
     sseService.on('agent_result', (data) => this.agentActions.showResult(data));
+    sseService.on('selection_analysis', (data) => this.handleSelectionAnalysis(data));
+    sseService.on('skill_result', (data) => this.selectionPanel.showSkillResult(data));
     sseService.on('ocr_benchmark', (data) => this.ocrControls.showBenchmarkResults(data));
     sseService.on('error', (data) => this.analysisViewer.update(data.message, true));
     sseService.on('diagnostics', (data) => this.handleDiagnostics(data));

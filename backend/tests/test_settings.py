@@ -27,6 +27,10 @@ class TestSettingsDefaults:
         s = Settings(_env_file=None)
         assert s.ocr_engine == "paddleocr"
 
+    def test_default_tts_engine(self):
+        s = Settings(_env_file=None)
+        assert s.tts_engine == "auto"
+
     def test_default_feature_flags(self):
         s = Settings(_env_file=None)
         assert s.enable_stt is True
@@ -48,6 +52,10 @@ class TestSettingsValidation:
     def test_invalid_ocr_engine_rejected(self):
         with pytest.raises(Exception):
             Settings(_env_file=None, ocr_engine="invalid_engine")
+
+    def test_invalid_tts_engine_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, tts_engine="invalid_tts")
 
     def test_port_range_enforced(self):
         with pytest.raises(Exception):
@@ -101,6 +109,11 @@ class TestSettingsFromEnv:
         monkeypatch.setenv("VISION_TEMPERATURE", "0.7")
         s = Settings(_env_file=None)
         assert s.vision_temperature == 0.7
+
+    def test_tts_engine_from_env(self, monkeypatch):
+        monkeypatch.setenv("TTS_ENGINE", "pico2wave")
+        s = Settings(_env_file=None)
+        assert s.tts_engine == "pico2wave"
 
 
 class TestGetSettings:

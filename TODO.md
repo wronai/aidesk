@@ -24,9 +24,13 @@ Backlog został przygotowany na podstawie aktualnego kodu oraz indeksu `project.
 
 - [x] Dodać test regresyjny dla scenariusza clipboard w `_broadcast_state` (żeby wykrywać brak pól w `PipelineContext`).
 - [x] Rozszerzyć testy tras skill/clipboard o scenariusze z realnym kontekstem schowka (`/analyze-selection`, `/skill/execute`).
-- [ ] Uporządkować warningi markdownlint w `CHANGELOG.md` (historyczny dług formatowania).
+- [x] Uporządkować warningi markdownlint w `CHANGELOG.md` (historyczny dług formatowania).
 
 ## P3 — UX/operacyjne
 
-- [ ] Ujednolicić konfigurację URL backendu dla overlay (obecnie domyślnie `http://localhost:8001` w `overlay/app.js` i `overlay/services/sse.js`).
-- [ ] Dodać przykładowe pluginy referencyjne do `backend/plugins/` (demo rozszerzalności plugin loadera).
+- [x] Ujednolicić konfigurację URL backendu dla overlay (obecnie domyślnie `http://localhost:8001` w `overlay/app.js` i `overlay/services/sse.js`).
+  - Nowy plik `overlay/config.js` — single source of truth: `BACKEND_URL`, `SSE_URL`.
+  - `app.js` i `services/sse.js` importują z `config.js`.
+- [x] Dodać przykładowe pluginy referencyjne do `backend/plugins/` (demo rozszerzalności plugin loadera).
+  - `example_logger.py` — subskrybuje pipeline events i loguje do structured log.
+  - `example_window_notifier.py` — wykrywa zmianę kategorii okna i emituje custom event.

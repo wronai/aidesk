@@ -1,3 +1,28 @@
+## [2.1.16] - 2026-02-14
+
+### Summary
+
+refactor(tests): configuration management system
+
+### Docs
+
+- docs: update TODO.md
+
+### Other
+
+- update backend/.env.example
+- update backend/bootstrap.py
+- update backend/config_service.py
+- update backend/event_bus.py
+- update backend/pipeline.py
+- update backend/settings.py
+- update backend/skills/tts.py
+- update backend/tests/test_pipeline_steps.py
+- update backend/tests/test_settings.py
+- update backend/tests/test_skills.py
+- ... and 4 more
+
+
 ## [2.1.15] - 2026-02-14
 
 ### Summary
@@ -19,7 +44,6 @@ fix(examples): CLI interface improvements
 - update overlay/app.js
 - update overlay/config.js
 - update overlay/services/sse.js
-
 
 ## [2.1.14] - 2026-02-14
 
@@ -45,7 +69,6 @@ refactor(docs): CLI interface improvements
 - update backend/tests/test_skills.py
 - update backend/window_aware.py
 - ... and 3 more
-
 
 # Changelog
 
@@ -90,23 +113,7 @@ fix(docs): CLI interface improvements
 
 ### Summary
 
-feat(tests): deep code analysis engine with 5 supporting modules
-
-### Other
-
-- update backend/plugins/loader.py
-- update backend/process_scanner.py
-- update backend/server.py
-- update backend/tests/test_plugins.py
-- update backend/tests/test_units.py
-- update backend/window_aware.py
-
-
-## [2.1.12] - 2026-02-14
-
-### Summary
-
-feat(skills): Expanded clipboard-aware intent detection — 16 intent detectors, full documentation
+feat(skills): Expanded clipboard-aware intent detection and deep code analysis engine
 
 ### Clipboard Intent Detection — Expanded (8 → 16 detectors)
 
@@ -134,6 +141,15 @@ feat(skills): Expanded clipboard-aware intent detection — 16 intent detectors,
   - `ClipboardRelationSkill` with complete 16-intent catalog table
   - Signal extraction methods (language detection, similarity, domain, 12 regex patterns)
 - **CHANGELOG.md** — Detailed feature description for v2.1.11 and v2.1.12
+
+### Other
+
+- update backend/plugins/loader.py
+- update backend/process_scanner.py
+- update backend/server.py
+- update backend/tests/test_plugins.py
+- update backend/tests/test_units.py
+- update backend/window_aware.py
 
 ### Tests
 

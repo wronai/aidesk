@@ -2,6 +2,7 @@
 import asyncio
 import os
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,7 +13,7 @@ from skills import SkillRouter
 from skills.shell_command import ShellCommandSkill
 from skills.error_fixer import ErrorFixerSkill
 from skills.translation import TranslationSkill, detect_language
-from skills.tts import TTSSkill, detect_tts_engines
+from skills.tts import TTSSkill, detect_tts_engines, get_best_tts_engine
 from skills.voice_command import VoiceCommandSkill
 from skills.url_handler import URLHandlerSkill
 
@@ -250,8 +251,43 @@ class TestTranslationSkill:
 class TestTTSSkill:
     def test_detect_available_engines(self):
         engines = detect_tts_engines()
-        # At least espeak should be available on most Linux
+        # Availability depends on host tools installed in CI/dev machine
         assert isinstance(engines, list)
+
+    def test_get_best_engine_auto_skips_basic_only(self, monkeypatch):
+        monkeypatch.setattr(
+            "skills.tts.detect_tts_engines",
+            lambda: [
+                {"name": "espeak-ng", "tier": "basic", "quality": "basic"},
+                {"name": "espeak", "tier": "basic", "quality": "basic"},
+            ],
+        )
+        assert get_best_tts_engine("auto") is None
+
+    def test_get_best_engine_preferred_basic_allowed(self, monkeypatch):
+        monkeypatch.setattr(
+            "skills.tts.detect_tts_engines",
+            lambda: [
+                {"name": "espeak-ng", "tier": "basic", "quality": "basic"},
+                {"name": "espeak", "tier": "basic", "quality": "basic"},
+            ],
+        )
+        engine = get_best_tts_engine("espeak-ng")
+        assert engine is not None
+        assert engine["name"] == "espeak-ng"
+
+    def test_skill_honors_configured_preferred_engine(self, monkeypatch):
+        monkeypatch.setattr(
+            "skills.tts.get_settings",
+            lambda: SimpleNamespace(tts_engine="pico2wave", tts_piper_model=""),
+        )
+        monkeypatch.setattr(
+            "skills.tts.detect_tts_engines",
+            lambda: [{"name": "pico2wave", "tier": "high", "quality": "high"}],
+        )
+        skill = TTSSkill()
+        assert skill._engine is not None
+        assert skill._engine["name"] == "pico2wave"
 
     def test_skill_detect_native_text(self):
         skill = TTSSkill()

@@ -600,7 +600,14 @@ class TestCaptureFactory:
 # ===== EventBus Tests =====
 
 from event_bus import Event, EventBus, EventStore, EventType, EventCategory, create_event_bus
-from pipeline import PipelineContext, PipelineOrchestrator, PipelineProfile, ProfileSelector, create_pipeline
+from pipeline import (
+    AnalyzeStep,
+    PipelineContext,
+    PipelineOrchestrator,
+    PipelineProfile,
+    ProfileSelector,
+    create_pipeline,
+)
 from command_handlers import CommandHandlers
 from query_handlers import QueryHandlers, ReadModel
 
@@ -862,6 +869,68 @@ class TestPipelineOrchestrator:
         stats = pipeline.get_stats()
         assert stats["total_runs"] == 0
         assert stats["step_count"] == 0
+
+
+class TestAnalyzeStepBudget:
+    def test_create_pipeline_accepts_cost_budget(self):
+        class _Analyzer:
+            pass
+
+        bus = EventBus(enable_store=False)
+        pipeline = create_pipeline(
+            bus=bus,
+            analyzer=_Analyzer(),
+            cost_budget=object(),
+        )
+
+        assert "analyze" in pipeline.get_step_names()
+
+    @pytest.mark.asyncio
+    async def test_analyze_step_applies_budget_mode_and_records_spend(self):
+        class _Analyzer:
+            analysis_mode = "hybrid"
+
+            def __init__(self):
+                self.mode_history = []
+
+            def set_mode(self, mode):
+                self.mode_history.append(mode)
+                self.analysis_mode = mode
+                return True
+
+            async def analyze(self, image_b64, full_context):
+                return {
+                    "text": "ok",
+                    "tokens": 10,
+                    "cost": 0.25,
+                    "provider": "test",
+                    "mode": self.analysis_mode,
+                }
+
+        class _Budget:
+            def __init__(self):
+                self.recorded = []
+
+            def get_suggested_mode(self, requested_mode):
+                assert requested_mode == "hybrid"
+                return "ocr_only"
+
+            def record_spend(self, cost):
+                self.recorded.append(cost)
+
+        analyzer = _Analyzer()
+        budget = _Budget()
+        step = AnalyzeStep(analyzer, cost_budget=budget)
+        ctx = PipelineContext(image_b64="ZmFrZQ==", full_context="ctx")
+        bus = EventBus(enable_store=False)
+
+        out = await step.execute(ctx, bus)
+
+        assert out.analysis_result is not None
+        # Should have downgraded to ocr_only, then restored to hybrid
+        assert "ocr_only" in analyzer.mode_history
+        assert analyzer.mode_history[-1] == "hybrid"
+        assert budget.recorded == [0.25]
 
 
 # ===== ReadModel Tests =====
