@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple
 import structlog
 import nfo
 
-from window_aware import AppCategory, WindowInfo, WindowManager
+from window_aware import AppCategory, WindowInfo, WindowManager, _get_ewmh_backend
 
 logger = structlog.get_logger()
 
@@ -108,6 +108,7 @@ class ProcessScanner:
 
     def __init__(self, window_manager: Optional[WindowManager] = None):
         self.window_manager = window_manager
+        self._xlib = _get_ewmh_backend()
         self._has_wmctrl = self._check_tool("wmctrl")
         self._has_xdotool = self._check_tool("xdotool")
         self._has_xprop = self._check_tool("xprop")
@@ -120,6 +121,7 @@ class ProcessScanner:
 
         logger.info(
             "ProcessScanner initialized",
+            xlib_backend=bool(self._xlib),
             wmctrl=self._has_wmctrl,
             xdotool=self._has_xdotool,
             xprop=self._has_xprop,
@@ -154,13 +156,21 @@ class ProcessScanner:
             return 0
 
     def _query_active_window_id(self) -> int:
-        """Get focused window id from xdotool."""
+        """Get focused window id via xlib or xdotool."""
+        if self._xlib:
+            wid = self._xlib.get_active_window_id()
+            if wid:
+                return wid
         if not self._has_xdotool:
             return 0
         return self._parse_window_id(self._run(["xdotool", "getactivewindow"]))
 
     def _query_mouse_window_id(self) -> int:
-        """Get the window id currently under mouse cursor."""
+        """Get the window id currently under mouse cursor via xlib or xdotool."""
+        if self._xlib:
+            wid = self._xlib.get_mouse_window_id()
+            if wid:
+                return wid
         if not self._has_xdotool:
             return 0
 
@@ -178,6 +188,13 @@ class ProcessScanner:
         if window_id <= 0:
             return False
 
+        # Fast path: python-xlib
+        if self._xlib:
+            title = self._xlib.get_window_name(window_id)
+            wm_class, wm_class_name = self._xlib.get_wm_class(window_id)
+            return self._is_service_window_fields(wm_class, wm_class_name, title)
+
+        # Subprocess fallback
         title = self._run(["xdotool", "getwindowname", str(window_id)]) or ""
         wm_class = ""
         wm_class_name = ""
@@ -219,7 +236,9 @@ class ProcessScanner:
         else:
             active_wid = 0
 
-        if self._has_wmctrl:
+        if self._xlib:
+            windows = self._scan_via_xlib(active_wid)
+        elif self._has_wmctrl:
             windows = self._scan_via_wmctrl(active_wid)
         elif self._has_xdotool:
             windows = self._scan_via_xdotool(active_wid)
@@ -282,6 +301,43 @@ class ProcessScanner:
     def _is_service_window(cls, win: VisibleWindow) -> bool:
         """Check if a VisibleWindow is a non-user service/compositor window."""
         return cls._is_service_window_fields(win.wm_class, win.wm_class_name, win.title)
+
+    def _scan_via_xlib(self, active_wid: int) -> List[VisibleWindow]:
+        """List windows using python-xlib/ewmh (no subprocess calls)."""
+        wid_list = self._xlib.get_client_list_stacking()
+        if not wid_list:
+            return []
+
+        windows = []
+        for idx, wid in enumerate(wid_list):
+            title = self._xlib.get_window_name(wid)
+            wm_class, wm_class_name = self._xlib.get_wm_class(wid)
+            pid = self._xlib.get_wm_pid(wid)
+            x, y, w, h = self._xlib.get_geometry(wid)
+
+            # Skip tiny windows (panels, tray icons)
+            if w < 50 or h < 50:
+                continue
+
+            category = WindowManager._classify_app(wm_class, wm_class_name, title)
+
+            win = VisibleWindow(
+                window_id=wid,
+                title=title,
+                wm_class=wm_class,
+                wm_class_name=wm_class_name,
+                pid=pid,
+                x=x,
+                y=y,
+                width=w,
+                height=h,
+                is_active=(wid == active_wid),
+                category=category,
+                stacking_order=idx,
+            )
+            windows.append(win)
+
+        return windows
 
     def _scan_via_wmctrl(self, active_wid: int) -> List[VisibleWindow]:
         """List windows using wmctrl -lGpx."""

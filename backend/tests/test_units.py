@@ -119,6 +119,7 @@ class TestWindowManagerActiveSelection:
 
     def test_query_mouse_window_id_parses_shell_output(self):
         wm = WindowManager(enable_git=False, cache_ttl=0.0)
+        wm._xlib = None  # force subprocess fallback
         wm._has_xdotool = True
 
         mouse_output = "X=123\nY=456\nSCREEN=0\nWINDOW=0x2a"
@@ -361,6 +362,7 @@ class TestProcessScanner:
 
     def test_scan_filters_service_windows(self):
         scanner = ProcessScanner()
+        scanner._xlib = None  # force subprocess fallback
         scanner._has_wmctrl = True
         scanner._has_xdotool = False
 
@@ -377,6 +379,7 @@ class TestProcessScanner:
 
     def test_scan_prefers_cursor_window_as_active(self):
         scanner = ProcessScanner()
+        scanner._xlib = None  # force subprocess fallback
         scanner._has_wmctrl = True
         scanner._has_xdotool = True
 
@@ -397,6 +400,7 @@ class TestProcessScanner:
 
     def test_scan_falls_back_to_focused_when_cursor_window_is_service(self):
         scanner = ProcessScanner()
+        scanner._xlib = None  # force subprocess fallback
         scanner._has_wmctrl = True
         scanner._has_xdotool = True
 

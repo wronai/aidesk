@@ -21,6 +21,14 @@ import structlog
 
 logger = structlog.get_logger()
 
+# Optional: direct X11 protocol access (much faster than subprocess)
+try:
+    from ewmh import EWMH as _EWMH
+    from Xlib import X as _X, display as _xdisplay, error as _xerror
+    _HAS_XLIB = True
+except ImportError:
+    _HAS_XLIB = False
+
 
 class AppCategory(str, Enum):
     """Application categories for per-app analysis modes."""
@@ -265,10 +273,182 @@ class MonitorInfo:
         }
 
 
+# ===== Direct X11 backend (python-xlib + ewmh) =====
+
+class _EwmhBackend:
+    """
+    Fast X11 window detection via python-xlib + ewmh.
+    Replaces subprocess calls (xdotool, xprop, wmctrl) with direct protocol.
+    """
+
+    def __init__(self):
+        self._ewmh: Optional[_EWMH] = None
+        self._display = None
+        self._root = None
+        self._available = False
+        self._init()
+
+    def _init(self):
+        if not _HAS_XLIB:
+            return
+        if not os.environ.get("DISPLAY"):
+            return
+        try:
+            self._display = _xdisplay.Display()
+            self._root = self._display.screen().root
+            self._ewmh = _EWMH(self._display)
+            self._available = True
+        except Exception as e:
+            logger.debug("python-xlib init failed, falling back to subprocess", error=str(e))
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    def get_active_window_id(self) -> int:
+        """Get focused window ID via _NET_ACTIVE_WINDOW."""
+        try:
+            win = self._ewmh.getActiveWindow()
+            if win:
+                return win.id
+        except Exception:
+            pass
+        return 0
+
+    def get_mouse_window_id(self) -> int:
+        """Get window ID under mouse cursor via XQueryPointer."""
+        try:
+            qp = self._root.query_pointer()
+            child = qp.child
+            if child and child.id:
+                # Walk to the deepest child to get the actual app window
+                return self._find_client_window(child)
+        except Exception:
+            pass
+        return 0
+
+    def _find_client_window(self, win) -> int:
+        """Walk up the tree to find the managed client window."""
+        try:
+            # Check if this window has WM_STATE (means it's a managed window)
+            atom = self._display.intern_atom("WM_STATE", True)
+            if atom:
+                prop = win.get_full_property(atom, _X.AnyPropertyType)
+                if prop:
+                    return win.id
+            # Try parent
+            parent = win.query_tree().parent
+            if parent and parent.id != self._root.id:
+                return self._find_client_window(parent)
+        except Exception:
+            pass
+        return win.id
+
+    def get_window_name(self, wid: int) -> str:
+        """Get window title via _NET_WM_NAME or WM_NAME."""
+        try:
+            win = self._display.create_resource_object("window", wid)
+            name = self._ewmh.getWmName(win)
+            if name:
+                return name if isinstance(name, str) else name.decode("utf-8", errors="replace")
+            # Fallback: WM_NAME
+            prop = win.get_full_property(
+                self._display.intern_atom("WM_NAME"), _X.AnyPropertyType
+            )
+            if prop and prop.value:
+                val = prop.value
+                return val if isinstance(val, str) else val.decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        return ""
+
+    def get_wm_class(self, wid: int) -> Tuple[str, str]:
+        """Get (wm_class_instance, wm_class_name) via WM_CLASS."""
+        try:
+            win = self._display.create_resource_object("window", wid)
+            cls = win.get_wm_class()
+            if cls and len(cls) >= 2:
+                return (cls[0] or "", cls[1] or "")
+        except Exception:
+            pass
+        return ("", "")
+
+    def get_wm_pid(self, wid: int) -> int:
+        """Get PID via _NET_WM_PID."""
+        try:
+            win = self._display.create_resource_object("window", wid)
+            pid = self._ewmh.getWmPid(win)
+            return pid if pid else 0
+        except Exception:
+            return 0
+
+    def get_geometry(self, wid: int) -> Tuple[int, int, int, int]:
+        """Get (x, y, width, height) of a window including frame offsets."""
+        try:
+            win = self._display.create_resource_object("window", wid)
+            geo = win.get_geometry()
+            # Translate to root coordinates
+            coords = win.translate_coords(self._root, 0, 0)
+            x = abs(coords.x)
+            y = abs(coords.y)
+            return (x, y, geo.width, geo.height)
+        except Exception:
+            return (0, 0, 0, 0)
+
+    def get_client_list_stacking(self) -> List[int]:
+        """Get all managed window IDs in stacking order (bottom to top)."""
+        try:
+            wins = self._ewmh.getClientListStacking()
+            if wins:
+                return [w.id for w in wins]
+        except Exception:
+            pass
+        # Fallback: non-stacking list
+        try:
+            wins = self._ewmh.getClientList()
+            if wins:
+                return [w.id for w in wins]
+        except Exception:
+            pass
+        return []
+
+    def get_window_desktop(self, wid: int) -> int:
+        """Get desktop number for a window (-1 = sticky/all)."""
+        try:
+            win = self._display.create_resource_object("window", wid)
+            desk = self._ewmh.getWmDesktop(win)
+            return desk if desk is not None else 0
+        except Exception:
+            return 0
+
+    def flush(self):
+        """Flush pending X11 requests."""
+        try:
+            if self._display:
+                self._display.flush()
+        except Exception:
+            pass
+
+
+# Singleton — created once per process
+_ewmh_backend: Optional[_EwmhBackend] = None
+
+
+def _get_ewmh_backend() -> Optional[_EwmhBackend]:
+    """Get or create the singleton EwmhBackend."""
+    global _ewmh_backend
+    if _ewmh_backend is None and _HAS_XLIB:
+        _ewmh_backend = _EwmhBackend()
+    if _ewmh_backend and _ewmh_backend.available:
+        return _ewmh_backend
+    return None
+
+
 class WindowManager:
     """
-    Linux window manager integration via xdotool, xprop, xrandr.
-    Falls back gracefully if tools are unavailable.
+    Linux window manager integration.
+    Uses python-xlib/ewmh for direct X11 access when available,
+    falls back to xdotool/xprop/xrandr subprocesses.
     """
 
     def __init__(
@@ -281,7 +461,10 @@ class WindowManager:
         self.git_timeout = git_timeout
         self.cache_ttl = cache_ttl
 
-        # Tool availability
+        # Direct X11 backend (preferred)
+        self._xlib = _get_ewmh_backend()
+
+        # Subprocess fallback availability
         self._has_xdotool = self._check_tool("xdotool")
         self._has_xprop = self._check_tool("xprop")
         self._has_xrandr = self._check_tool("xrandr")
@@ -305,6 +488,7 @@ class WindowManager:
         logger.info(
             "WindowManager initialized",
             display_server=self._display_server,
+            xlib_backend=bool(self._xlib),
             xdotool=self._has_xdotool,
             xprop=self._has_xprop,
             xrandr=self._has_xrandr,
@@ -386,7 +570,7 @@ class WindowManager:
 
     def _query_window_id(self) -> int:
         """Get user work window ID (cursor window preferred, focus as fallback)."""
-        if not self._has_xdotool:
+        if not self._xlib and not self._has_xdotool:
             return 0
 
         cursor_wid = self._query_mouse_window_id()
@@ -404,11 +588,19 @@ class WindowManager:
         return 0
 
     def _query_active_window_id(self) -> int:
-        """Get focused window ID via xdotool."""
+        """Get focused window ID via xlib or xdotool."""
+        if self._xlib:
+            wid = self._xlib.get_active_window_id()
+            if wid:
+                return wid
         return self._parse_window_id(self._run(["xdotool", "getactivewindow"]))
 
     def _query_mouse_window_id(self) -> int:
-        """Get window ID currently under mouse cursor via xdotool."""
+        """Get window ID currently under mouse cursor via xlib or xdotool."""
+        if self._xlib:
+            wid = self._xlib.get_mouse_window_id()
+            if wid:
+                return wid
         output = self._run(["xdotool", "getmouselocation", "--shell"])
         if not output:
             return 0
@@ -446,6 +638,13 @@ class WindowManager:
         if window_id <= 0:
             return False
 
+        # Fast path: python-xlib
+        if self._xlib:
+            title = self._xlib.get_window_name(window_id)
+            wm_class, wm_class_name = self._xlib.get_wm_class(window_id)
+            return self._is_service_window_fields(wm_class, wm_class_name, title)
+
+        # Subprocess fallback
         title = self._run(["xdotool", "getwindowname", str(window_id)]) or ""
         wm_class = ""
         wm_class_name = ""
@@ -462,7 +661,19 @@ class WindowManager:
 
     def _query_window_props(self, info: WindowInfo):
         """Query title, geometry, PID, and WM_CLASS for a window."""
-        wid = str(info.window_id)
+        wid_int = info.window_id
+
+        # Fast path: python-xlib (single round of X11 calls, no subprocesses)
+        if self._xlib:
+            info.title = self._xlib.get_window_name(wid_int)
+            info.wm_class, info.wm_class_name = self._xlib.get_wm_class(wid_int)
+            info.pid = self._xlib.get_wm_pid(wid_int)
+            x, y, w, h = self._xlib.get_geometry(wid_int)
+            info.x, info.y, info.width, info.height = x, y, w, h
+            return
+
+        # Subprocess fallback
+        wid = str(wid_int)
 
         # Title
         title = self._run(["xdotool", "getwindowname", wid])

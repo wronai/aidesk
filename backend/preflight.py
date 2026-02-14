@@ -128,6 +128,9 @@ class PreflightDiagnostics:
         # 4. Ping VLM OCR (if configured)
         results.append(await self._ping_vlm_ocr())
 
+        # 5. Check window detection tools
+        results.extend(self._check_window_tools())
+
         elapsed = (time.time() - start) * 1000
 
         # Print results
@@ -355,6 +358,49 @@ class PreflightDiagnostics:
             )
         except Exception as e:
             return PreflightResult(name, ok=False, detail=str(e))
+
+
+    def _check_window_tools(self) -> List[PreflightResult]:
+        """Check window detection tools: python-xlib and CLI fallbacks."""
+        import subprocess
+        results = []
+
+        # python-xlib / ewmh (preferred fast path)
+        try:
+            from ewmh import EWMH
+            from Xlib import display as _xdisplay
+            disp = _xdisplay.Display()
+            ewmh = EWMH(disp)
+            clients = ewmh.getClientList() or []
+            results.append(PreflightResult(
+                "python-xlib + ewmh",
+                ok=True,
+                detail=f"Direct X11 backend, {len(clients)} windows visible",
+            ))
+        except ImportError:
+            results.append(PreflightResult(
+                "python-xlib + ewmh",
+                ok=False,
+                detail="Not installed. Run: pip install python-xlib ewmh",
+            ))
+        except Exception as e:
+            results.append(PreflightResult(
+                "python-xlib + ewmh",
+                ok=False,
+                detail=f"Init failed: {e} (DISPLAY={os.environ.get('DISPLAY', '')})",
+            ))
+
+        # CLI fallbacks
+        for tool in ("xdotool", "xprop", "wmctrl"):
+            try:
+                r = subprocess.run(["which", tool], capture_output=True, timeout=2)
+                ok = r.returncode == 0
+            except Exception:
+                ok = False
+            detail = "available" if ok else f"Not found. Install: sudo apt install {tool}"
+            results.append(PreflightResult(f"CLI: {tool}", ok=ok, detail=detail))
+
+        return results
 
 
 @nfo.log_call(level="INFO")

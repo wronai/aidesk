@@ -42,6 +42,10 @@ pytest==8.0.0
 pytest-asyncio==0.23.5
 httpx==0.28.1
 
+# Window Detection (direct X11 protocol, no subprocess overhead)
+python-xlib>=0.33
+ewmh>=0.1.6
+
 # Development
 watchdog>=4.0.0
 

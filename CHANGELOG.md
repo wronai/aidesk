@@ -1,3 +1,19 @@
+## [2.1.29] - 2026-02-14
+
+### Summary
+
+feat(tests): deep code analysis engine with 3 supporting modules
+
+### Other
+
+- update backend/event_bus.py
+- update backend/preflight.py
+- update backend/process_scanner.py
+- update backend/requirements.txt
+- update backend/tests/test_units.py
+- update backend/window_aware.py
+
+
 ## [2.1.28] - 2026-02-14
 
 ### Summary

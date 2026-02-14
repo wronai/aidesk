@@ -217,7 +217,7 @@ class EventStore:
             pass
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA busy_timeout=3000")
+        conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
     def _ensure_db(self):
@@ -284,58 +284,80 @@ class EventStore:
         except Exception as e:
             logger.warning("Event store close failed", error=str(e))
 
+    _APPEND_MAX_RETRIES = 3
+    _APPEND_BACKOFF_MS = (50, 100, 200)
+
     def append(self, event: Event):
         """Append event to store (fire-and-forget, never blocks pipeline)."""
-        try:
-            payload = json.dumps(event.data, default=str)
-            trace_sample = None
-            with self._lock:
-                if self._closed:
-                    return
+        payload = json.dumps(event.data, default=str)
+        last_err: Optional[Exception] = None
 
-                inserted_cur = self._conn.execute(
-                    "INSERT OR IGNORE INTO events (event_id, type, category, source, timestamp, correlation_id, version, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        event.event_id,
-                        event.type,
-                        event.category,
-                        event.source,
-                        event.timestamp,
-                        event.correlation_id,
-                        event.version,
-                        payload,
-                    ),
-                )
+        for attempt in range(1 + self._APPEND_MAX_RETRIES):
+            try:
+                trace_sample = self._try_append(event, payload)
+                if trace_sample is not None:
+                    self._trace_append_sample(**trace_sample)
+                return
+            except sqlite3.OperationalError as e:
+                last_err = e
+                if "locked" in str(e) and attempt < self._APPEND_MAX_RETRIES:
+                    time.sleep(self._APPEND_BACKOFF_MS[attempt] / 1000.0)
+                    continue
+                break
+            except Exception as e:
+                last_err = e
+                break
 
-                inserted = inserted_cur.rowcount == 1
-                self._append_calls += 1
+        if last_err is not None:
+            logger.warning("Event store append failed", error=str(last_err))
 
-                if inserted:
-                    self._event_count += 1
-                    self._pending_writes += 1
-                    self._writes_since_prune += 1
+    def _try_append(self, event: Event, payload: str) -> Optional[Dict]:
+        """Single append attempt; raises on SQLite errors for retry."""
+        trace_sample = None
+        with self._lock:
+            if self._closed:
+                return None
 
-                if self._append_calls % self._nfo_sample_every == 0:
-                    trace_sample = {
-                        "event_type": event.type,
-                        "source": event.source,
-                        "inserted": inserted,
-                        "payload_bytes": len(payload),
-                        "pending_writes": self._pending_writes,
-                        "total_events": self._event_count,
-                    }
+            inserted_cur = self._conn.execute(
+                "INSERT OR IGNORE INTO events (event_id, type, category, source, timestamp, correlation_id, version, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event.event_id,
+                    event.type,
+                    event.category,
+                    event.source,
+                    event.timestamp,
+                    event.correlation_id,
+                    event.version,
+                    payload,
+                ),
+            )
 
-                if self._writes_since_prune >= self._prune_every:
-                    self._prune_old_events_if_needed()
-                    self._writes_since_prune = 0
+            inserted = inserted_cur.rowcount == 1
+            self._append_calls += 1
 
-                if self._pending_writes >= self._flush_every:
-                    self._flush_if_needed()
+            if inserted:
+                self._event_count += 1
+                self._pending_writes += 1
+                self._writes_since_prune += 1
 
-            if trace_sample is not None:
-                self._trace_append_sample(**trace_sample)
-        except Exception as e:
-            logger.warning("Event store append failed", error=str(e))
+            if self._append_calls % self._nfo_sample_every == 0:
+                trace_sample = {
+                    "event_type": event.type,
+                    "source": event.source,
+                    "inserted": inserted,
+                    "payload_bytes": len(payload),
+                    "pending_writes": self._pending_writes,
+                    "total_events": self._event_count,
+                }
+
+            if self._writes_since_prune >= self._prune_every:
+                self._prune_old_events_if_needed()
+                self._writes_since_prune = 0
+
+            if self._pending_writes >= self._flush_every:
+                self._flush_if_needed()
+
+        return trace_sample
 
     def query(
         self,
