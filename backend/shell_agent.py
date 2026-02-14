@@ -480,13 +480,17 @@ class ShellAgent:
         }
 
 
-def create_shell_agent_from_env() -> ShellAgent:
-    """Create ShellAgent from environment variables."""
-    from dotenv import load_dotenv
-    load_dotenv()
+def create_shell_agent_from_env(settings=None) -> ShellAgent:
+    """Create ShellAgent from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
+    if not settings.enable_shell_agent:
+        return None
 
     return ShellAgent(
-        auto_execute_safe=os.getenv("AGENT_AUTO_EXECUTE", "true").lower() == "true",
-        max_output_length=int(os.getenv("AGENT_MAX_OUTPUT", "2000")),
-        command_timeout=float(os.getenv("AGENT_TIMEOUT", "10.0")),
+        auto_execute_safe=settings.agent_auto_execute,
+        max_output_length=settings.agent_max_output,
+        command_timeout=settings.agent_timeout,
     )

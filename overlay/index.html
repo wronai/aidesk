@@ -8,13 +8,14 @@
 </head>
 <body>
   <div class="overlay-container" id="overlay">
-    <!-- Header -->
-    <div class="header">
+    <!-- Header (drag handle) -->
+    <div class="header drag-handle" id="dragHandle">
       <div class="header-left">
         <span class="logo">🤖</span>
         <span class="title">AI Assistant</span>
       </div>
       <div class="header-right">
+        <button class="btn-header" id="btnMoveScreen" title="Przenieś na inny ekran (Ctrl+Shift+M)">🖥️</button>
         <div class="status-indicator" id="connectionStatus" title="Connecting...">
           <div class="status-dot"></div>
         </div>
@@ -96,6 +97,22 @@
       <div class="agent-actions-list" id="agentActionsList"></div>
     </div>
 
+    <!-- Selection Analysis Panel -->
+    <div class="selection-panel" id="selectionPanel" style="display: none;">
+      <div class="selection-panel-header">
+        <span class="selection-panel-title">🔍 Analiza zaznaczenia</span>
+        <button class="btn-close-panel" id="btnCloseSelection" title="Zamknij">✕</button>
+      </div>
+      <div class="selection-panel-input">
+        <textarea id="selectionInput" class="selection-textarea" placeholder="Wklej tekst do analizy lub użyj Ctrl+Shift+S..." rows="3"></textarea>
+        <button class="btn-analyze" id="btnAnalyze" title="Analizuj">▶ Analizuj</button>
+      </div>
+      <div class="selection-panel-response" id="selectionResponse"></div>
+      <div class="selection-panel-clipboard" id="selectionClipboard" style="display: none;">
+        <button class="btn-agent btn-copy" id="btnCopySelection" title="Kopiuj do schowka">📋 Kopiuj</button>
+      </div>
+    </div>
+
     <!-- Footer with stats -->
     <div class="footer" id="footer">
       <div class="footer-item">
@@ -107,6 +124,9 @@
         <span class="footer-value" id="timestamp">--:--:--</span>
       </div>
     </div>
+
+    <!-- Resize handle -->
+    <div class="resize-handle" id="resizeHandle" title="Zmień rozmiar"></div>
   </div>
 
   <!-- Keyboard shortcuts help (initially hidden) -->
@@ -115,6 +135,14 @@
     <div class="shortcut-item">
       <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>
       <span>Pokaż/Ukryj</span>
+    </div>
+    <div class="shortcut-item">
+      <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>
+      <span>Analizuj zaznaczenie</span>
+    </div>
+    <div class="shortcut-item">
+      <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>M</kbd>
+      <span>Przenieś na inny ekran</span>
     </div>
     <div class="shortcut-item">
       <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd>

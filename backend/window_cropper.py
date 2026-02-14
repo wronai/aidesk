@@ -255,91 +255,16 @@ class WindowCropper:
         new_hashes: Dict[Tuple[int, int, int, int], imagehash.ImageHash] = {}
 
         for win in windows:
-            # Skip tiny windows
-            if win.width < self.min_window_size or win.height < self.min_window_size:
-                continue
-
-            # Skip compositor/guard windows: no WM class + fills entire screen
-            if win.title in self._GUARD_TITLES and not win.wm_class_name:
-                continue
-
-            # Deduplicate windows with identical geometry (e.g. PyCharm sub-windows)
             geo_key = (win.x, win.y, win.width, win.height)
-            if geo_key in seen_geometries:
+
+            if self._should_skip_window(win, geo_key, seen_geometries, screen_w, screen_h):
                 continue
             seen_geometries.add(geo_key)
 
-            # Clamp to screen/image bounds
-            x1 = max(0, win.x)
-            y1 = max(0, win.y)
-            x2 = min(screen_w, win.x + win.width)
-            y2 = min(screen_h, win.y + win.height)
-
-            if x2 <= x1 or y2 <= y1:
-                continue
-
-            try:
-                # Crop the region
-                cropped_img = fullscreen_image.crop((x1, y1, x2, y2))
-
-                # Resize preserving aspect ratio (longest side → max_crop_dimension)
-                crop_w, crop_h = cropped_img.size
-                longest = max(crop_w, crop_h)
-                if longest > self.max_crop_dimension:
-                    ratio = self.max_crop_dimension / longest
-                    new_w = max(2, int(crop_w * ratio))
-                    new_h = max(2, int(crop_h * ratio))
-                    cropped_img = cropped_img.resize(
-                        (new_w, new_h), Image.Resampling.LANCZOS
-                    )
-                    crop_w, crop_h = new_w, new_h
-
-                # Per-window change detection via perceptual hash
-                current_hash = imagehash.phash(cropped_img, hash_size=8)
-                new_hashes[geo_key] = current_hash
-                change_score = 0.0
-                prev = self._prev_hashes.get(geo_key)
-                if prev is not None:
-                    change_score = float(current_hash - prev)
-
-                # Encode as JPEG base64
-                buffer = BytesIO()
-                cropped_img.save(
-                    buffer, format="JPEG",
-                    quality=self.jpeg_quality, optimize=True
-                )
-                b64 = base64.b64encode(buffer.getvalue()).decode()
-                size_kb = len(buffer.getvalue()) / 1024
-
-                # Save to disk (controlled by save_to_disk flag)
-                filepath = ""
-                if self.save_to_disk and self.crops_dir:
-                    safe_name = (win.wm_class_name or "unknown").replace("/", "_")
-                    filename = f"crop_{safe_name}_{win.window_id}_{int(time.time())}.jpg"
-                    filepath = os.path.join(self.crops_dir, filename)
-                    with open(filepath, "wb") as f:
-                        f.write(buffer.getvalue())
-
-                crop = CroppedWindow(
-                    window=win,
-                    image_b64=b64,
-                    width=crop_w,
-                    height=crop_h,
-                    size_kb=size_kb,
-                    crop_timestamp=time.time(),
-                    filepath=filepath,
-                    change_score=change_score,
-                )
+            crop = self._crop_single_window(win, fullscreen_image, geo_key, screen_w, screen_h, new_hashes)
+            if crop:
                 crops.append(crop)
                 self.total_crops += 1
-
-            except Exception as e:
-                logger.warning(
-                    "Failed to crop window",
-                    window_id=win.window_id,
-                    title=win.title,
-                    error=str(e),
-                )
 
         # Update stored hashes for next comparison
         self._prev_hashes = new_hashes
@@ -352,6 +277,101 @@ class WindowCropper:
         )
 
         return crops
+
+    def _should_skip_window(
+        self,
+        win: VisibleWindow,
+        geo_key: Tuple[int, int, int, int],
+        seen: set,
+        screen_w: int,
+        screen_h: int,
+    ) -> bool:
+        """Check if a window should be skipped (too small, guard, duplicate, off-screen)."""
+        if win.width < self.min_window_size or win.height < self.min_window_size:
+            return True
+        if win.title in self._GUARD_TITLES and not win.wm_class_name:
+            return True
+        if geo_key in seen:
+            return True
+        # Clamp check
+        x1, y1 = max(0, win.x), max(0, win.y)
+        x2, y2 = min(screen_w, win.x + win.width), min(screen_h, win.y + win.height)
+        if x2 <= x1 or y2 <= y1:
+            return True
+        return False
+
+    def _crop_single_window(
+        self,
+        win: VisibleWindow,
+        fullscreen_image: Image.Image,
+        geo_key: Tuple[int, int, int, int],
+        screen_w: int,
+        screen_h: int,
+        new_hashes: Dict,
+    ) -> Optional[CroppedWindow]:
+        """Crop, resize, hash, encode, and optionally save a single window."""
+        x1 = max(0, win.x)
+        y1 = max(0, win.y)
+        x2 = min(screen_w, win.x + win.width)
+        y2 = min(screen_h, win.y + win.height)
+
+        try:
+            cropped_img = fullscreen_image.crop((x1, y1, x2, y2))
+            cropped_img, crop_w, crop_h = self._resize_crop(cropped_img)
+
+            # Per-window change detection via perceptual hash
+            current_hash = imagehash.phash(cropped_img, hash_size=8)
+            new_hashes[geo_key] = current_hash
+            change_score = 0.0
+            prev = self._prev_hashes.get(geo_key)
+            if prev is not None:
+                change_score = float(current_hash - prev)
+
+            # Encode as JPEG base64
+            buffer = BytesIO()
+            cropped_img.save(buffer, format="JPEG", quality=self.jpeg_quality, optimize=True)
+            b64 = base64.b64encode(buffer.getvalue()).decode()
+            size_kb = len(buffer.getvalue()) / 1024
+
+            # Save to disk (controlled by save_to_disk flag)
+            filepath = self._save_crop_to_disk(win, buffer) if self.save_to_disk else ""
+
+            return CroppedWindow(
+                window=win,
+                image_b64=b64,
+                width=crop_w,
+                height=crop_h,
+                size_kb=size_kb,
+                crop_timestamp=time.time(),
+                filepath=filepath,
+                change_score=change_score,
+            )
+        except Exception as e:
+            logger.warning("Failed to crop window", window_id=win.window_id, title=win.title, error=str(e))
+            return None
+
+    def _resize_crop(self, img: Image.Image) -> Tuple[Image.Image, int, int]:
+        """Resize crop preserving aspect ratio (longest side → max_crop_dimension)."""
+        crop_w, crop_h = img.size
+        longest = max(crop_w, crop_h)
+        if longest > self.max_crop_dimension:
+            ratio = self.max_crop_dimension / longest
+            new_w = max(2, int(crop_w * ratio))
+            new_h = max(2, int(crop_h * ratio))
+            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            return img, new_w, new_h
+        return img, crop_w, crop_h
+
+    def _save_crop_to_disk(self, win: VisibleWindow, buffer: BytesIO) -> str:
+        """Save crop JPEG to disk if crops_dir is configured."""
+        if not self.crops_dir:
+            return ""
+        safe_name = (win.wm_class_name or "unknown").replace("/", "_")
+        filename = f"crop_{safe_name}_{win.window_id}_{int(time.time())}.jpg"
+        filepath = os.path.join(self.crops_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(buffer.getvalue())
+        return filepath
 
     @nfo.log_call(level="INFO")
     def organize_screen(

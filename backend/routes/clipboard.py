@@ -125,6 +125,32 @@ async def add_snippet(request: Request):
     return {"ok": True, "trigger": trigger}
 
 
+@router.post("/analyze-selection")
+async def analyze_selection(request: Request):
+    """Analyze selected/highlighted text and return structured response."""
+    from clipboard_intel import SelectionAnalyzer
+
+    body = await request.json()
+    text = body.get("text", "").strip()
+    if not text:
+        return JSONResponse(status_code=400, content={"error": "text required"})
+
+    analyzer = SelectionAnalyzer()
+    result = analyzer.analyze(text)
+
+    # Auto-push clipboard_text to queue if available
+    mgr = _state.get("clipboard_manager")
+    if mgr and result.clipboard_text:
+        from clipboard_intel import ClipSource
+        mgr.push(result.clipboard_text, source=ClipSource.AUTO, label=result.label)
+
+    # Broadcast to overlay via SSE
+    if _broadcast:
+        await _broadcast("selection_analysis", result.to_dict())
+
+    return result.to_dict()
+
+
 @router.get("/clipboard/stats")
 async def clipboard_stats():
     """Get clipboard intelligence statistics."""

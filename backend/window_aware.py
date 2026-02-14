@@ -252,67 +252,81 @@ class WindowManager:
         info = WindowInfo(timestamp=now)
 
         try:
-            # Step 1: Get active window ID
-            if self._has_xdotool:
-                wid_str = self._run(["xdotool", "getactivewindow"])
-                if wid_str:
-                    info.window_id = int(wid_str)
-
+            info.window_id = self._query_window_id()
             if info.window_id == 0:
                 return self._cache_and_return(info, now)
 
-            # Step 2: Get window title
-            title = self._run(["xdotool", "getwindowname", str(info.window_id)])
-            if title:
-                info.title = title
-
-            # Step 3: Get window geometry
-            geom = self._run(["xdotool", "getwindowgeometry", "--shell", str(info.window_id)])
-            if geom:
-                for line in geom.splitlines():
-                    if line.startswith("X="):
-                        info.x = int(line.split("=")[1])
-                    elif line.startswith("Y="):
-                        info.y = int(line.split("=")[1])
-                    elif line.startswith("WIDTH="):
-                        info.width = int(line.split("=")[1])
-                    elif line.startswith("HEIGHT="):
-                        info.height = int(line.split("=")[1])
-
-            # Step 4: Get PID
-            pid_str = self._run(["xdotool", "getwindowpid", str(info.window_id)])
-            if pid_str:
-                info.pid = int(pid_str)
-
-            # Step 5: Get WM_CLASS via xprop
-            if self._has_xprop:
-                xprop_out = self._run(["xprop", "-id", str(info.window_id), "WM_CLASS"])
-                if xprop_out and "=" in xprop_out:
-                    # WM_CLASS(STRING) = "instance", "class"
-                    match = re.search(r'"([^"]*)",\s*"([^"]*)"', xprop_out)
-                    if match:
-                        info.wm_class = match.group(1)
-                        info.wm_class_name = match.group(2)
-
-            # Step 6: Classify app
-            info.category = self._classify_app(info.wm_class, info.wm_class_name, info.title)
-
-            # Step 7: Get CWD from PID
-            if info.pid > 0:
-                info.cwd = self._get_cwd(info.pid)
-
-            # Step 8: Git context (for IDE/Terminal)
-            if self.enable_git and info.category in (AppCategory.IDE, AppCategory.TERMINAL):
-                self._enrich_git(info)
-
-            # Step 9: Determine which monitor the window is on
-            info.monitor_index = self._get_monitor_for_window(info)
-
+            self._query_window_props(info)
+            self._enrich_window(info)
         except Exception as e:
             self.errors += 1
             logger.error("Window detection failed", error=str(e))
 
         return self._cache_and_return(info, now)
+
+    def _query_window_id(self) -> int:
+        """Get active window ID via xdotool."""
+        if not self._has_xdotool:
+            return 0
+        wid_str = self._run(["xdotool", "getactivewindow"])
+        return int(wid_str) if wid_str else 0
+
+    def _query_window_props(self, info: WindowInfo):
+        """Query title, geometry, PID, and WM_CLASS for a window."""
+        wid = str(info.window_id)
+
+        # Title
+        title = self._run(["xdotool", "getwindowname", wid])
+        if title:
+            info.title = title
+
+        # Geometry
+        geom = self._run(["xdotool", "getwindowgeometry", "--shell", wid])
+        if geom:
+            self._parse_geometry(info, geom)
+
+        # PID
+        pid_str = self._run(["xdotool", "getwindowpid", wid])
+        if pid_str:
+            info.pid = int(pid_str)
+
+        # WM_CLASS
+        if self._has_xprop:
+            self._query_wm_class(info)
+
+    @staticmethod
+    def _parse_geometry(info: WindowInfo, geom: str):
+        """Parse xdotool --shell geometry output into WindowInfo fields."""
+        for line in geom.splitlines():
+            if line.startswith("X="):
+                info.x = int(line.split("=")[1])
+            elif line.startswith("Y="):
+                info.y = int(line.split("=")[1])
+            elif line.startswith("WIDTH="):
+                info.width = int(line.split("=")[1])
+            elif line.startswith("HEIGHT="):
+                info.height = int(line.split("=")[1])
+
+    def _query_wm_class(self, info: WindowInfo):
+        """Get WM_CLASS instance and class name via xprop."""
+        xprop_out = self._run(["xprop", "-id", str(info.window_id), "WM_CLASS"])
+        if xprop_out and "=" in xprop_out:
+            match = re.search(r'"([^"]*)",\s*"([^"]*)"', xprop_out)
+            if match:
+                info.wm_class = match.group(1)
+                info.wm_class_name = match.group(2)
+
+    def _enrich_window(self, info: WindowInfo):
+        """Classify app, resolve CWD, add git context, detect monitor."""
+        info.category = self._classify_app(info.wm_class, info.wm_class_name, info.title)
+
+        if info.pid > 0:
+            info.cwd = self._get_cwd(info.pid)
+
+        if self.enable_git and info.category in (AppCategory.IDE, AppCategory.TERMINAL):
+            self._enrich_git(info)
+
+        info.monitor_index = self._get_monitor_for_window(info)
 
     def _cache_and_return(self, info: WindowInfo, now: float) -> WindowInfo:
         self._last_window = info
@@ -514,13 +528,14 @@ class WindowManager:
         }
 
 
-def create_window_manager_from_env() -> WindowManager:
-    """Create WindowManager from environment variables."""
-    from dotenv import load_dotenv
-    load_dotenv()
+def create_window_manager_from_env(settings=None) -> WindowManager:
+    """Create WindowManager from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
 
     return WindowManager(
-        enable_git=os.getenv("ENABLE_GIT_CONTEXT", "true").lower() == "true",
-        git_timeout=float(os.getenv("GIT_TIMEOUT", "2.0")),
-        cache_ttl=float(os.getenv("WINDOW_CACHE_TTL", "0.5")),
+        enable_git=settings.enable_git_context,
+        git_timeout=settings.git_timeout,
+        cache_ttl=settings.window_cache_ttl,
     )

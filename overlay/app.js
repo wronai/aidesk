@@ -34,7 +34,19 @@ const elements = {
   screenSummary: document.getElementById('screenSummary'),
   screenSummaryText: document.getElementById('screenSummaryText'),
   screenSummaryCount: document.getElementById('screenSummaryCount'),
+  // Selection panel
+  selectionPanel: document.getElementById('selectionPanel'),
+  selectionInput: document.getElementById('selectionInput'),
+  selectionResponse: document.getElementById('selectionResponse'),
+  selectionClipboard: document.getElementById('selectionClipboard'),
+  btnAnalyze: document.getElementById('btnAnalyze'),
+  btnCloseSelection: document.getElementById('btnCloseSelection'),
+  btnCopySelection: document.getElementById('btnCopySelection'),
+  btnMoveScreen: document.getElementById('btnMoveScreen'),
 };
+
+// State for selection analysis
+let lastSelectionClipboardText = '';
 
 /**
  * Initialize SSE connection
@@ -117,6 +129,16 @@ function connect() {
   eventSource.addEventListener('diagnostics', (e) => {
     const data = JSON.parse(e.data);
     handleDiagnostics(data);
+  });
+
+  eventSource.addEventListener('selection_analysis', (e) => {
+    const data = JSON.parse(e.data);
+    handleSelectionAnalysisResult(data);
+  });
+
+  eventSource.addEventListener('clipboard_suggestions', (e) => {
+    const data = JSON.parse(e.data);
+    console.log('Clipboard suggestions:', data);
   });
 
   eventSource.addEventListener('heartbeat', (e) => {
@@ -658,6 +680,88 @@ function copyCommand(command) {
 }
 
 /**
+ * Show the selection analysis panel with text pre-filled
+ */
+function showSelectionPanel(text) {
+  if (!elements.selectionPanel) return;
+  elements.selectionPanel.style.display = 'block';
+  elements.selectionInput.value = text;
+  elements.selectionResponse.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+  elements.selectionClipboard.style.display = 'none';
+}
+
+/**
+ * Send text to backend for analysis
+ */
+async function analyzeSelection(text) {
+  if (!text) return;
+
+  showSelectionPanel(text);
+
+  try {
+    elements.btnAnalyze.disabled = true;
+    elements.btnAnalyze.textContent = '...';
+
+    const response = await fetch(`${BACKEND_URL}/analyze-selection`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      handleSelectionAnalysisResult(data);
+    } else {
+      elements.selectionResponse.innerHTML = '<div class="error-message">Błąd analizy</div>';
+    }
+  } catch (error) {
+    console.error('Selection analysis error:', error);
+    elements.selectionResponse.innerHTML = `<div class="error-message">⚠️ ${escapeHtml(error.message)}</div>`;
+  } finally {
+    elements.btnAnalyze.disabled = false;
+    elements.btnAnalyze.textContent = '▶ Analizuj';
+  }
+}
+
+/**
+ * Display selection analysis result in the panel
+ */
+function handleSelectionAnalysisResult(data) {
+  if (!elements.selectionPanel) return;
+  elements.selectionPanel.style.display = 'block';
+
+  // Format response (simple markdown-like rendering)
+  const html = formatSimpleMarkdown(data.response || 'Brak odpowiedzi');
+  elements.selectionResponse.innerHTML = html;
+
+  // Show copy button if clipboard text is available
+  lastSelectionClipboardText = data.clipboard_text || '';
+  if (lastSelectionClipboardText) {
+    elements.selectionClipboard.style.display = 'flex';
+    elements.btnCopySelection.textContent = '📋 Kopiuj';
+  } else {
+    elements.selectionClipboard.style.display = 'none';
+  }
+}
+
+/**
+ * Simple markdown-like formatting for analysis responses.
+ * Supports: **bold**, `code`, ```code blocks```, \n → <br>
+ */
+function formatSimpleMarkdown(text) {
+  let html = escapeHtml(text);
+  // Code blocks (```)
+  html = html.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // Line breaks
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+/**
  * Set up mouse event forwarding for click-through overlay.
  * Interactive elements (selects, buttons) disable click-through on hover.
  */
@@ -665,7 +769,7 @@ function setupMouseForwarding() {
   if (!window.electron || !window.electron.setIgnoreMouseEvents) return;
 
   // All interactive elements that should be clickable
-  const interactiveSelectors = 'select, button, input, .ocr-controls, .header, .agent-actions, .agent-action-buttons';
+  const interactiveSelectors = 'select, button, input, textarea, .ocr-controls, .header, .agent-actions, .agent-action-buttons, .selection-panel, .resize-handle';
 
   document.addEventListener('mouseover', (e) => {
     if (e.target.closest(interactiveSelectors)) {
@@ -707,6 +811,59 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   if (elements.btnBenchmark) {
     elements.btnBenchmark.addEventListener('click', runBenchmark);
+  }
+
+  // Selection panel event listeners
+  if (elements.btnAnalyze) {
+    elements.btnAnalyze.addEventListener('click', () => {
+      const text = elements.selectionInput.value.trim();
+      if (text) analyzeSelection(text);
+    });
+  }
+  if (elements.btnCloseSelection) {
+    elements.btnCloseSelection.addEventListener('click', () => {
+      elements.selectionPanel.style.display = 'none';
+      // Restore click-through
+      if (window.electron) window.electron.setFocusable(false);
+    });
+  }
+  if (elements.btnCopySelection) {
+    elements.btnCopySelection.addEventListener('click', () => {
+      if (lastSelectionClipboardText) {
+        navigator.clipboard.writeText(lastSelectionClipboardText);
+        elements.btnCopySelection.textContent = '✅ Skopiowano';
+        setTimeout(() => { elements.btnCopySelection.textContent = '📋 Kopiuj'; }, 2000);
+      }
+    });
+  }
+  if (elements.btnMoveScreen) {
+    elements.btnMoveScreen.addEventListener('click', () => {
+      if (window.electron) window.electron.moveToNextScreen();
+    });
+  }
+  if (elements.selectionInput) {
+    elements.selectionInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const text = elements.selectionInput.value.trim();
+        if (text) analyzeSelection(text);
+      }
+    });
+    // Make overlay focusable when clicking textarea
+    elements.selectionInput.addEventListener('focus', () => {
+      if (window.electron) window.electron.setFocusable(true);
+    });
+    elements.selectionInput.addEventListener('blur', () => {
+      if (window.electron) window.electron.setFocusable(false);
+    });
+  }
+
+  // Listen for Ctrl+Shift+S from main process
+  if (window.electron && window.electron.onAnalyzeSelection) {
+    window.electron.onAnalyzeSelection((text) => {
+      showSelectionPanel(text);
+      analyzeSelection(text);
+    });
   }
 
   // Load current settings from backend after short delay

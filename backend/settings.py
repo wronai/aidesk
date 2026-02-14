@@ -100,6 +100,9 @@ class Settings(BaseSettings):
     min_window_size: int = Field(100, ge=10)
     max_crop_windows: int = Field(0, ge=0)
 
+    # ===== Clipboard Intelligence =====
+    clipboard_max_items: int = Field(20, ge=1)
+
     # ===== Pipeline Profiles =====
     pipeline_profile: str = Field("", description="auto|fast|normal|full (empty=auto)")
     pipeline_full_interval: float = Field(60.0, ge=5.0)

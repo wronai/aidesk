@@ -238,25 +238,24 @@ class RealtimeSTT:
         }
 
 
-def create_stt_from_env() -> Optional[RealtimeSTT]:
-    """Create STT instance from environment variables."""
-    from dotenv import load_dotenv
+def create_stt_from_env(settings=None) -> Optional[RealtimeSTT]:
+    """Create STT instance from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
 
-    load_dotenv()
-
-    if os.getenv("ENABLE_STT", "true").lower() != "true":
+    if not settings.enable_stt:
         logger.info("STT disabled by config")
         return None
 
-    api_key = os.getenv("DEEPGRAM_API_KEY")
-    if not api_key:
+    if not settings.deepgram_api_key:
         logger.warning("DEEPGRAM_API_KEY not set, STT disabled")
         return None
 
     return RealtimeSTT(
-        api_key=api_key,
-        language=os.getenv("STT_LANGUAGE", "pl"),
-        model=os.getenv("DEEPGRAM_MODEL", "nova-3"),
-        input_device=os.getenv("STT_INPUT_DEVICE", ""),
-        monitor_device=os.getenv("STT_MONITOR_DEVICE", ""),
+        api_key=settings.deepgram_api_key,
+        language=settings.stt_language,
+        model=settings.deepgram_model,
+        input_device=settings.stt_input_device,
+        monitor_device=settings.stt_monitor_device,
     )

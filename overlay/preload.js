@@ -15,7 +15,27 @@ contextBridge.exposeInMainWorld('electron', {
   setIgnoreMouseEvents: (ignore, opts) => {
     ipcRenderer.send('set-ignore-mouse-events', ignore, opts);
   },
-  
+
+  // Move overlay to next screen
+  moveToNextScreen: () => {
+    ipcRenderer.send('move-to-next-screen');
+  },
+
+  // Resize overlay window
+  resizeOverlay: (width, height) => {
+    ipcRenderer.send('resize-overlay', width, height);
+  },
+
+  // Make overlay focusable (for text input in selection panel)
+  setFocusable: (focusable) => {
+    ipcRenderer.send('set-focusable', focusable);
+  },
+
+  // Listen for selection analysis trigger from main process
+  onAnalyzeSelection: (callback) => {
+    ipcRenderer.on('analyze-selection', (event, text) => callback(text));
+  },
+
   // App info
   versions: {
     node: process.versions.node,

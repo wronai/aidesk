@@ -19,8 +19,9 @@ body {
 }
 
 .overlay-container {
-  width: 380px;
-  max-height: 620px;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
   background: rgba(10, 10, 12, 0.92);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -750,4 +751,201 @@ kbd {
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
+}
+
+/* Drag handle (header) */
+.drag-handle {
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.drag-handle button,
+.drag-handle select,
+.drag-handle .status-indicator {
+  -webkit-app-region: no-drag;
+}
+
+/* Header buttons */
+.btn-header {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d4d4d4;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.btn-header:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Selection Analysis Panel */
+.selection-panel {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.06) 0%, rgba(167, 139, 250, 0.06) 100%);
+  border-top: 1px solid rgba(236, 72, 153, 0.15);
+  animation: slideDown 0.3s ease-out;
+}
+
+.selection-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.selection-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #f9a8d4;
+}
+
+.btn-close-panel {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #888;
+  font-size: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.btn-close-panel:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.selection-panel-input {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.selection-textarea {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s ease;
+  line-height: 1.4;
+}
+
+.selection-textarea:focus {
+  border-color: rgba(167, 139, 250, 0.5);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
+}
+
+.selection-textarea::placeholder {
+  color: #555;
+  font-style: italic;
+}
+
+.btn-analyze {
+  background: rgba(167, 139, 250, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  color: #c4b5fd;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  align-self: flex-end;
+}
+
+.btn-analyze:hover {
+  background: rgba(167, 139, 250, 0.25);
+  border-color: rgba(167, 139, 250, 0.5);
+}
+
+.btn-analyze:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selection-panel-response {
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  line-height: 1.6;
+  color: #d4d4d4;
+  max-height: 200px;
+  overflow-y: auto;
+  min-height: 20px;
+}
+
+.selection-panel-response:empty {
+  display: none;
+}
+
+.selection-panel-response code {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 11px;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.selection-panel-response pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin: 6px 0;
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+.selection-panel-clipboard {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Resize handle */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  -webkit-app-region: no-drag;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.15) 50%);
+  border-radius: 0 0 18px 0;
+}
+
+.resize-handle:hover {
+  opacity: 0.6;
+}
+
+/* Scrollable analysis section fills available space */
+.analysis-section {
+  overflow-y: auto;
+  flex: 1;
 }
