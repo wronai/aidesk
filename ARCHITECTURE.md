@@ -3,8 +3,8 @@
 ## Przegląd systemu
 
 AI Desktop Assistant to real-time desktop monitoring system składający się z dwóch głównych komponentów:
-- **Backend**: Python/FastAPI - przechwytywanie ekranu, AI, STT
-- **Frontend**: Electron - transparent overlay UI
+- **Backend**: Python/FastAPI - przechwytywanie ekranu, AI, STT, Window Awareness, Shell Agent
+- **Frontend**: Electron - transparent overlay UI z kontekstem okna i sugerowanymi akcjami
 
 ## Architektura wysokiego poziomu
 
@@ -19,13 +19,23 @@ AI Desktop Assistant to real-time desktop monitoring system składający się z 
          ↓ (mss library - 1 FPS)
 ┌──────────────────────────────────────────────────────────┐
 │              BACKEND (Python/FastAPI)                    │
-│  ┌────────────────┐                                      │
-│  │ Screen Capture │ → Perceptual Hash                    │
-│  │    Module      │   (imagehash)                        │
-│  └────────┬───────┘        ↓                             │
-│           │         Change Detected?                     │
-│           │         (70-90% filtered)                    │
-│           ↓                ↓                             │
+│                                                          │
+│  ┌────────────────┐  ┌────────────────┐                  │
+│  │ Window Manager │→ │ Screen Capture │                  │
+│  │ (xdotool/xprop)│  │ (mss/grim)     │                  │
+│  │ title, class,  │  │ ROI or full    │                  │
+│  │ PID, geometry  │  │ screen         │                  │
+│  │ git context    │  └────────┬───────┘                  │
+│  └───────┬────────┘           │                          │
+│          │ AppCategory        │ Perceptual Hash          │
+│          ↓                    ↓                          │
+│  ┌────────────────┐  Change Detected?                    │
+│  │ Profile Manager│  (70-90% filtered)                   │
+│  │ per-app prompt │           │                          │
+│  │ + focus hints  │           ↓                          │
+│  └───────┬────────┘                                      │
+│          │ prompt addon                                  │
+│          ↓                                               │
 │  ┌────────────────────────────────┐                      │
 │  │   OCR Pre-Processor            │                      │
 │  │  ┌──────────┐  ┌──────────┐    │                      │
@@ -38,9 +48,9 @@ AI Desktop Assistant to real-time desktop monitoring system składający się z 
 │                  ↓ extracted text                         │
 │  ┌────────────────────────────────┐                      │
 │  │   Vision AI Analyzer           │                      │
-│  │  ┌──────────┐  ┌──────────┐    │                      │
-│  │  │ Gemini   │  │ GPT-4o   │    │                      │
-│  │  │ 2.0 Flash│  │  -mini   │    │                      │
+│  │  ┌──────────┐  ┌──────────┐    │  Context enriched    │
+│  │  │ Gemini   │  │ GPT-4o   │    │  with window info    │
+│  │  │ 2.0 Flash│  │  -mini   │    │  + per-app prompt    │
 │  │  └──────────┘  └──────────┘    │                      │
 │  │  ┌──────────┐                  │                      │
 │  │  │ Claude   │  Rate Limiter    │                      │
@@ -48,6 +58,14 @@ AI Desktop Assistant to real-time desktop monitoring system składający się z 
 │  │  └──────────┘                  │                      │
 │  │  Modes: vision_only | ocr_only │                      │
 │  │         hybrid | ocr+vision    │                      │
+│  └───────────────┬────────────────┘                      │
+│                  ↓                                       │
+│  ┌────────────────────────────────┐                      │
+│  │   Shell Agent                  │                      │
+│  │  - Pattern matching on text    │                      │
+│  │  - Suggest safe commands       │                      │
+│  │  - Whitelist + block list      │                      │
+│  │  - Execute with approval       │                      │
 │  └───────────────┬────────────────┘                      │
 │                  │                                       │
 │  ┌───────────────┴────────────────┐                      │
@@ -59,9 +77,12 @@ AI Desktop Assistant to real-time desktop monitoring system składający się z 
 │                  │                                       │
 │  ┌───────────────┴────────────────┐                      │
 │  │     SSE Event Stream           │                      │
-│  │  - analysis                    │                      │
+│  │  - analysis (+ window + agent) │                      │
+│  │  - window (active window info) │                      │
+│  │  - agent_actions (suggestions) │                      │
+│  │  - agent_result (exec output)  │                      │
 │  │  - transcript                  │                      │
-│  │  - error                       │                      │
+│  │  - ocr_benchmark               │                      │
 │  │  - heartbeat                   │                      │
 │  └───────────────┬────────────────┘                      │
 └──────────────────┼───────────────────────────────────────┘
@@ -114,33 +135,47 @@ AI Desktop Assistant to real-time desktop monitoring system składający się z 
 
 ## Przepływ danych
 
-### 1. Screen Analysis Flow
+### 1. Screen Analysis Flow (v2.0)
 
 ```
-Screen → Capture (mss) → Resize (1280x720) → Hash (phash)
+Step 1: Window Detection (xdotool/xprop)
+    → title, WM_CLASS, PID, geometry, category
+    → Git context (branch, status) for IDE/Terminal
     ↓
-Hash diff < threshold? → NO → Continue
+Step 2: Screen Capture (mss/grim)
+    → Full screen or ROI (active window region)
+    → Resize (1280x720) → Hash (phash)
+    ↓
+Hash diff < threshold? → NO → Sleep (adaptive)
     ↓ YES
 Encode JPEG (quality 60) → Base64
     ↓
-Rate Limiter (acquire token)
+Step 3: Build Context
+    → Window context string (app, CWD, git branch)
+    → Recent context (sliding window)
     ↓
-OCR Pre-Processing (PaddleOCR/EasyOCR/Tesseract)
-    ↓ extracted text + bounding boxes
-Context Manager (get recent context)
+Step 4: Per-App Profile
+    → Get prompt addon for app category (IDE, Terminal, Browser...)
+    → Merge into analysis context
     ↓
-┌── Mode Selection ──────────────────────────────┐
-│ vision_only:     image → VLM                   │
-│ ocr_only:        OCR text only (no LLM call)   │
-│ hybrid:          OCR text → LLM text prompt    │
-│ ocr_plus_vision: OCR text + image → VLM        │
-└────────────────────────────────────────────────┘
+Step 5: OCR + Analysis
+    → OCR Pre-Processing (PaddleOCR/EasyOCR/Tesseract)
+    → Mode Selection:
+      ┌── vision_only:     image → VLM                   ┐
+      │   ocr_only:        OCR text only (no LLM call)   │
+      │   hybrid:          OCR text → LLM text prompt    │
+      └── ocr_plus_vision: OCR text + image → VLM        ┘
     ↓
-Parse Response (JSON if possible)
+Step 6: Shell Agent
+    → Pattern match on analysis + OCR text
+    → Suggest safe commands (git status, pip install, etc.)
+    → Broadcast agent_actions to overlay
     ↓
-Store in Context + Statistics
-    ↓
-Broadcast via SSE → Overlay displays
+Step 7: Broadcast via SSE
+    → analysis (text + window + agent_actions + OCR meta)
+    → window (active window info)
+    → agent_actions (suggested commands)
+    → Overlay displays all components
 ```
 
 ### 2. Speech-to-Text Flow
@@ -183,20 +218,26 @@ On disconnect: remove from subscribers
 #### capture.py - Screen Capture
 ```python
 SmartScreenCapture
-├── __init__() - Initialize mss, set thresholds
-├── capture() → Optional[Dict]
+├── __init__() - Initialize mss/grim, set thresholds
+├── capture(monitor_index, roi) → Optional[Dict]
 │   ├── Rate limiting check
-│   ├── Grab screen (mss)
+│   ├── Grab screen (mss or grim, with optional ROI)
 │   ├── Resize image (PIL)
 │   ├── Compute phash (imagehash)
 │   ├── Compare with last hash
 │   ├── Encode JPEG + base64
 │   └── Return if changed
+├── capture_roi_image(roi) → Optional[str]
+│   └── Capture specific region, return base64 JPEG
+├── get_monitors() → List[Dict]
+│   └── List available monitors (mss or wlr-randr)
 └── adaptive_interval → float
     └── Return 1s (active) or 10s (idle)
 ```
 
 **Optymalizacje:**
+- Backend auto-detection: X11 (mss) or Wayland (grim)
+- ROI capture: only active window region (CAPTURE_MODE=window)
 - Perceptual hashing (8x8 phash) ~5ms
 - Adaptive polling (zmniejsza CPU o 60-80% w idle)
 - JPEG compression (jakość 60 = 40% mniej danych)
@@ -296,6 +337,105 @@ RealtimeSTT
 - Polish accuracy: 95%+ (Deepgram Nova-3)
 - Cost: $0.0077/minute streaming
 
+#### window_aware.py - Window Awareness
+```python
+WindowManager
+├── __init__(enable_git, git_timeout, cache_ttl)
+│   └── Auto-detect tools: xdotool, xprop, xrandr, wmctrl
+├── get_active_window() → WindowInfo
+│   ├── xdotool getactivewindow → window ID
+│   ├── xdotool getwindowname → title
+│   ├── xdotool getwindowgeometry → x, y, width, height
+│   ├── xdotool getwindowpid → PID
+│   ├── xprop WM_CLASS → wm_class, wm_class_name
+│   ├── _classify_app() → AppCategory (IDE, Terminal, Browser...)
+│   ├── /proc/{pid}/cwd → working directory
+│   └── git rev-parse, git status → branch, repo, status
+├── get_monitors() → List[MonitorInfo] (via xrandr)
+├── get_window_roi(info) → Dict (left, top, width, height)
+└── get_stats() → Dict
+
+AppCategory (Enum)
+├── IDE, TERMINAL, BROWSER, EMAIL, CHAT
+└── OFFICE, MEDIA, FILE_MANAGER, SYSTEM, UNKNOWN
+
+WindowInfo (dataclass)
+├── window_id, title, wm_class, wm_class_name, pid
+├── x, y, width, height, monitor_index
+├── category: AppCategory
+├── git_repo, git_branch, git_status, cwd
+├── to_dict() → Dict
+└── to_context_string() → str (for LLM prompt injection)
+```
+
+**Obsługiwane aplikacje (50+ reguł):**
+- IDE: VS Code, JetBrains, Sublime, Zed, Cursor, Windsurf...
+- Terminal: gnome-terminal, alacritty, kitty, wezterm...
+- Browser: Firefox, Chrome, Brave, Vivaldi...
+- Email, Chat, Office, Media, File Manager, System
+
+#### app_profiles.py - Per-App Analysis Profiles
+```python
+ProfileManager
+├── __init__() - Load 7 built-in profiles
+├── get_profile(category) → AppProfile
+├── get_prompt_addon(category) → str
+│   └── Category-specific system prompt addon for LLM
+├── get_focus_keywords(category) → List[str]
+├── get_priority_boost(category) → float
+├── match_action_patterns(category, text) → List[Dict]
+└── get_all_profiles() → List[Dict]
+
+AppProfile (dataclass)
+├── category: AppCategory
+├── system_prompt_addon: str  (e.g. "Wykrywaj błędy składniowe...")
+├── focus_keywords: List[str] (change detection hints)
+├── action_patterns: Dict     (regex → action description)
+└── priority_boost: float     (sensitivity multiplier: IDE=1.5, Media=0.3)
+```
+
+**Profile examples:**
+- **IDE** (boost 1.5): Detect syntax errors, TODO/FIXME, imports, anti-patterns
+- **Terminal** (boost 1.3): Explain commands, suggest fixes for errors
+- **Browser** (boost 0.8): Summarize pages, detect StackOverflow Q&A, GitHub PRs
+
+#### shell_agent.py - Shell Agent
+```python
+ShellAgent
+├── __init__(auto_execute_safe, max_output, timeout)
+├── suggest_actions(text, category, cwd) → List[AgentAction]
+│   └── Pattern-match text against ACTION_RULES
+├── execute_action(action_id, cwd) → AgentAction
+│   ├── Safety check (_is_blocked)
+│   ├── Risk check (SAFE auto, MEDIUM needs approval)
+│   └── subprocess.run() with timeout + output capture
+├── execute_safe(command, cwd) → AgentAction
+│   └── Whitelist-validated direct execution
+├── approve_action(action_id) → bool
+├── get_pending_actions() → List[Dict]
+├── get_history(n) → List[Dict]
+└── get_stats() → Dict
+
+ActionRisk (Enum)
+├── SAFE       - Read-only (auto-execute: git status, ls, df -h)
+├── LOW        - Minor side effects (clipboard)
+├── MEDIUM     - File/git changes (needs user approval)
+├── HIGH       - System changes (manual only)
+└── DANGEROUS  - Never execute (rm -rf /, fork bomb, etc.)
+```
+
+**Action Rules (12+ patterns):**
+- `git push rejected` → `git pull --rebase`
+- `ModuleNotFoundError: {module}` → `pip install {module}`
+- `Cannot find module '{pkg}'` → `npm install {pkg}`
+- `No space left on device` → `df -h && du -sh /tmp/*`
+- `Connection refused` → `ss -tlnp | grep {port}`
+
+**Safety:**
+- 15+ blocked patterns (rm -rf /, fork bomb, dd, curl|bash...)
+- 30+ safe commands whitelist (git status, ls, df, ps...)
+- 10+ approval-required commands (git push, pip install, make...)
+
 #### context.py - Context Manager
 ```python
 ContextManager
@@ -313,30 +453,49 @@ ContextManager
 - `speech`: STT transcripts
 - `system`: System messages/errors
 
-#### server.py - FastAPI Application
+#### server.py - FastAPI Application (v2.0)
 ```python
 FastAPI App
 ├── Lifespan (startup/shutdown)
-│   ├── Initialize capture, analyzer, STT
+│   ├── Initialize capture, OCR manager, analyzer
+│   ├── Initialize window manager, profile manager, shell agent
 │   ├── Start screen_analysis_loop()
 │   └── On shutdown: stop all tasks
-├── Endpoints
-│   ├── GET  / - API info
+├── Core Endpoints
+│   ├── GET  / - API info (v2.0)
 │   ├── GET  /stream - SSE endpoint
 │   ├── GET  /status - Current state
-│   ├── GET  /stats - Detailed statistics
-│   ├── GET  /health - Health check
+│   ├── GET  /stats - Detailed statistics (all components)
+│   ├── GET  /health - Health check (6 components)
+├── OCR Endpoints
 │   ├── GET  /ocr/engines - List available OCR engines
 │   ├── POST /ocr/engine/{name} - Switch OCR engine
 │   ├── POST /ocr/benchmark - Run A/B benchmark
 │   ├── GET  /ocr/stats - OCR statistics
 │   ├── GET  /mode - Get analysis mode
 │   └── POST /mode/{name} - Switch analysis mode
+├── Window Endpoints
+│   ├── GET  /window - Active window info (live)
+│   ├── GET  /window/latest - Cached window info
+│   ├── GET  /window/stats - Window manager stats
+│   └── GET  /monitors - Connected monitors (xrandr)
+├── Profile Endpoints
+│   └── GET  /profiles - All per-app profiles
+├── Agent Endpoints
+│   ├── GET  /agent/actions - Pending actions
+│   ├── POST /agent/approve/{id} - Approve action
+│   ├── POST /agent/execute/{id} - Execute action
+│   ├── POST /agent/run - Run safe command directly
+│   └── GET  /agent/history - Execution history
 └── Background Tasks
-    ├── screen_analysis_loop()
-    │   └── capture → analyze → broadcast
-    └── STT callback: on_transcript()
-        └── Store → broadcast
+    └── screen_analysis_loop()
+        ├── Step 1: Detect active window
+        ├── Step 2: Capture screen (full or ROI)
+        ├── Step 3: Build context + window awareness
+        ├── Step 4: Get per-app prompt addon
+        ├── Step 5: Analyze (OCR + LLM)
+        ├── Step 6: Shell agent suggestions
+        └── Step 7: Broadcast to overlay
 ```
 
 ### Frontend (Electron/Overlay)
@@ -362,8 +521,11 @@ connect()
 ├── Create EventSource('/stream')
 ├── Event listeners
 │   ├── 'connected' → Update status
-│   ├── 'analysis' → handleAnalysis()
+│   ├── 'analysis' → handleAnalysis() (+ window + agent_actions)
 │   ├── 'transcript' → handleTranscript()
+│   ├── 'window' → handleWindowUpdate()
+│   ├── 'agent_actions' → handleAgentActions()
+│   ├── 'agent_result' → handleAgentResult()
 │   ├── 'error' → handleError()
 │   ├── 'ocr_engine_changed' → Update selector
 │   ├── 'mode_changed' → Update selector
@@ -376,8 +538,30 @@ handleAnalysis(data)
 ├── Parse response (JSON or text)
 ├── Format with emoji + styling
 ├── Show OCR info bar (engine, latency, confidence)
+├── Update window context bar (if window data present)
+├── Update agent actions (if suggestions present)
 ├── Fade in new content
-└── Update stats footer (with mode label)
+└── Update stats footer (provider • mode • category • tokens)
+
+handleWindowUpdate(data)
+├── Show window context bar
+├── Display app emoji + name + category badge
+└── Show git branch + CWD detail line
+
+handleAgentActions(data)
+├── Show agent actions section
+├── Render action cards (description, command, risk level)
+├── Approve + Execute buttons
+├── Copy command button
+└── Auto-hide after 30s
+
+handleAgentResult(data)
+├── Show execution result (exit code, output)
+└── Auto-hide after 15s
+
+approveAndExecute(actionId)
+├── POST /agent/approve/{id}
+└── POST /agent/execute/{id} → handleAgentResult()
 
 OCR Controls
 ├── switchMode(mode) → POST /mode/{mode}
@@ -498,7 +682,8 @@ Object Storage (Screenshots, if needed)
 Python Backend
 ├── fastapi (web framework)
 │   └── uvicorn (ASGI server)
-├── mss (screen capture)
+├── mss (screen capture - X11)
+├── grim (screen capture - Wayland, optional)
 ├── imagehash (perceptual hashing)
 │   └── PIL (image processing)
 ├── OCR Engines (hot-swappable)
@@ -510,7 +695,12 @@ Python Backend
 │   └── Cloud: Gemini, OpenAI, Claude, Groq, DeepSeek, Mistral
 ├── deepgram-sdk (STT)
 │   └── websockets
-└── sounddevice (audio input)
+├── sounddevice (audio input)
+└── System tools (window awareness)
+    ├── xdotool (active window detection)
+    ├── xprop (WM_CLASS detection)
+    ├── xrandr (monitor detection)
+    └── git (repo context)
 
 JavaScript Frontend
 ├── electron (desktop framework)
@@ -524,4 +714,4 @@ MIT - See LICENSE file
 ---
 
 Dokument stworzony: 2025-02-14
-Wersja: 1.0.0
+Wersja: 2.0.0 (Window Awareness + Shell Agent)

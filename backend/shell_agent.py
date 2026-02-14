@@ -155,7 +155,7 @@ ACTION_RULES: List[Dict] = [
     },
     # Python errors
     {
-        "pattern": r"ModuleNotFoundError:\s+No module named '(\w+)'",
+        "pattern": r"ModuleNotFoundError:\s+No module named '?(\w+)'?",
         "description": "Brakujący moduł Python — zainstaluj",
         "command": "pip install {match_1}",
         "risk": ActionRisk.MEDIUM,

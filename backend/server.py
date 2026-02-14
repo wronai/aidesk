@@ -17,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import nfo
+
 from capture import create_capture_from_env
 from analyzer import create_analyzer_from_env
 from ocr_engines import create_ocr_manager_from_env
@@ -25,6 +27,8 @@ from diagnostics import AutoDiagnostics
 from window_aware import WindowManager, create_window_manager_from_env
 from app_profiles import ProfileManager, create_profile_manager
 from shell_agent import ShellAgent, create_shell_agent_from_env
+from process_scanner import ProcessScanner, create_process_scanner
+from window_cropper import WindowCropper, create_window_cropper
 
 # Lazy STT import - sounddevice may not be available
 def _import_stt():
@@ -37,6 +41,16 @@ def _import_stt():
 
 # Load environment variables
 load_dotenv()
+
+# Configure nfo structured function logging (SQLite + Markdown)
+os.makedirs("logs", exist_ok=True)
+nfo_logger = nfo.configure(
+    name="aidesk",
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    sinks=["sqlite:logs/nfo_aidesk.db", "md:logs/nfo_aidesk.md"],
+    bridge_stdlib=False,
+    force=True,
+)
 
 # Configure structured logging
 def setup_logging():
@@ -107,7 +121,10 @@ app_state = {
     "window_manager": None,
     "profile_manager": None,
     "shell_agent": None,
+    "process_scanner": None,
+    "window_cropper": None,
     "latest_window": None,
+    "latest_organized_screen": None,
     "stats": {
         "start_time": time.time(),
         "total_screen_analyses": 0,
@@ -293,6 +310,40 @@ async def on_transcript(text: str, is_final: bool):
     await broadcast("transcript", {"text": text, "is_final": is_final})
 
 
+@nfo.log_call(level="INFO")
+def _nfo_validate_startup(state: Dict):
+    """
+    nfo-instrumented startup validation.
+    Logs all component initialization statuses to SQLite + Markdown.
+    """
+    components = {
+        "capture": state.get("capture") is not None,
+        "analyzer": state.get("analyzer") is not None,
+        "ocr_manager": state.get("ocr_manager") is not None,
+        "window_manager": state.get("window_manager") is not None,
+        "profile_manager": state.get("profile_manager") is not None,
+        "shell_agent": state.get("shell_agent") is not None,
+        "process_scanner": state.get("process_scanner") is not None,
+        "window_cropper": state.get("window_cropper") is not None,
+    }
+    ok = [k for k, v in components.items() if v]
+    failed = [k for k, v in components.items() if not v]
+
+    logger.info(
+        "nfo startup validation",
+        ok_components=ok,
+        failed_components=failed,
+        all_ok=len(failed) == 0,
+    )
+
+    return {
+        "all_ok": len(failed) == 0,
+        "ok": ok,
+        "failed": failed,
+        "total": len(components),
+    }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -324,6 +375,21 @@ async def lifespan(app: FastAPI):
             logger.info("Shell agent enabled")
         except Exception as e:
             logger.warning("Shell agent initialization failed", error=str(e))
+
+    # Initialize process scanner and window cropper
+    try:
+        app_state["process_scanner"] = create_process_scanner(
+            window_manager=app_state.get("window_manager")
+        )
+        app_state["window_cropper"] = create_window_cropper(
+            process_scanner=app_state["process_scanner"]
+        )
+        logger.info("Process scanner & window cropper enabled")
+    except Exception as e:
+        logger.warning("Process scanner/cropper initialization failed", error=str(e))
+
+    # nfo startup validation — log all initialized components
+    _nfo_validate_startup(app_state)
 
     # Start screen analysis loop
     screen_task = asyncio.create_task(screen_analysis_loop())

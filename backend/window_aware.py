@@ -50,7 +50,7 @@ APP_RULES: List[Tuple[str, AppCategory]] = [
     (r"cursor", AppCategory.IDE),
     (r"windsurf", AppCategory.IDE),
     # Terminals
-    (r"gnome-terminal|konsole|xfce4-terminal|terminator|alacritty|kitty|wezterm|foot|tilix|st|urxvt|xterm|sakura|guake|yakuake|tilda", AppCategory.TERMINAL),
+    (r"gnome-terminal|konsole|xfce4-terminal|terminator|alacritty|kitty|wezterm|foot|tilix|\bst\b|urxvt|xterm|sakura|guake|yakuake|tilda", AppCategory.TERMINAL),
     # Browsers
     (r"firefox|navigator|chromium|chrome|google-chrome|brave|vivaldi|opera|edge|epiphany|midori|qutebrowser|min", AppCategory.BROWSER),
     # Email
