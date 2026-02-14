@@ -1,6 +1,7 @@
-project: aidesk
-generated: "2026-02-14T14:18:44.198309"
-modules[94]{path,lang,items}:
+project: proxeen
+generated: "2026-02-14T15:12:03.379152"
+modules[96]{path,lang,items}:
+  rename_to_proxeen.py,python,6
   backend/process_scanner.py,python,23
   backend/stt.py,python,8
   backend/query_handlers.py,python,27
@@ -24,7 +25,7 @@ modules[94]{path,lang,items}:
   backend/async_subprocess.py,python,4
   backend/test_setup.py,python,14
   backend/wayland_screencast.py,python,21
-  backend/event_bus.py,python,24
+  backend/event_bus.py,python,26
   backend/pipeline.py,python,66
   backend/command_handlers.py,python,9
   backend/settings.py,python,7
@@ -52,10 +53,10 @@ modules[94]{path,lang,items}:
   overlay/services/sse.js,javascript,5
   backend/tests/test_wayland_screencast.py,python,24
   backend/tests/test_settings.py,python,25
-  backend/tests/test_units.py,python,106
+  backend/tests/test_units.py,python,117
   backend/tests/conftest.py,python,0
   backend/tests/test_analysis_loop.py,python,20
-  backend/tests/test_skills.py,python,157
+  backend/tests/test_skills.py,python,158
   backend/tests/test_bootstrap.py,python,20
   backend/tests/test_plugins.py,python,18
   backend/tests/test_routes.py,python,118
@@ -69,7 +70,8 @@ modules[94]{path,lang,items}:
   backend/tests/test_e2e.py,python,74
   backend/tests/test_cost_budget.py,python,7
   backend/tests/test_parallel_group.py,python,18
-  backend/tests/test_pipeline_steps.py,python,4
+  backend/tests/test_event_store.py,python,5
+  backend/tests/test_pipeline_steps.py,python,5
   backend/routes/screen.py,python,8
   backend/routes/config.py,python,5
   backend/routes/memory.py,python,4
@@ -90,13 +92,21 @@ modules[94]{path,lang,items}:
   backend/skills/base.py,python,9
   backend/skills/shell_command.py,python,7
   backend/skills/__init__.py,python,7
-  backend/skills/clipboard_relation.py,python,45
+  backend/skills/clipboard_relation.py,python,62
   backend/skills/voice_command.py,python,5
   backend/skills/translation.py,python,7
   backend/skills/tts.py,python,13
   backend/skills/url_handler.py,python,5
 
 function_details:
+  rename_to_proxeen.py:
+    functions[6]{name,kind,sig,loc,async,lines,cc,does}:
+      replace_case_preserving,function,"(text:str) -> str",26-30,false,5,2,Zamienia wszystkie wystąpienia proxeen na proxeen z zachowaniem wielkości liter.
+      find_files_and_dirs,function,"(root_dir:Path) -> Tuple[List[Path], List[Path]]",32-50,false,19,7,Znajduje wszystkie pliki i foldery do zmiany nazwy.
+      rename_files_and_dirs,function,"(files_to_rename:List[Path], dirs_to_rename:List[Path]) -> bool",52-76,false,25,6,Zmienia nazwy plików i folderów.
+      update_file_contents,function,"(root_dir:Path, extensions:List[str]=None) -> bool",78-107,false,30,8,Aktualizuje treść plików.
+      create_backup,function,"(root_dir:Path) -> bool",109-122,false,14,3,Tworzy kopię zapasową.
+      main,function,(),124-158,false,35,5,Główna funkcja skryptu.
   backend/process_scanner.py:
     functions[23]{name,kind,sig,loc,async,lines,cc,does}:
       create_process_scanner,function,"(window_manager:Optional[WindowManager]=None, settings=None) -> ProcessScanner",514-516,false,3,1,Create ProcessScanner instance.
@@ -124,43 +134,43 @@ function_details:
       ProcessScanner.get_stats,method,() -> Dict,501-511,false,11,1,retrieves stats
   backend/stt.py:
     functions[8]{name,kind,sig,loc,async,lines,cc,does}:
-      create_stt_from_env,function,"(settings=None) -> Optional[RealtimeSTT]",254-274,false,21,4,Create STT instance from settings.
-      RealtimeSTT.__init__,method,"(api_key:str, language:str='pl', model:str='nova-3', input_device:Optional[str]=None, monitor_device:Optional[str]=None)",25-70,false,46,3,Initialize STT.
-      RealtimeSTT.start,method,"(on_transcript:Callable)",72-144,true,73,4,Start streaming STT.
-      RealtimeSTT._send_audio_bytes,method,"(audio_bytes:bytes)",146-156,false,11,5,Thread-safe send of audio bytes to Deepgram using the captured loop.
-      RealtimeSTT._resolve_device,method,"(pulse_name:Optional[str]) -> Optional[int]",159-174,false,16,5,Resolve PulseAudio/PipeWire device name to sounddevice index.
-      RealtimeSTT._capture_audio,method,(),176-218,true,43,7,Capture audio from microphone (and optionally monitor) and stream to Deepgram.
-      RealtimeSTT.stop,method,(),220-239,true,20,4,Stop streaming STT.
-      RealtimeSTT.get_stats,method,() -> dict,241-251,false,11,3,Get STT statistics.
+      create_stt_from_env,function,"(settings=None) -> Optional[RealtimeSTT]",256-276,false,21,4,Create STT instance from settings.
+      RealtimeSTT.__init__,method,"(api_key:str, language:str='pl', model:str='nova-3', input_device:Optional[str]=None, monitor_device:Optional[str]=None)",26-71,false,46,3,Initialize STT.
+      RealtimeSTT.start,method,"(on_transcript:Callable)",73-145,true,73,4,Start streaming STT.
+      RealtimeSTT._send_audio_bytes,method,"(audio_bytes:bytes)",147-157,false,11,5,Thread-safe send of audio bytes to Deepgram using the captured loop.
+      RealtimeSTT._resolve_device,method,"(pulse_name:Optional[str]) -> Optional[int]",160-175,false,16,5,Resolve PulseAudio/PipeWire device name to sounddevice index.
+      RealtimeSTT._capture_audio,method,(),177-219,true,43,7,Capture audio from microphone (and optionally monitor) and stream to Deepgram.
+      RealtimeSTT.stop,method,(),221-240,true,20,4,Stop streaming STT.
+      RealtimeSTT.get_stats,method,() -> dict,242-252,false,11,3,Get STT statistics.
   backend/query_handlers.py:
     functions[27]{name,kind,sig,loc,async,lines,cc,does}:
-      ReadModel.__init__,method,(),34-54,false,21,1,creates
-      ReadModel.on_event,method,"(event:Event)",56-59,false,4,1,Update read model from any domain event (projection).
-      ReadModel.on_windows_scanned,method,"(data:Dict)",61-62,false,2,1,handles windows scanned
-      ReadModel.on_screen_captured,method,"(data:Dict)",64-65,false,2,1,handles screen captured
-      ReadModel.on_analysis_completed,method,"(data:Dict)",67-70,false,4,1,handles analysis completed
-      ReadModel.on_agent_suggested,method,"(data:Dict)",72-75,false,4,1,handles agent suggested
-      ReadModel.on_pipeline_completed,method,"(run_id:str, steps:list, timings:dict, errors:list)",77-84,false,8,2,handles pipeline completed
-      ReadModel.get_pipeline_view,method,() -> Dict,86-95,false,10,1,Materialized view of pipeline state.
-      ReadModel.get_analysis_view,method,() -> Dict,97-107,false,11,1,Materialized view of analysis metrics.
-      ReadModel.get_event_counts,method,() -> Dict,109-111,false,3,1,Event type frequency counts.
-      ReadModel._state_dict,method,() -> Dict,115-132,false,18,1,Serialize all mutable state to a plain dict.
-      ReadModel._restore,method,"(data:Dict)",134-146,false,13,3,Restore mutable state from a dict (ignores unknown keys).
-      ReadModel.save_snapshot,method,"(path:str='logs/readmodel_snapshot.json')",148-156,false,9,2,Persist current state to JSON file.
-      ReadModel.load_snapshot,method,"(path:str='logs/readmodel_snapshot.json')",158-173,false,16,3,Restore state from JSON file (if it exists).
-      QueryHandlers.__init__,method,"(bus:EventBus, app_state:Dict[str,Any], read_model:ReadModel)",184-187,false,4,1,creates
-      QueryHandlers.register_all,method,(),189-203,false,15,1,Subscribe domain event projectors to the EventBus.
-      QueryHandlers._project_windows,method,"(event:Event)",205-206,true,2,1,project windows
-      QueryHandlers._project_capture,method,"(event:Event)",208-209,true,2,1,project capture
-      QueryHandlers._project_analysis,method,"(event:Event)",211-212,true,2,1,project analysis
-      QueryHandlers._project_agent,method,"(event:Event)",214-215,true,2,1,project agent
-      QueryHandlers._project_pipeline,method,"(event:Event)",217-223,true,7,1,project pipeline
-      QueryHandlers._project_all,method,"(event:Event)",225-226,true,2,1,project all
-      QueryHandlers.query_health,method,() -> Dict,230-246,false,17,6,Query system health (read-only).
-      QueryHandlers.query_stats,method,() -> Dict,248-264,false,17,1,Query detailed stats (read-only).
-      QueryHandlers.query_events,method,"(event_type:str=None, source:str=None, correlation_id:str=None, since:float=None, limit:int=50) -> Dict",266-295,false,30,2,Query events from the event store.
-      QueryHandlers.query_pipeline,method,() -> Dict,297-304,false,8,2,Query pipeline execution state.
-      QueryHandlers.query_event_store_stats,method,() -> Dict,306-312,false,7,2,Query event store statistics.
+      ReadModel.__init__,method,(),35-55,false,21,1,creates
+      ReadModel.on_event,method,"(event:Event)",57-60,false,4,1,Update read model from any domain event (projection).
+      ReadModel.on_windows_scanned,method,"(data:Dict)",62-63,false,2,1,handles windows scanned
+      ReadModel.on_screen_captured,method,"(data:Dict)",65-66,false,2,1,handles screen captured
+      ReadModel.on_analysis_completed,method,"(data:Dict)",68-71,false,4,1,handles analysis completed
+      ReadModel.on_agent_suggested,method,"(data:Dict)",73-76,false,4,1,handles agent suggested
+      ReadModel.on_pipeline_completed,method,"(run_id:str, steps:list, timings:dict, errors:list)",78-85,false,8,2,handles pipeline completed
+      ReadModel.get_pipeline_view,method,() -> Dict,87-96,false,10,1,Materialized view of pipeline state.
+      ReadModel.get_analysis_view,method,() -> Dict,98-108,false,11,1,Materialized view of analysis metrics.
+      ReadModel.get_event_counts,method,() -> Dict,110-112,false,3,1,Event type frequency counts.
+      ReadModel._state_dict,method,() -> Dict,116-133,false,18,1,Serialize all mutable state to a plain dict.
+      ReadModel._restore,method,"(data:Dict)",135-147,false,13,3,Restore mutable state from a dict (ignores unknown keys).
+      ReadModel.save_snapshot,method,"(path:str='logs/readmodel_snapshot.json')",149-157,false,9,2,Persist current state to JSON file.
+      ReadModel.load_snapshot,method,"(path:str='logs/readmodel_snapshot.json')",159-174,false,16,3,Restore state from JSON file (if it exists).
+      QueryHandlers.__init__,method,"(bus:EventBus, app_state:Dict[str,Any], read_model:ReadModel)",185-188,false,4,1,creates
+      QueryHandlers.register_all,method,(),190-204,false,15,1,Subscribe domain event projectors to the EventBus.
+      QueryHandlers._project_windows,method,"(event:Event)",206-207,true,2,1,project windows
+      QueryHandlers._project_capture,method,"(event:Event)",209-210,true,2,1,project capture
+      QueryHandlers._project_analysis,method,"(event:Event)",212-213,true,2,1,project analysis
+      QueryHandlers._project_agent,method,"(event:Event)",215-216,true,2,1,project agent
+      QueryHandlers._project_pipeline,method,"(event:Event)",218-224,true,7,1,project pipeline
+      QueryHandlers._project_all,method,"(event:Event)",226-227,true,2,1,project all
+      QueryHandlers.query_health,method,() -> Dict,231-247,false,17,6,Query system health (read-only).
+      QueryHandlers.query_stats,method,() -> Dict,249-265,false,17,1,Query detailed stats (read-only).
+      QueryHandlers.query_events,method,"(event_type:str=None, source:str=None, correlation_id:str=None, since:float=None, limit:int=50) -> Dict",267-296,false,30,2,Query events from the event store.
+      QueryHandlers.query_pipeline,method,() -> Dict,298-305,false,8,2,Query pipeline execution state.
+      QueryHandlers.query_event_store_stats,method,() -> Dict,307-313,false,7,2,Query event store statistics.
   backend/protocols.py:
     functions[39]{name,kind,sig,loc,async,lines,cc,does}:
       ScreenCapture.capture,method,"(monitor_index:int=0, roi:Optional[Dict]=None) -> Optional[Dict]",21-23,false,3,1,Capture screen.
@@ -204,43 +214,43 @@ function_details:
       EventBroadcaster.broadcast,method,"(event_type:str, data:Dict) -> None",223-225,true,3,1,Send event to all connected SSE clients.
   backend/bootstrap.py:
     functions[12]{name,kind,sig,loc,async,lines,cc,does}:
-      _init_optional,function,"(state:dict, key:str, factory) -> bool",48-59,false,12,2,Try to initialize an optional component.
-      AppBootstrap.__init__,method,"(app_state:dict, broadcast_fn:Callable, version:str='')",78-85,false,8,1,creates
-      AppBootstrap.init_core,method,(),89-100,false,12,1,"Initialize capture, OCR manager, and analyzer."
-      AppBootstrap.init_window,method,(),104-119,false,16,5,"Initialize window manager, profile manager, and shell agent."
-      AppBootstrap.init_scanners,method,(),123-140,false,18,2,Initialize process scanner and window cropper.
-      AppBootstrap.init_tier1,method,(),144-159,false,16,3,"Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR..."
-      AppBootstrap.init_pipeline,method,(),163-214,false,52,1,"Initialize event bus, pipeline orchestrator, CQRS handlers."
-      AppBootstrap.init_plugins,method,(),218-230,false,13,1,Discover and load plugins.
-      AppBootstrap.start_tasks,method,"(screen_loop_coro, on_transcript_cb)",234-287,true,54,9,"Start screen analysis loop, STT, and diagnostics as async tasks."
-      AppBootstrap.startup,method,"(screen_loop_coro, on_transcript_cb)",291-300,true,10,1,Run all initialization phases in order.
-      AppBootstrap.shutdown,method,(),304-345,true,42,10,Cancel all tasks and emit shutdown event.
-      AppBootstrap.init_report,method,"() -> Dict[str, bool]",350-352,false,3,1,Return init success/failure for each component.
+      _init_optional,function,"(state:dict, key:str, factory) -> bool",49-60,false,12,2,Try to initialize an optional component.
+      AppBootstrap.__init__,method,"(app_state:dict, broadcast_fn:Callable, version:str='')",79-86,false,8,1,creates
+      AppBootstrap.init_core,method,(),90-101,false,12,1,"Initialize capture, OCR manager, and analyzer."
+      AppBootstrap.init_window,method,(),105-120,false,16,5,"Initialize window manager, profile manager, and shell agent."
+      AppBootstrap.init_scanners,method,(),124-141,false,18,2,Initialize process scanner and window cropper.
+      AppBootstrap.init_tier1,method,(),145-160,false,16,3,"Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR..."
+      AppBootstrap.init_pipeline,method,(),164-215,false,52,1,"Initialize event bus, pipeline orchestrator, CQRS handlers."
+      AppBootstrap.init_plugins,method,(),219-231,false,13,1,Discover and load plugins.
+      AppBootstrap.start_tasks,method,"(screen_loop_coro, on_transcript_cb)",235-288,true,54,9,"Start screen analysis loop, STT, and diagnostics as async tasks."
+      AppBootstrap.startup,method,"(screen_loop_coro, on_transcript_cb)",293-302,true,10,1,Run all initialization phases in order.
+      AppBootstrap.shutdown,method,(),307-348,true,42,10,Cancel all tasks and emit shutdown event.
+      AppBootstrap.init_report,method,"() -> Dict[str, bool]",353-355,false,3,1,Return init success/failure for each component.
   backend/multi_monitor.py:
     functions[16]{name,kind,sig,loc,async,lines,cc,does}:
-      create_multi_monitor_from_env,function,(settings=None) -> MonitorAwareCapture,458-467,false,10,2,Create MonitorAwareCapture from settings.
-      MonitorActivity.to_dict,method,() -> Dict,42-52,false,11,1,converts dict
-      MultiMonitorSnapshot.to_dict,method,() -> Dict,65-73,false,9,2,converts dict
-      MonitorAwareCapture.__init__,method,"(active_only:bool=True, include_description:bool=True)",91-116,false,26,1,"Args:"
-      MonitorAwareCapture.detect_active_monitor,method,"(monitors:List[MonitorInfo], active_window:Optional[WindowInfo]=None) -> int",118-168,false,51,13,Determine which monitor has the user's attention.
-      MonitorAwareCapture.build_snapshot,method,"(monitors:List[MonitorInfo], all_windows:List=None, active_window:Optional[WindowInfo]=None, organized_screen=None) -> MultiMonitorSnapshot",170-256,false,87,15,Build a complete multi-monitor activity snapshot.
-      MonitorAwareCapture.get_capture_roi_for_monitor,method,"(monitor:MonitorInfo) -> Dict",258-273,false,16,1,Get the ROI dict for capturing a specific monitor.
-      MonitorAwareCapture.get_monitors_to_analyze,method,"(snapshot:Optional[MultiMonitorSnapshot]=None) -> List[int]",275-298,false,24,5,Get list of monitor indices that should be analyzed this tick.
-      MonitorAwareCapture.prioritize_monitors,method,"(snapshot:Optional[MultiMonitorSnapshot]=None) -> List[MonitorActivity]",300-316,false,17,3,Get monitors sorted by activity priority (highest first).
-      MonitorAwareCapture._compute_priority,method,"(activity:MonitorActivity, mon:MonitorInfo) -> int",320-331,false,12,4,Compute priority score for a monitor.
-      MonitorAwareCapture._windows_on_monitor,method,"(mon:MonitorInfo, windows:List) -> List",333-339,false,7,3,Filter windows that are on a specific monitor.
-      MonitorAwareCapture._window_on_monitor,method,"(mon:MonitorInfo, w) -> bool",342-353,false,12,4,Check if a window's center falls within a monitor.
-      MonitorAwareCapture._get_mouse_monitor,method,"(monitors:List[MonitorInfo]) -> Optional[int]",355-386,false,32,11,Get monitor index where mouse cursor is located.
-      MonitorAwareCapture._build_description,method,"(activities:List[MonitorActivity], active_idx:int) -> str",388-418,false,31,7,Build human-readable description of monitor layout for LLM context.
-      MonitorAwareCapture._assign_position_labels,method,"(sorted_activities:List[MonitorActivity]) -> Dict[int, str]",421-437,false,17,5,Assign human-readable position labels (left/center/right or top/bottom).
-      MonitorAwareCapture.get_stats,method,() -> Dict,441-455,false,15,3,Get multi-monitor statistics.
+      create_multi_monitor_from_env,function,(settings=None) -> MonitorAwareCapture,460-469,false,10,2,Create MonitorAwareCapture from settings.
+      MonitorActivity.to_dict,method,() -> Dict,43-53,false,11,1,converts dict
+      MultiMonitorSnapshot.to_dict,method,() -> Dict,66-74,false,9,2,converts dict
+      MonitorAwareCapture.__init__,method,"(active_only:bool=True, include_description:bool=True)",92-117,false,26,1,"Args:"
+      MonitorAwareCapture.detect_active_monitor,method,"(monitors:List[MonitorInfo], active_window:Optional[WindowInfo]=None) -> int",119-169,false,51,13,Determine which monitor has the user's attention.
+      MonitorAwareCapture.build_snapshot,method,"(monitors:List[MonitorInfo], all_windows:List=None, active_window:Optional[WindowInfo]=None, organized_screen=None) -> MultiMonitorSnapshot",171-257,false,87,15,Build a complete multi-monitor activity snapshot.
+      MonitorAwareCapture.get_capture_roi_for_monitor,method,"(monitor:MonitorInfo) -> Dict",259-274,false,16,1,Get the ROI dict for capturing a specific monitor.
+      MonitorAwareCapture.get_monitors_to_analyze,method,"(snapshot:Optional[MultiMonitorSnapshot]=None) -> List[int]",276-299,false,24,5,Get list of monitor indices that should be analyzed this tick.
+      MonitorAwareCapture.prioritize_monitors,method,"(snapshot:Optional[MultiMonitorSnapshot]=None) -> List[MonitorActivity]",301-317,false,17,3,Get monitors sorted by activity priority (highest first).
+      MonitorAwareCapture._compute_priority,method,"(activity:MonitorActivity, mon:MonitorInfo) -> int",321-332,false,12,4,Compute priority score for a monitor.
+      MonitorAwareCapture._windows_on_monitor,method,"(mon:MonitorInfo, windows:List) -> List",334-340,false,7,3,Filter windows that are on a specific monitor.
+      MonitorAwareCapture._window_on_monitor,method,"(mon:MonitorInfo, w) -> bool",343-354,false,12,4,Check if a window's center falls within a monitor.
+      MonitorAwareCapture._get_mouse_monitor,method,"(monitors:List[MonitorInfo]) -> Optional[int]",356-387,false,32,11,Get monitor index where mouse cursor is located.
+      MonitorAwareCapture._build_description,method,"(activities:List[MonitorActivity], active_idx:int) -> str",389-419,false,31,7,Build human-readable description of monitor layout for LLM context.
+      MonitorAwareCapture._assign_position_labels,method,"(sorted_activities:List[MonitorActivity]) -> Dict[int, str]",422-438,false,17,5,Assign human-readable position labels (left/center/right or top/bottom).
+      MonitorAwareCapture.get_stats,method,() -> Dict,442-456,false,15,3,Get multi-monitor statistics.
   backend/window_cropper.py:
     functions[14]{name,kind,sig,loc,async,lines,cc,does}:
       create_window_cropper,function,"(process_scanner:ProcessScanner, crops_dir:Optional[str]=None, settings=None) -> WindowCropper",485-506,false,22,3,Create WindowCropper from settings.
       CroppedWindow.to_dict,method,() -> Dict,41-52,false,12,1,converts dict
       OrganizedScreenData.to_dict,method,() -> Dict,70-83,false,14,7,converts dict
       OrganizedScreenData.get_summary_for_tts,method,() -> str,85-137,false,53,20,Generate a structured text summary for TTS response.
-      WindowCropper.__init__,method,"(process_scanner:ProcessScanner, crops_dir:str='/tmp/aidesk_crops', jpeg_quality:int=70, min_window_size:int=100, max_crop_dimension:int=1280, change_threshold:float=3.0, max_crop_windows:int=0)",165-204,false,40,2,creates
+      WindowCropper.__init__,method,"(process_scanner:ProcessScanner, crops_dir:str='/tmp/proxeen_crops', jpeg_quality:int=70, min_window_size:int=100, max_crop_dimension:int=1280, change_threshold:float=3.0, max_crop_windows:int=0)",165-204,false,40,2,creates
       WindowCropper._select_top_k,method,"(windows:List[VisibleWindow], k:int) -> List[VisibleWindow]",206-230,false,25,3,Select the K most relevant windows for cropping.
       WindowCropper.crop_all_windows,method,"(fullscreen_image:Any, windows:Optional[List[VisibleWindow]]=None) -> List[CroppedWindow]",232-281,false,50,9,Crop each visible window from the fullscreen screenshot.
       WindowCropper._should_skip_window,method,"(win:VisibleWindow, geo_key:Tuple[int,int,int,int], seen:set, screen_w:int, screen_h:int) -> bool",283-305,false,23,9,"Check if a window should be skipped (too small, guard, duplicate, off-screen)."
@@ -252,128 +262,128 @@ function_details:
       WindowCropper.get_stats,method,() -> Dict,473-482,false,10,1,retrieves stats
   backend/circuit_breaker.py:
     functions[14]{name,kind,sig,loc,async,lines,cc,does}:
-      is_transient_error,function,"(error:Exception) -> bool",147-150,false,4,2,Check if an error is likely transient and worth retrying.
-      retry_with_backoff,function,"(fn, max_retries:int=3, base_delay:float=1.0, max_delay:float=30.0, backoff_factor:float=2.0, retry_on:Optional[Callable]=None)",155-200,true,46,6,Retry an async function with exponential backoff.
-      wrap_step_with_guard,function,"(step, failure_threshold:int=5, reset_timeout:float=60.0, max_retries:int=2) -> StepGuard",263-275,false,13,1,Convenience factory to wrap a pipeline step with circuit breaker + retry.
-      CircuitBreaker.__post_init__,method,(),57-58,false,2,1,creates init
-      CircuitBreaker.can_execute,method,() -> bool,60-81,false,22,6,Check if the guarded operation should be attempted.
-      CircuitBreaker.record_success,method,(),83-93,false,11,3,Record a successful operation.
-      CircuitBreaker.record_failure,method,(),95-115,false,21,4,Record a failed operation.
-      CircuitBreaker._transition,method,"(new_state:CircuitState)",117-119,false,3,1,transition
-      CircuitBreaker.get_stats,method,() -> Dict,121-132,false,12,1,retrieves stats
-      StepGuard.__init__,method,"(step, failure_threshold:int=5, reset_timeout:float=60.0, max_retries:int=2, base_delay:float=1.0)",214-229,false,16,1,creates
-      StepGuard.name,method,() -> str,232-233,false,2,1,name
-      StepGuard.can_run,method,(ctx) -> bool,235-239,false,5,2,"Gate: original can_run AND circuit breaker allows."
-      StepGuard.execute,method,"(ctx, bus)",241-256,true,16,2,Execute with retry + circuit breaker.
-      StepGuard.get_breaker_stats,method,() -> Dict,258-260,false,3,1,Get circuit breaker statistics.
+      is_transient_error,function,"(error:Exception) -> bool",148-151,false,4,2,Check if an error is likely transient and worth retrying.
+      retry_with_backoff,function,"(fn, max_retries:int=3, base_delay:float=1.0, max_delay:float=30.0, backoff_factor:float=2.0, retry_on:Optional[Callable]=None)",156-201,true,46,6,Retry an async function with exponential backoff.
+      wrap_step_with_guard,function,"(step, failure_threshold:int=5, reset_timeout:float=60.0, max_retries:int=2) -> StepGuard",264-276,false,13,1,Convenience factory to wrap a pipeline step with circuit breaker + retry.
+      CircuitBreaker.__post_init__,method,(),58-59,false,2,1,creates init
+      CircuitBreaker.can_execute,method,() -> bool,61-82,false,22,6,Check if the guarded operation should be attempted.
+      CircuitBreaker.record_success,method,(),84-94,false,11,3,Record a successful operation.
+      CircuitBreaker.record_failure,method,(),96-116,false,21,4,Record a failed operation.
+      CircuitBreaker._transition,method,"(new_state:CircuitState)",118-120,false,3,1,transition
+      CircuitBreaker.get_stats,method,() -> Dict,122-133,false,12,1,retrieves stats
+      StepGuard.__init__,method,"(step, failure_threshold:int=5, reset_timeout:float=60.0, max_retries:int=2, base_delay:float=1.0)",215-230,false,16,1,creates
+      StepGuard.name,method,() -> str,233-234,false,2,1,name
+      StepGuard.can_run,method,(ctx) -> bool,236-240,false,5,2,"Gate: original can_run AND circuit breaker allows."
+      StepGuard.execute,method,"(ctx, bus)",242-257,true,16,2,Execute with retry + circuit breaker.
+      StepGuard.get_breaker_stats,method,() -> Dict,259-261,false,3,1,Get circuit breaker statistics.
   backend/analyzer.py:
     functions[26]{name,kind,sig,loc,async,lines,cc,does}:
-      create_analyzer_from_env,function,"(ocr_manager:Optional[OCRManager]=None, settings=None) -> ScreenAnalyzer",423-438,false,16,4,Create analyzer from settings.
-      AnalysisStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",32-32,false,1,1,creates messages
-      AnalysisStrategy.needs_ocr,method,() -> bool,33-33,false,1,1,needs ocr
-      AnalysisStrategy.needs_llm,method,() -> bool,34-34,false,1,1,needs llm
-      VisionOnlyStrategy.needs_ocr,method,() -> bool,39-40,false,2,1,needs ocr
-      VisionOnlyStrategy.needs_llm,method,() -> bool,42-43,false,2,1,needs llm
-      VisionOnlyStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",45-55,false,11,1,creates messages
-      OCROnlyStrategy.needs_ocr,method,() -> bool,60-61,false,2,1,needs ocr
-      OCROnlyStrategy.needs_llm,method,() -> bool,63-64,false,2,1,needs llm
-      OCROnlyStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",66-67,false,2,1,creates messages
-      HybridStrategy.needs_ocr,method,() -> bool,72-73,false,2,1,needs ocr
-      HybridStrategy.needs_llm,method,() -> bool,75-76,false,2,1,needs llm
-      HybridStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",78-79,false,2,1,creates messages
-      OCRPlusVisionStrategy.needs_ocr,method,() -> bool,84-85,false,2,1,needs ocr
-      OCRPlusVisionStrategy.needs_llm,method,() -> bool,87-88,false,2,1,needs llm
-      OCRPlusVisionStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",90-100,false,11,1,creates messages
-      TokenBucketLimiter.__init__,method,"(max_tokens:int=5, refill_rate:float=1.0)",118-123,false,6,1,creates
-      TokenBucketLimiter.acquire,method,(),125-140,true,16,3,"Acquire a token, waiting if necessary."
-      ScreenAnalyzer.__init__,method,"(model:str='ollama/llava', api_base:Optional[str]=None, api_key:Optional[str]=None, max_tokens:int=400, temperature:float=0.3, image_detail:str='low', ocr_manager:Optional[OCRManager]=None)",186-240,false,55,4,Initialize analyzer with LiteLLM.
-      ScreenAnalyzer._detect_provider,method,"(model:str) -> str",243-250,false,8,5,Detect provider name from LiteLLM model string.
-      ScreenAnalyzer.set_mode,method,"(mode:str) -> bool",252-261,false,10,2,Switch analysis mode at runtime.
-      ScreenAnalyzer._run_ocr,method,"(image_b64:str) -> OCRResult",263-269,false,7,3,Run OCR pre-processing if available.
-      ScreenAnalyzer.analyze,method,"(image_b64:str, context:str='') -> Dict",271-339,true,69,8,Analyze screen image via configured mode (Strategy Pattern).
-      ScreenAnalyzer._build_prompt,method,"(ocr_context:str, context:str) -> str",341-348,false,8,3,Build the system prompt with optional OCR and conversation context.
-      ScreenAnalyzer._call_llm,method,"(messages:list, ocr_result, start_time:float) -> Dict",350-400,true,51,10,Execute LLM call via LiteLLM and return structured result.
-      ScreenAnalyzer.get_stats,method,() -> Dict,402-420,false,19,4,Get analyzer statistics.
+      create_analyzer_from_env,function,"(ocr_manager:Optional[OCRManager]=None, settings=None) -> ScreenAnalyzer",425-440,false,16,4,Create analyzer from settings.
+      AnalysisStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",33-33,false,1,1,creates messages
+      AnalysisStrategy.needs_ocr,method,() -> bool,34-34,false,1,1,needs ocr
+      AnalysisStrategy.needs_llm,method,() -> bool,35-35,false,1,1,needs llm
+      VisionOnlyStrategy.needs_ocr,method,() -> bool,40-41,false,2,1,needs ocr
+      VisionOnlyStrategy.needs_llm,method,() -> bool,43-44,false,2,1,needs llm
+      VisionOnlyStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",46-56,false,11,1,creates messages
+      OCROnlyStrategy.needs_ocr,method,() -> bool,61-62,false,2,1,needs ocr
+      OCROnlyStrategy.needs_llm,method,() -> bool,64-65,false,2,1,needs llm
+      OCROnlyStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",67-68,false,2,1,creates messages
+      HybridStrategy.needs_ocr,method,() -> bool,73-74,false,2,1,needs ocr
+      HybridStrategy.needs_llm,method,() -> bool,76-77,false,2,1,needs llm
+      HybridStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",79-80,false,2,1,creates messages
+      OCRPlusVisionStrategy.needs_ocr,method,() -> bool,85-86,false,2,1,needs ocr
+      OCRPlusVisionStrategy.needs_llm,method,() -> bool,88-89,false,2,1,needs llm
+      OCRPlusVisionStrategy.build_messages,method,"(prompt:str, image_b64:str, image_detail:str) -> list",91-101,false,11,1,creates messages
+      TokenBucketLimiter.__init__,method,"(max_tokens:int=5, refill_rate:float=1.0)",119-124,false,6,1,creates
+      TokenBucketLimiter.acquire,method,(),126-141,true,16,3,"Acquire a token, waiting if necessary."
+      ScreenAnalyzer.__init__,method,"(model:str='ollama/llava', api_base:Optional[str]=None, api_key:Optional[str]=None, max_tokens:int=400, temperature:float=0.3, image_detail:str='low', ocr_manager:Optional[OCRManager]=None)",187-241,false,55,4,Initialize analyzer with LiteLLM.
+      ScreenAnalyzer._detect_provider,method,"(model:str) -> str",244-251,false,8,5,Detect provider name from LiteLLM model string.
+      ScreenAnalyzer.set_mode,method,"(mode:str) -> bool",253-262,false,10,2,Switch analysis mode at runtime.
+      ScreenAnalyzer._run_ocr,method,"(image_b64:str) -> OCRResult",264-270,false,7,3,Run OCR pre-processing if available.
+      ScreenAnalyzer.analyze,method,"(image_b64:str, context:str='') -> Dict",272-340,true,69,8,Analyze screen image via configured mode (Strategy Pattern).
+      ScreenAnalyzer._build_prompt,method,"(ocr_context:str, context:str) -> str",342-349,false,8,3,Build the system prompt with optional OCR and conversation context.
+      ScreenAnalyzer._call_llm,method,"(messages:list, ocr_result, start_time:float) -> Dict",351-401,true,51,10,Execute LLM call via LiteLLM and return structured result.
+      ScreenAnalyzer.get_stats,method,() -> Dict,403-421,false,19,4,Get analyzer statistics.
   backend/typed_events.py:
     functions[2]{name,kind,sig,loc,async,lines,cc,does}:
       typed_event,function,"(event_type:EventType, payload:EventPayload, source:str='', correlation_id:str='') -> Event",216-242,false,27,1,Create a type-safe Event from a Pydantic payload.
       parse_payload,function,"(event:Event) -> Optional[EventPayload]",245-255,false,11,2,Parse an Event's data dict into its typed payload model.
   backend/capture.py:
     functions[18]{name,kind,sig,loc,async,lines,cc,does}:
-      _detect_backend,function,() -> str,33-65,false,33,8,Detect the best screen capture backend for the current session.
-      _resize_preserve_aspect,function,"(img:Any, max_dim:int) -> Image.Image",68-85,false,18,3,"Resize image so longest side = max_dim, preserving aspect ratio."
-      create_capture_from_env,function,(settings=None) -> SmartScreenCapture,524-539,false,16,2,Create SmartScreenCapture from settings.
-      SmartScreenCapture.__init__,method,"(change_threshold:int=8, min_interval:float=1.0, idle_threshold:int=30, idle_interval:float=10.0, max_dimension:int=1280, jpeg_quality:int=60, captures_dir:str='/tmp/aidesk_captures')",93-155,false,63,4,Initialize screen capture.
-      SmartScreenCapture.capture,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Optional[Dict]",157-261,false,105,9,Capture screen and return if meaningful change detected.
-      SmartScreenCapture.adaptive_interval,method,() -> float,264-273,false,10,2,Adaptive polling interval based on screen activity.
-      SmartScreenCapture._start_screencast_daemon,method,(),277-323,false,47,6,Start the wayland_screencast.py daemon (uses system python3 + gi).
-      SmartScreenCapture._stop_screencast_daemon,method,(),325-337,false,13,5,Stop the wayland screencast daemon.
-      SmartScreenCapture._grab_screen,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",341-353,false,13,3,Grab screen using the detected backend.
-      SmartScreenCapture._grab_mss,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",355-370,false,16,4,Capture using mss (X11).
-      SmartScreenCapture._grab_grim,method,"(roi:Optional[Dict]=None) -> Image.Image",372-389,false,18,3,Capture using grim (wlroots Wayland).
-      SmartScreenCapture._grab_wayland_portal,method,"(roi:Optional[Dict]=None) -> Image.Image",391-410,false,20,4,Read latest frame from wayland_screencast.py daemon.
-      SmartScreenCapture.get_monitors,method,"() -> List[Dict]",414-430,false,17,4,Get list of available monitors.
-      SmartScreenCapture._get_monitors_xrandr,method,"() -> List[Dict]",432-453,false,22,5,Get monitors via xrandr (works on both X11 and Wayland).
-      SmartScreenCapture.capture_roi_image,method,"(roi:Dict) -> Optional[str]",457-476,false,20,2,Capture a specific screen region and return base64 JPEG.
-      SmartScreenCapture.get_screencast_status,method,"() -> Optional[Dict]",480-490,false,11,4,Get wayland screencast daemon status (if running).
-      SmartScreenCapture.get_stats,method,() -> Dict,492-513,false,22,4,Get capture statistics.
-      SmartScreenCapture.__del__,method,(),515-520,false,6,2,Cleanup screencast daemon on garbage collection.
+      _detect_backend,function,() -> str,34-66,false,33,8,Detect the best screen capture backend for the current session.
+      _resize_preserve_aspect,function,"(img:Any, max_dim:int) -> Image.Image",69-86,false,18,3,"Resize image so longest side = max_dim, preserving aspect ratio."
+      create_capture_from_env,function,(settings=None) -> SmartScreenCapture,526-541,false,16,2,Create SmartScreenCapture from settings.
+      SmartScreenCapture.__init__,method,"(change_threshold:int=8, min_interval:float=1.0, idle_threshold:int=30, idle_interval:float=10.0, max_dimension:int=1280, jpeg_quality:int=60, captures_dir:str='/tmp/proxeen_captures')",94-156,false,63,4,Initialize screen capture.
+      SmartScreenCapture.capture,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Optional[Dict]",158-262,false,105,9,Capture screen and return if meaningful change detected.
+      SmartScreenCapture.adaptive_interval,method,() -> float,265-274,false,10,2,Adaptive polling interval based on screen activity.
+      SmartScreenCapture._start_screencast_daemon,method,(),278-324,false,47,6,Start the wayland_screencast.py daemon (uses system python3 + gi).
+      SmartScreenCapture._stop_screencast_daemon,method,(),326-338,false,13,5,Stop the wayland screencast daemon.
+      SmartScreenCapture._grab_screen,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",342-354,false,13,3,Grab screen using the detected backend.
+      SmartScreenCapture._grab_mss,method,"(monitor_index:Optional[int]=None, roi:Optional[Dict]=None) -> Image.Image",356-371,false,16,4,Capture using mss (X11).
+      SmartScreenCapture._grab_grim,method,"(roi:Optional[Dict]=None) -> Image.Image",373-390,false,18,3,Capture using grim (wlroots Wayland).
+      SmartScreenCapture._grab_wayland_portal,method,"(roi:Optional[Dict]=None) -> Image.Image",392-411,false,20,4,Read latest frame from wayland_screencast.py daemon.
+      SmartScreenCapture.get_monitors,method,"() -> List[Dict]",415-431,false,17,4,Get list of available monitors.
+      SmartScreenCapture._get_monitors_xrandr,method,"() -> List[Dict]",433-454,false,22,5,Get monitors via xrandr (works on both X11 and Wayland).
+      SmartScreenCapture.capture_roi_image,method,"(roi:Dict) -> Optional[str]",458-477,false,20,2,Capture a specific screen region and return base64 JPEG.
+      SmartScreenCapture.get_screencast_status,method,"() -> Optional[Dict]",481-491,false,11,4,Get wayland screencast daemon status (if running).
+      SmartScreenCapture.get_stats,method,() -> Dict,493-514,false,22,4,Get capture statistics.
+      SmartScreenCapture.__del__,method,(),516-521,false,6,2,Cleanup screencast daemon on garbage collection.
   backend/shell_agent.py:
     functions[14]{name,kind,sig,loc,async,lines,cc,does}:
-      create_shell_agent_from_env,function,(settings=None) -> ShellAgent,483-496,false,14,3,Create ShellAgent from settings.
-      AgentAction.to_dict,method,() -> Dict,51-64,false,14,2,converts dict
-      ShellAgent.__init__,method,"(auto_execute_safe:bool=True, max_output_length:int=2000, command_timeout:float=10.0, max_history:int=200, cwd:Optional[str]=None)",222-247,false,26,2,creates
-      ShellAgent.suggest_actions,method,"(detected_text:str, category:AppCategory, cwd:Optional[str]=None) -> List[AgentAction]",249-310,false,62,8,Analyze detected text and suggest actions based on pattern matching.
-      ShellAgent.execute_action,method,"(action_id:str, cwd:Optional[str]=None, force:bool=False) -> AgentAction",312-350,false,39,8,Execute a previously suggested action.
-      ShellAgent.execute_safe,method,"(command:str, cwd:Optional[str]=None) -> AgentAction",352-371,false,20,2,Execute a safe (read-only) command directly.
-      ShellAgent.approve_action,method,"(action_id:str) -> bool",373-380,false,8,2,Mark an action as approved by user.
-      ShellAgent._execute,method,"(action:AgentAction, cwd:Optional[str]=None) -> AgentAction",382-429,false,48,6,Internal command execution.
-      ShellAgent._is_blocked,method,"(command:str) -> bool",432-437,false,6,3,Check if command matches any blocked pattern.
-      ShellAgent._is_safe,method,"(command:str) -> bool",440-455,false,16,6,Check if command is in the safe whitelist.
-      ShellAgent.get_clipboard_command,method,"(text:str) -> str",457-461,false,5,1,Generate command to copy text to clipboard (Linux).
-      ShellAgent.get_pending_actions,method,"() -> List[Dict]",463-465,false,3,2,Get all pending (unapproved) actions.
-      ShellAgent.get_history,method,"(n:int=20) -> List[Dict]",467-469,false,3,2,Get recent action history.
-      ShellAgent.get_stats,method,() -> Dict,471-480,false,10,1,Get ShellAgent statistics.
+      create_shell_agent_from_env,function,(settings=None) -> ShellAgent,485-498,false,14,3,Create ShellAgent from settings.
+      AgentAction.to_dict,method,() -> Dict,52-65,false,14,2,converts dict
+      ShellAgent.__init__,method,"(auto_execute_safe:bool=True, max_output_length:int=2000, command_timeout:float=10.0, max_history:int=200, cwd:Optional[str]=None)",223-248,false,26,2,creates
+      ShellAgent.suggest_actions,method,"(detected_text:str, category:AppCategory, cwd:Optional[str]=None) -> List[AgentAction]",250-311,false,62,8,Analyze detected text and suggest actions based on pattern matching.
+      ShellAgent.execute_action,method,"(action_id:str, cwd:Optional[str]=None, force:bool=False) -> AgentAction",313-351,false,39,8,Execute a previously suggested action.
+      ShellAgent.execute_safe,method,"(command:str, cwd:Optional[str]=None) -> AgentAction",353-372,false,20,2,Execute a safe (read-only) command directly.
+      ShellAgent.approve_action,method,"(action_id:str) -> bool",374-381,false,8,2,Mark an action as approved by user.
+      ShellAgent._execute,method,"(action:AgentAction, cwd:Optional[str]=None) -> AgentAction",383-430,false,48,6,Internal command execution.
+      ShellAgent._is_blocked,method,"(command:str) -> bool",433-438,false,6,3,Check if command matches any blocked pattern.
+      ShellAgent._is_safe,method,"(command:str) -> bool",441-456,false,16,6,Check if command is in the safe whitelist.
+      ShellAgent.get_clipboard_command,method,"(text:str) -> str",458-462,false,5,1,Generate command to copy text to clipboard (Linux).
+      ShellAgent.get_pending_actions,method,"() -> List[Dict]",464-466,false,3,2,Get all pending (unapproved) actions.
+      ShellAgent.get_history,method,"(n:int=20) -> List[Dict]",468-470,false,3,2,Get recent action history.
+      ShellAgent.get_stats,method,() -> Dict,472-481,false,10,1,Get ShellAgent statistics.
   backend/observability.py:
     functions[16]{name,kind,sig,loc,async,lines,cc,does}:
-      get_tracer,function,"(service_name:str='aidesk') -> Tracer",190-195,false,6,2,Get or create the global tracer instance.
-      reset_tracer,function,(),198-201,false,4,1,Reset the global tracer (for testing).
-      Span.__post_init__,method,(),51-57,false,7,4,creates init
-      Span.duration_ms,method,() -> float,60-63,false,4,2,duration ms
-      Span.set_attribute,method,"(key:str, value:Any)",65-66,false,2,1,updates attribute
-      Span.set_error,method,"(error:str)",68-70,false,3,1,updates error
-      Span.finish,method,(),72-74,false,3,2,stops
-      Span.to_dict,method,() -> Dict,76-86,false,11,2,converts dict
-      Tracer.__init__,method,"(service_name:str='aidesk', max_spans:int=500)",97-103,false,7,1,creates
-      Tracer.span,method,"(name:str, parent:Optional[Span]=None, attributes:Optional[Dict]=None)",106-128,false,23,5,"Context manager that creates, yields, and finishes a Span."
-      Tracer._record,method,"(span:Span)",130-142,false,13,3,Record a finished span into buffer and metrics.
-      Tracer.get_metrics,method,"() -> Dict[str, Dict]",144-157,false,14,5,Get aggregated metrics per span name.
-      Tracer.get_recent_spans,method,"(n:int=20, name:Optional[str]=None) -> List[Dict]",159-164,false,6,5,"Get recent spans, optionally filtered by name."
-      Tracer.get_trace,method,"(trace_id:str) -> List[Dict]",166-168,false,3,3,Get all spans belonging to a trace.
-      Tracer.get_stats,method,() -> Dict,170-177,false,8,1,Get tracer statistics.
-      Tracer.reset,method,(),179-182,false,4,1,Clear all spans and metrics.
+      get_tracer,function,"(service_name:str='proxeen') -> Tracer",191-196,false,6,2,Get or create the global tracer instance.
+      reset_tracer,function,(),199-202,false,4,1,Reset the global tracer (for testing).
+      Span.__post_init__,method,(),52-58,false,7,4,creates init
+      Span.duration_ms,method,() -> float,61-64,false,4,2,duration ms
+      Span.set_attribute,method,"(key:str, value:Any)",66-67,false,2,1,updates attribute
+      Span.set_error,method,"(error:str)",69-71,false,3,1,updates error
+      Span.finish,method,(),73-75,false,3,2,stops
+      Span.to_dict,method,() -> Dict,77-87,false,11,2,converts dict
+      Tracer.__init__,method,"(service_name:str='proxeen', max_spans:int=500)",98-104,false,7,1,creates
+      Tracer.span,method,"(name:str, parent:Optional[Span]=None, attributes:Optional[Dict]=None)",107-129,false,23,5,"Context manager that creates, yields, and finishes a Span."
+      Tracer._record,method,"(span:Span)",131-143,false,13,3,Record a finished span into buffer and metrics.
+      Tracer.get_metrics,method,"() -> Dict[str, Dict]",145-158,false,14,5,Get aggregated metrics per span name.
+      Tracer.get_recent_spans,method,"(n:int=20, name:Optional[str]=None) -> List[Dict]",160-165,false,6,5,"Get recent spans, optionally filtered by name."
+      Tracer.get_trace,method,"(trace_id:str) -> List[Dict]",167-169,false,3,3,Get all spans belonging to a trace.
+      Tracer.get_stats,method,() -> Dict,171-178,false,8,1,Get tracer statistics.
+      Tracer.reset,method,(),180-183,false,4,1,Clear all spans and metrics.
   backend/diagnostics.py:
     functions[20]{name,kind,sig,loc,async,lines,cc,does}:
-      AutoDiagnostics.__init__,method,"(app_state:dict, interval:float=30.0)",29-35,false,7,1,creates
-      AutoDiagnostics.run_loop,method,"(broadcast_fn:Callable)",37-74,true,38,9,Main diagnostics loop.
-      AutoDiagnostics._run_checks,method,() -> Dict,76-106,false,31,2,Execute all diagnostic checks and return results.
-      AutoDiagnostics._check_capture,method,() -> Dict,108-124,false,17,2,Check if screen capture component is alive and producing data.
-      AutoDiagnostics._check_captures_dir,method,() -> Dict,126-154,false,29,4,Check if screenshot files are being generated in CAPTURES_DIR.
-      AutoDiagnostics._check_analyzer,method,() -> Dict,156-173,false,18,2,Check if analyzer component is alive.
-      AutoDiagnostics._check_ocr,method,() -> Dict,175-192,false,18,3,Check OCR engine availability.
-      AutoDiagnostics._check_stt,method,() -> Dict,194-214,false,21,4,Check STT service status.
-      AutoDiagnostics._check_log_file,method,() -> Dict,216-234,false,19,2,Check if log file exists and is being written to.
-      AutoDiagnostics._check_log_db,method,() -> Dict,236-262,false,27,4,Check if SQLite log database is accessible and has recent entries.
-      AutoDiagnostics._check_context,method,() -> Dict,264-278,false,15,2,Check context manager state.
-      AutoDiagnostics._check_window_manager,method,() -> Dict,280-302,false,23,4,Check window manager (window awareness) status.
-      AutoDiagnostics._check_profile_manager,method,() -> Dict,304-322,false,19,3,Check per-app profile manager status.
-      AutoDiagnostics._check_shell_agent,method,() -> Dict,324-346,false,23,4,Check shell agent status.
-      AutoDiagnostics._check_process_scanner,method,() -> Dict,348-366,false,19,3,Check process scanner status.
-      AutoDiagnostics._check_window_cropper,method,() -> Dict,368-386,false,19,3,Check window cropper status.
-      AutoDiagnostics._check_event_bus,method,() -> Dict,388-406,false,19,3,Check event bus status.
-      AutoDiagnostics._check_pipeline,method,() -> Dict,408-427,false,20,3,Check pipeline orchestrator status.
-      AutoDiagnostics.get_latest,method,"() -> Optional[Dict]",429-431,false,3,1,Return latest diagnostics result.
-      AutoDiagnostics.get_history,method,"() -> List[Dict]",433-435,false,3,1,Return diagnostics history.
+      AutoDiagnostics.__init__,method,"(app_state:dict, interval:float=30.0)",30-36,false,7,1,creates
+      AutoDiagnostics.run_loop,method,"(broadcast_fn:Callable)",38-75,true,38,9,Main diagnostics loop.
+      AutoDiagnostics._run_checks,method,() -> Dict,77-107,false,31,2,Execute all diagnostic checks and return results.
+      AutoDiagnostics._check_capture,method,() -> Dict,109-125,false,17,2,Check if screen capture component is alive and producing data.
+      AutoDiagnostics._check_captures_dir,method,() -> Dict,127-155,false,29,4,Check if screenshot files are being generated in CAPTURES_DIR.
+      AutoDiagnostics._check_analyzer,method,() -> Dict,157-174,false,18,2,Check if analyzer component is alive.
+      AutoDiagnostics._check_ocr,method,() -> Dict,176-193,false,18,3,Check OCR engine availability.
+      AutoDiagnostics._check_stt,method,() -> Dict,195-215,false,21,4,Check STT service status.
+      AutoDiagnostics._check_log_file,method,() -> Dict,217-235,false,19,2,Check if log file exists and is being written to.
+      AutoDiagnostics._check_log_db,method,() -> Dict,237-263,false,27,4,Check if SQLite log database is accessible and has recent entries.
+      AutoDiagnostics._check_context,method,() -> Dict,265-279,false,15,2,Check context manager state.
+      AutoDiagnostics._check_window_manager,method,() -> Dict,281-303,false,23,4,Check window manager (window awareness) status.
+      AutoDiagnostics._check_profile_manager,method,() -> Dict,305-323,false,19,3,Check per-app profile manager status.
+      AutoDiagnostics._check_shell_agent,method,() -> Dict,325-347,false,23,4,Check shell agent status.
+      AutoDiagnostics._check_process_scanner,method,() -> Dict,349-367,false,19,3,Check process scanner status.
+      AutoDiagnostics._check_window_cropper,method,() -> Dict,369-387,false,19,3,Check window cropper status.
+      AutoDiagnostics._check_event_bus,method,() -> Dict,389-407,false,19,3,Check event bus status.
+      AutoDiagnostics._check_pipeline,method,() -> Dict,409-428,false,20,3,Check pipeline orchestrator status.
+      AutoDiagnostics.get_latest,method,"() -> Optional[Dict]",430-432,false,3,1,Return latest diagnostics result.
+      AutoDiagnostics.get_history,method,"() -> List[Dict]",434-436,false,3,1,Return diagnostics history.
   backend/server.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       _read_version,function,() -> str,31-37,false,7,2,retrieves version
@@ -387,113 +397,113 @@ function_details:
       lifespan,function,"(app:FastAPI)",302-319,true,18,1,FastAPI lifespan context manager — delegates to AppBootstrap.
   backend/app_profiles.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
-      create_profile_manager,function,(settings=None) -> ProfileManager,389-391,false,3,1,Create ProfileManager instance.
-      ProfileManager.__init__,method,(),307-316,false,10,1,creates
-      ProfileManager.get_profile,method,"(category:AppCategory) -> AppProfile",318-320,false,3,1,Get profile for a given app category.
-      ProfileManager.get_prompt_addon,method,"(category:AppCategory) -> str",322-333,false,12,2,Get the system prompt addon for an app category.
-      ProfileManager.get_focus_keywords,method,"(category:AppCategory) -> List[str]",335-338,false,4,1,Get keywords to focus on for ROI detection.
-      ProfileManager.get_priority_boost,method,"(category:AppCategory) -> float",340-343,false,4,1,Get change detection sensitivity multiplier.
-      ProfileManager.match_action_patterns,method,"(category:AppCategory, text:str) -> List[Dict]",345-364,false,20,3,Match detected text against action patterns for the current app.
-      ProfileManager.get_all_profiles,method,"() -> List[Dict]",366-378,false,13,2,Get all available profiles as dicts.
-      ProfileManager.get_stats,method,() -> Dict,380-386,false,7,2,Get ProfileManager statistics.
+      create_profile_manager,function,(settings=None) -> ProfileManager,390-392,false,3,1,Create ProfileManager instance.
+      ProfileManager.__init__,method,(),308-317,false,10,1,creates
+      ProfileManager.get_profile,method,"(category:AppCategory) -> AppProfile",319-321,false,3,1,Get profile for a given app category.
+      ProfileManager.get_prompt_addon,method,"(category:AppCategory) -> str",323-334,false,12,2,Get the system prompt addon for an app category.
+      ProfileManager.get_focus_keywords,method,"(category:AppCategory) -> List[str]",336-339,false,4,1,Get keywords to focus on for ROI detection.
+      ProfileManager.get_priority_boost,method,"(category:AppCategory) -> float",341-344,false,4,1,Get change detection sensitivity multiplier.
+      ProfileManager.match_action_patterns,method,"(category:AppCategory, text:str) -> List[Dict]",346-365,false,20,3,Match detected text against action patterns for the current app.
+      ProfileManager.get_all_profiles,method,"() -> List[Dict]",367-379,false,13,2,Get all available profiles as dicts.
+      ProfileManager.get_stats,method,() -> Dict,381-387,false,7,2,Get ProfileManager statistics.
   backend/ocr_engines.py:
     functions[27]{name,kind,sig,loc,async,lines,cc,does}:
-      create_ocr_manager_from_env,function,(settings=None) -> OCRManager,524-535,false,12,2,Create OCRManager from settings.
-      OCRResult.__init__,method,"(text:str, boxes:List[Dict]=None, confidence:float=0.0, engine:str='unknown', latency_ms:float=0.0, language:str='pl')",26-40,false,15,2,creates
-      OCRResult.to_dict,method,() -> Dict,42-50,false,9,1,converts dict
-      OCRResult.to_llm_context,method,() -> str,52-64,false,13,4,Format OCR result as context string for LLM prompt augmentation.
-      OCRResult._cluster_regions,method,"() -> List[str]",66-77,false,12,6,Simple spatial clustering of text boxes into regions.
-      BaseOCREngine.__init__,method,"(languages:List[str]=None)",83-88,false,6,2,creates
-      BaseOCREngine._initialize,method,(),91-93,false,3,1,Lazy initialization of the engine.
-      BaseOCREngine._extract,method,"(image:Any) -> OCRResult",96-98,false,3,1,Extract text from numpy image array.
-      BaseOCREngine.extract_from_b64,method,"(image_b64:str) -> OCRResult",100-157,false,58,4,Extract text from base64-encoded image.
-      BaseOCREngine.get_stats,method,() -> Dict,159-170,false,12,2,retrieves stats
-      PaddleOCREngine.__init__,method,"(languages:List[str]=None, use_gpu:bool=False)",179-183,false,5,1,creates
-      PaddleOCREngine._initialize,method,(),185-198,false,14,1,initializes
-      PaddleOCREngine._extract,method,"(image:Any) -> OCRResult",200-234,false,35,5,parses
-      EasyOCREngine.__init__,method,"(languages:List[str]=None, use_gpu:bool=False)",243-247,false,5,1,creates
-      EasyOCREngine._initialize,method,(),249-260,false,12,2,initializes
-      EasyOCREngine._extract,method,"(image:Any) -> OCRResult",262-294,false,33,4,parses
-      TesseractEngine.__init__,method,"(languages:List[str]=None)",303-306,false,4,1,creates
-      TesseractEngine._initialize,method,(),308-316,false,9,2,initializes
-      TesseractEngine._extract,method,"(image:Any) -> OCRResult",318-362,false,45,6,parses
-      OCRManager.__init__,method,"(default_engine:str='paddleocr', languages:List[str]=None, use_gpu:bool=False, enabled:bool=True)",380-402,false,23,3,creates
-      OCRManager._register_available_engines,method,(),404-424,false,21,4,Register engines that have their dependencies installed.
-      OCRManager.active_engine,method,"() -> Optional[BaseOCREngine]",427-428,false,2,1,active engine
-      OCRManager.set_engine,method,"(engine_name:str) -> bool",430-448,false,19,2,Switch active OCR engine at runtime.
-      OCRManager.extract,method,"(image_b64:str) -> OCRResult",450-454,false,5,3,Extract text using active engine.
-      OCRManager.benchmark,method,"(image_b64:str) -> Dict",456-499,false,44,6,Run all available engines on the same image for comparison.
-      OCRManager.get_available_engines,method,"() -> List[Dict]",501-508,false,8,2,Get list of available engines with status.
-      OCRManager.get_stats,method,() -> Dict,510-521,false,12,2,retrieves stats
+      create_ocr_manager_from_env,function,(settings=None) -> OCRManager,526-537,false,12,2,Create OCRManager from settings.
+      OCRResult.__init__,method,"(text:str, boxes:List[Dict]=None, confidence:float=0.0, engine:str='unknown', latency_ms:float=0.0, language:str='pl')",27-41,false,15,2,creates
+      OCRResult.to_dict,method,() -> Dict,43-51,false,9,1,converts dict
+      OCRResult.to_llm_context,method,() -> str,53-65,false,13,4,Format OCR result as context string for LLM prompt augmentation.
+      OCRResult._cluster_regions,method,"() -> List[str]",67-78,false,12,6,Simple spatial clustering of text boxes into regions.
+      BaseOCREngine.__init__,method,"(languages:List[str]=None)",84-89,false,6,2,creates
+      BaseOCREngine._initialize,method,(),92-94,false,3,1,Lazy initialization of the engine.
+      BaseOCREngine._extract,method,"(image:Any) -> OCRResult",97-99,false,3,1,Extract text from numpy image array.
+      BaseOCREngine.extract_from_b64,method,"(image_b64:str) -> OCRResult",101-158,false,58,4,Extract text from base64-encoded image.
+      BaseOCREngine.get_stats,method,() -> Dict,160-171,false,12,2,retrieves stats
+      PaddleOCREngine.__init__,method,"(languages:List[str]=None, use_gpu:bool=False)",180-184,false,5,1,creates
+      PaddleOCREngine._initialize,method,(),186-199,false,14,1,initializes
+      PaddleOCREngine._extract,method,"(image:Any) -> OCRResult",201-235,false,35,5,parses
+      EasyOCREngine.__init__,method,"(languages:List[str]=None, use_gpu:bool=False)",244-248,false,5,1,creates
+      EasyOCREngine._initialize,method,(),250-261,false,12,2,initializes
+      EasyOCREngine._extract,method,"(image:Any) -> OCRResult",263-295,false,33,4,parses
+      TesseractEngine.__init__,method,"(languages:List[str]=None)",304-307,false,4,1,creates
+      TesseractEngine._initialize,method,(),309-317,false,9,2,initializes
+      TesseractEngine._extract,method,"(image:Any) -> OCRResult",319-363,false,45,6,parses
+      OCRManager.__init__,method,"(default_engine:str='paddleocr', languages:List[str]=None, use_gpu:bool=False, enabled:bool=True)",381-403,false,23,3,creates
+      OCRManager._register_available_engines,method,(),405-425,false,21,4,Register engines that have their dependencies installed.
+      OCRManager.active_engine,method,"() -> Optional[BaseOCREngine]",428-429,false,2,1,active engine
+      OCRManager.set_engine,method,"(engine_name:str) -> bool",431-449,false,19,2,Switch active OCR engine at runtime.
+      OCRManager.extract,method,"(image_b64:str) -> OCRResult",451-455,false,5,3,Extract text using active engine.
+      OCRManager.benchmark,method,"(image_b64:str) -> Dict",457-500,false,44,6,Run all available engines on the same image for comparison.
+      OCRManager.get_available_engines,method,"() -> List[Dict]",502-509,false,8,2,Get list of available engines with status.
+      OCRManager.get_stats,method,() -> Dict,511-522,false,12,2,retrieves stats
   backend/context.py:
     functions[6]{name,kind,sig,loc,async,lines,cc,does}:
-      ContextManager.__init__,method,"(max_items:int=20)",19-30,false,12,1,Initialize context manager.
-      ContextManager.add,method,"(content:str, context_type:ContextType='screen', metadata:Dict=None)",32-61,false,30,2,Add item to context.
-      ContextManager.get_recent,method,"(n:int=5, context_type:ContextType=None) -> List[Dict]",63-79,false,17,4,Get recent context items.
-      ContextManager.get_context_string,method,"(n:int=5, max_length:int=500) -> str",81-123,false,43,5,Get recent context as formatted string.
-      ContextManager.clear,method,(),125-128,false,4,1,Clear all context.
-      ContextManager.get_stats,method,() -> Dict,130-148,false,19,4,Get context statistics.
+      ContextManager.__init__,method,"(max_items:int=20)",20-31,false,12,1,Initialize context manager.
+      ContextManager.add,method,"(content:str, context_type:ContextType='screen', metadata:Dict=None)",33-62,false,30,2,Add item to context.
+      ContextManager.get_recent,method,"(n:int=5, context_type:ContextType=None) -> List[Dict]",64-80,false,17,4,Get recent context items.
+      ContextManager.get_context_string,method,"(n:int=5, max_length:int=500) -> str",82-124,false,43,5,Get recent context as formatted string.
+      ContextManager.clear,method,(),126-129,false,4,1,Clear all context.
+      ContextManager.get_stats,method,() -> Dict,131-149,false,19,4,Get context statistics.
   backend/action_templates.py:
     functions[22]{name,kind,sig,loc,async,lines,cc,does}:
-      create_action_library_from_env,function,(settings=None) -> AppActionLibrary,621-631,false,11,2,Create AppActionLibrary from settings.
-      ActionTemplate.confidence,method,() -> float,60-65,false,6,2,Compute confidence score (0.0 - 1.0) based on approval history.
-      ActionTemplate.should_auto_execute,method,() -> bool,68-75,false,8,4,Check if this template has earned auto-execute status.
-      ActionTemplate.to_dict,method,() -> Dict,77-92,false,16,1,converts dict
-      ScoredAction.to_dict,method,() -> Dict,104-113,false,10,1,converts dict
-      AppActionLibrary.__init__,method,"(db_path:str='logs/action_templates.db', auto_approve_default:int=3, enabled:bool=True)",221-256,false,36,2,"Args:"
-      AppActionLibrary._init_db,method,(),260-282,false,23,2,Initialize SQLite database.
-      AppActionLibrary._load_templates,method,(),284-309,false,26,13,Load all templates from DB.
-      AppActionLibrary._seed_defaults,method,(),311-319,false,9,4,Add built-in templates if not already present.
-      AppActionLibrary._persist_template,method,"(t:ActionTemplate)",321-338,false,18,3,Save a single template to DB.
-      AppActionLibrary.suggest_with_confidence,method,"(text:str, app_category:str, cwd:Optional[str]=None) -> List[ScoredAction]",342-403,false,62,9,Match text against all templates and return scored actions.
-      AppActionLibrary.learn_from_approval,method,"(template_id:str)",407-433,false,27,4,Record that user approved an action from this template.
-      AppActionLibrary.learn_from_rejection,method,"(template_id:str)",435-459,false,25,4,Record that user rejected/dismissed an action from this template.
-      AppActionLibrary.learn_from_execution,method,"(template_id:str)",461-478,false,18,3,Record that an action from this template was executed.
-      AppActionLibrary.add_template,method,"(template_id:str, app_category:str, trigger_pattern:str, command_template:str, description:str='', risk_level:str='medium') -> ActionTemplate",482-505,false,24,1,Add a new custom template.
-      AppActionLibrary.remove_template,method,"(template_id:str) -> bool",507-515,false,9,3,Remove a template.
-      AppActionLibrary.get_template,method,"(template_id:str) -> Optional[ActionTemplate]",517-519,false,3,1,Get a template by ID.
-      AppActionLibrary.get_templates_for_app,method,"(app_category:str) -> List[ActionTemplate]",521-526,false,6,4,Get all templates for a specific app category.
-      AppActionLibrary.export_templates,method,"(include_stats:bool=False) -> str",530-550,false,21,3,Export all templates as JSON string.
-      AppActionLibrary.import_templates,method,"(json_str:str, overwrite:bool=False) -> int",552-590,false,39,6,Import templates from JSON string.
-      AppActionLibrary.get_stats,method,() -> Dict,594-612,false,19,4,Get action template statistics.
-      AppActionLibrary.close,method,(),614-618,false,5,2,Close database connection.
+      create_action_library_from_env,function,(settings=None) -> AppActionLibrary,626-636,false,11,2,Create AppActionLibrary from settings.
+      ActionTemplate.confidence,method,() -> float,61-66,false,6,2,Compute confidence score (0.0 - 1.0) based on approval history.
+      ActionTemplate.should_auto_execute,method,() -> bool,69-76,false,8,4,Check if this template has earned auto-execute status.
+      ActionTemplate.to_dict,method,() -> Dict,78-93,false,16,1,converts dict
+      ScoredAction.to_dict,method,() -> Dict,105-114,false,10,1,converts dict
+      AppActionLibrary.__init__,method,"(db_path:str='logs/action_templates.db', auto_approve_default:int=3, enabled:bool=True)",222-257,false,36,2,"Args:"
+      AppActionLibrary._init_db,method,(),261-283,false,23,2,Initialize SQLite database.
+      AppActionLibrary._load_templates,method,(),285-310,false,26,13,Load all templates from DB.
+      AppActionLibrary._seed_defaults,method,(),312-320,false,9,4,Add built-in templates if not already present.
+      AppActionLibrary._persist_template,method,"(t:ActionTemplate)",322-339,false,18,3,Save a single template to DB.
+      AppActionLibrary.suggest_with_confidence,method,"(text:str, app_category:str, cwd:Optional[str]=None) -> List[ScoredAction]",343-404,false,62,9,Match text against all templates and return scored actions.
+      AppActionLibrary.learn_from_approval,method,"(template_id:str)",409-435,false,27,4,Record that user approved an action from this template.
+      AppActionLibrary.learn_from_rejection,method,"(template_id:str)",438-462,false,25,4,Record that user rejected/dismissed an action from this template.
+      AppActionLibrary.learn_from_execution,method,"(template_id:str)",465-482,false,18,3,Record that an action from this template was executed.
+      AppActionLibrary.add_template,method,"(template_id:str, app_category:str, trigger_pattern:str, command_template:str, description:str='', risk_level:str='medium') -> ActionTemplate",486-509,false,24,1,Add a new custom template.
+      AppActionLibrary.remove_template,method,"(template_id:str) -> bool",511-519,false,9,3,Remove a template.
+      AppActionLibrary.get_template,method,"(template_id:str) -> Optional[ActionTemplate]",521-523,false,3,1,Get a template by ID.
+      AppActionLibrary.get_templates_for_app,method,"(app_category:str) -> List[ActionTemplate]",525-530,false,6,4,Get all templates for a specific app category.
+      AppActionLibrary.export_templates,method,"(include_stats:bool=False) -> str",534-554,false,21,3,Export all templates as JSON string.
+      AppActionLibrary.import_templates,method,"(json_str:str, overwrite:bool=False) -> int",556-594,false,39,6,Import templates from JSON string.
+      AppActionLibrary.get_stats,method,() -> Dict,598-616,false,19,4,Get action template statistics.
+      AppActionLibrary.close,method,(),618-622,false,5,2,Close database connection.
   backend/window_aware.py:
     functions[29]{name,kind,sig,loc,async,lines,cc,does}:
-      create_window_manager_from_env,function,(settings=None) -> WindowManager,764-774,false,11,2,Create WindowManager from settings.
-      WindowInfo.to_dict,method,() -> Dict,184-204,false,21,3,converts dict
-      WindowInfo.to_context_string,method,() -> str,206-217,false,12,6,Format window info as context string for LLM prompt injection.
-      MonitorInfo.to_dict,method,() -> Dict,231-240,false,10,1,converts dict
-      WindowManager.__init__,method,"(enable_git:bool=True, git_timeout:float=2.0, cache_ttl:float=0.5)",249-288,false,40,1,creates
-      WindowManager._check_tool,method,"(name:str) -> bool",291-301,false,11,2,Check if a CLI tool is available.
-      WindowManager._detect_display_server,method,() -> str,304-316,false,13,5,Detect X11 vs Wayland.
-      WindowManager._run,method,"(cmd:List[str], timeout:float=3.0) -> Optional[str]",319-332,false,14,3,"Run a command and return stdout, or None on error."
-      WindowManager.get_active_window,method,() -> WindowInfo,334-360,false,27,5,Get comprehensive info about the currently active window.
-      WindowManager._query_window_id,method,() -> int,362-379,false,18,11,"Get user work window ID (cursor window preferred, focus as fallback)."
-      WindowManager._query_active_window_id,method,() -> int,381-383,false,3,1,Get focused window ID via xdotool.
-      WindowManager._query_mouse_window_id,method,() -> int,385-395,false,11,4,Get window ID currently under mouse cursor via xdotool.
-      WindowManager._parse_window_id,method,"(value:Optional[str]) -> int",398-406,false,9,3,Parse decimal/hex window id string safely.
-      WindowManager._is_service_window_fields,method,"(wm_class:str, wm_class_name:str, title:str) -> bool",409-417,false,9,6,Guard for compositor/helper windows that should not be treated as user work wind...
-      WindowManager._is_service_window_id,method,"(window_id:int) -> bool",419-436,false,18,7,Check whether a window id corresponds to compositor/helper overlay windows.
-      WindowManager._query_window_props,method,"(info:WindowInfo)",438-459,false,22,5,"Query title, geometry, PID, and WM_CLASS for a window."
-      WindowManager._parse_geometry,method,"(info:WindowInfo, geom:str)",462-472,false,11,6,Parse xdotool --shell geometry output into WindowInfo fields.
-      WindowManager._query_wm_class,method,"(info:WindowInfo)",474-481,false,8,4,Get WM_CLASS instance and class name via xprop.
-      WindowManager._enrich_window,method,"(info:WindowInfo)",483-500,false,18,4,"Classify app, resolve CWD, add git context, detect monitor."
-      WindowManager._get_process_details,method,"(pid:int) -> Tuple[str, str]",502-520,false,19,4,Get process name and cmdline from /proc.
-      WindowManager._cache_and_return,method,"(info:WindowInfo, now:float) -> WindowInfo",522-525,false,4,1,caches and return
-      WindowManager._classify_app,method,"(wm_class:str, wm_class_name:str, title:str, process_name:str='', cmdline:str='') -> AppCategory",528-586,false,59,27,"Classify application based on WM_CLASS, title, and process info."
-      WindowManager._get_cwd,method,"(pid:int) -> str",589-595,false,7,2,Get current working directory of a process via /proc.
-      WindowManager._enrich_git,method,"(info:WindowInfo)",597-639,false,43,14,Add git repo info if the window's CWD is inside a git repo.
-      WindowManager._extract_path_from_title,method,"(title:str) -> str",642-662,false,21,5,Try to extract a file path from window title.
-      WindowManager.get_monitors,method,"() -> List[MonitorInfo]",664-704,false,41,8,Get list of connected monitors via xrandr.
-      WindowManager._get_monitor_for_window,method,"(info:WindowInfo) -> int",706-720,false,15,5,Determine which monitor a window center falls on.
-      WindowManager.get_window_roi,method,"(info:Optional[WindowInfo]=None) -> Optional[Dict]",722-739,false,18,4,Get Region of Interest based on active window geometry.
-      WindowManager.get_stats,method,() -> Dict,741-761,false,21,3,Get WindowManager statistics.
+      create_window_manager_from_env,function,(settings=None) -> WindowManager,766-776,false,11,2,Create WindowManager from settings.
+      WindowInfo.to_dict,method,() -> Dict,185-205,false,21,3,converts dict
+      WindowInfo.to_context_string,method,() -> str,207-218,false,12,6,Format window info as context string for LLM prompt injection.
+      MonitorInfo.to_dict,method,() -> Dict,232-241,false,10,1,converts dict
+      WindowManager.__init__,method,"(enable_git:bool=True, git_timeout:float=2.0, cache_ttl:float=0.5)",250-289,false,40,1,creates
+      WindowManager._check_tool,method,"(name:str) -> bool",292-302,false,11,2,Check if a CLI tool is available.
+      WindowManager._detect_display_server,method,() -> str,305-317,false,13,5,Detect X11 vs Wayland.
+      WindowManager._run,method,"(cmd:List[str], timeout:float=3.0) -> Optional[str]",320-333,false,14,3,"Run a command and return stdout, or None on error."
+      WindowManager.get_active_window,method,() -> WindowInfo,335-361,false,27,5,Get comprehensive info about the currently active window.
+      WindowManager._query_window_id,method,() -> int,363-380,false,18,11,"Get user work window ID (cursor window preferred, focus as fallback)."
+      WindowManager._query_active_window_id,method,() -> int,382-384,false,3,1,Get focused window ID via xdotool.
+      WindowManager._query_mouse_window_id,method,() -> int,386-396,false,11,4,Get window ID currently under mouse cursor via xdotool.
+      WindowManager._parse_window_id,method,"(value:Optional[str]) -> int",399-407,false,9,3,Parse decimal/hex window id string safely.
+      WindowManager._is_service_window_fields,method,"(wm_class:str, wm_class_name:str, title:str) -> bool",410-418,false,9,6,Guard for compositor/helper windows that should not be treated as user work wind...
+      WindowManager._is_service_window_id,method,"(window_id:int) -> bool",420-437,false,18,7,Check whether a window id corresponds to compositor/helper overlay windows.
+      WindowManager._query_window_props,method,"(info:WindowInfo)",439-460,false,22,5,"Query title, geometry, PID, and WM_CLASS for a window."
+      WindowManager._parse_geometry,method,"(info:WindowInfo, geom:str)",463-473,false,11,6,Parse xdotool --shell geometry output into WindowInfo fields.
+      WindowManager._query_wm_class,method,"(info:WindowInfo)",475-482,false,8,4,Get WM_CLASS instance and class name via xprop.
+      WindowManager._enrich_window,method,"(info:WindowInfo)",484-501,false,18,4,"Classify app, resolve CWD, add git context, detect monitor."
+      WindowManager._get_process_details,method,"(pid:int) -> Tuple[str, str]",503-521,false,19,4,Get process name and cmdline from /proc.
+      WindowManager._cache_and_return,method,"(info:WindowInfo, now:float) -> WindowInfo",523-526,false,4,1,caches and return
+      WindowManager._classify_app,method,"(wm_class:str, wm_class_name:str, title:str, process_name:str='', cmdline:str='') -> AppCategory",529-587,false,59,27,"Classify application based on WM_CLASS, title, and process info."
+      WindowManager._get_cwd,method,"(pid:int) -> str",590-596,false,7,2,Get current working directory of a process via /proc.
+      WindowManager._enrich_git,method,"(info:WindowInfo)",598-640,false,43,14,Add git repo info if the window's CWD is inside a git repo.
+      WindowManager._extract_path_from_title,method,"(title:str) -> str",643-663,false,21,5,Try to extract a file path from window title.
+      WindowManager.get_monitors,method,"() -> List[MonitorInfo]",665-705,false,41,8,Get list of connected monitors via xrandr.
+      WindowManager._get_monitor_for_window,method,"(info:WindowInfo) -> int",707-721,false,15,5,Determine which monitor a window center falls on.
+      WindowManager.get_window_roi,method,"(info:Optional[WindowInfo]=None) -> Optional[Dict]",723-740,false,18,4,Get Region of Interest based on active window geometry.
+      WindowManager.get_stats,method,() -> Dict,742-762,false,21,3,Get WindowManager statistics.
   backend/async_subprocess.py:
     functions[4]{name,kind,sig,loc,async,lines,cc,does}:
-      run_async,function,"(cmd:List[str], timeout:float=3.0, cwd:Optional[str]=None) -> Optional[str]",23-61,true,39,5,Run a command asynchronously via asyncio subprocess.
-      run_async_shell,function,"(command:str, timeout:float=10.0, cwd:Optional[str]=None, max_output:int=2000) -> dict",64-115,true,52,4,Run a shell command asynchronously.
-      run_in_thread_sync,function,"(cmd:List[str], timeout:float=3.0, cwd:Optional[str]=None) -> Optional[str]",118-135,false,18,3,Synchronous subprocess.run() — existing behavior.
-      run_in_thread,function,"(cmd:List[str], timeout:float=3.0, cwd:Optional[str]=None) -> Optional[str]",138-149,true,12,1,Offload subprocess.run() to a thread — non-blocking drop-in replacement.
+      run_async,function,"(cmd:List[str], timeout:float=3.0, cwd:Optional[str]=None) -> Optional[str]",24-62,true,39,5,Run a command asynchronously via asyncio subprocess.
+      run_async_shell,function,"(command:str, timeout:float=10.0, cwd:Optional[str]=None, max_output:int=2000) -> dict",65-116,true,52,4,Run a shell command asynchronously.
+      run_in_thread_sync,function,"(cmd:List[str], timeout:float=3.0, cwd:Optional[str]=None) -> Optional[str]",119-136,false,18,3,Synchronous subprocess.run() — existing behavior.
+      run_in_thread,function,"(cmd:List[str], timeout:float=3.0, cwd:Optional[str]=None) -> Optional[str]",139-150,true,12,1,Offload subprocess.run() to a thread — non-blocking drop-in replacement.
   backend/test_setup.py:
     functions[14]{name,kind,sig,loc,async,lines,cc,does}:
       check,function,"(name, passed, details='')",16-22,false,7,3,Print check result.
@@ -534,35 +544,37 @@ function_details:
       ScreenCastCapture._save_restore_token,method,(token),370-380,false,11,4,Save restore_token to disk for next startup.
       ScreenCastCapture._log,method,(msg),383-384,false,2,1,logs
   backend/event_bus.py:
-    functions[24]{name,kind,sig,loc,async,lines,cc,does}:
-      create_event_bus,function,"(enable_store:bool=True, db_path:str='logs/events.db') -> EventBus",488-491,false,4,2,Create EventBus from configuration.
-      Event.__post_init__,method,(),99-104,false,6,3,creates init
-      Event.to_dict,method,() -> Dict,106-116,false,11,1,converts dict
-      Event.to_json,method,() -> str,118-119,false,2,1,converts json
-      EventStore.__init__,method,"(db_path:str='logs/events.db', max_events:int=50000, flush_every:int=20, prune_every:int=100)",140-158,false,19,2,creates
-      EventStore._open_connection,method,(),160-172,false,13,2,starts connection
-      EventStore._ensure_db,method,(),174-195,false,22,2,ensure db
-      EventStore._flush_if_needed,method,(),197-200,false,4,2,flush if needed
-      EventStore._prune_old_events_if_needed,method,(),202-214,false,13,3,prune old events if needed
-      EventStore.flush,method,(),216-222,false,7,2,Flush pending writes to disk.
-      EventStore.close,method,(),224-231,false,8,2,Flush and close connection (call on app shutdown).
-      EventStore.append,method,"(event:Event)",233-262,false,30,4,"Append event to store (fire-and-forget, never blocks pipeline)."
-      EventStore.query,method,"(event_type:Optional[str]=None, source:Optional[str]=None, correlation_id:Optional[str]=None, since:Optional[float]=None, limit:int=100) -> List[Dict]",264-309,false,46,7,Query events from store.
-      EventStore.get_stats,method,() -> Dict,311-331,false,21,3,Get event store statistics.
-      EventBus.__init__,method,"(store:Optional[EventStore]=None, enable_store:bool=True)",348-365,false,18,3,creates
-      EventBus.subscribe,method,"(event_type:str, handler:EventHandler)",367-382,false,16,3,Subscribe a handler to a specific event type.
-      EventBus.unsubscribe,method,"(event_type:str, handler:EventHandler)",384-391,false,8,5,Remove a handler from an event type.
-      EventBus.add_middleware,method,"(middleware:Callable[Any,Event])",393-395,false,3,1,Add middleware that transforms events before dispatch.
-      EventBus.publish,method,"(event:Event)",397-435,true,39,6,Publish an event to all subscribed handlers.
-      EventBus.publish_many,method,"(events:List[Event])",437-440,true,4,2,Publish multiple events in order.
-      EventBus.emit,method,"(event_type:str, data:Dict, source:str='', correlation_id:str='') -> Event",442-456,false,15,1,"Convenience: create Event and return it (caller must await publish)."
-      EventBus._infer_category,method,"(event_type:str) -> str",459-467,false,9,4,Infer CQRS category from event type prefix.
-      EventBus.new_correlation_id,method,() -> str,469-471,false,3,1,Generate a new correlation ID for linking pipeline events.
-      EventBus.get_stats,method,() -> Dict,473-485,false,13,3,Get event bus statistics.
+    functions[26]{name,kind,sig,loc,async,lines,cc,does}:
+      create_event_bus,function,"(enable_store:bool=True, db_path:str='logs/events.db') -> EventBus",585-588,false,4,2,Create EventBus from configuration.
+      Event.__post_init__,method,(),101-106,false,6,3,creates init
+      Event.to_dict,method,() -> Dict,108-118,false,11,1,converts dict
+      Event.to_json,method,() -> str,120-121,false,2,1,converts json
+      EventStore.__init__,method,"(db_path:str='logs/events.db', max_events:int=50000, flush_every:int=20, prune_every:int=100)",142-165,false,24,2,creates
+      EventStore._trace_append_sample,method,(),168-186,false,19,1,Sampled nfo tracing for append() without logging full event payloads.
+      EventStore._trace_query_sample,method,(),189-207,false,19,1,Sampled nfo tracing for query() parameters/results.
+      EventStore._open_connection,method,(),209-221,false,13,2,starts connection
+      EventStore._ensure_db,method,(),223-245,false,23,2,ensure db
+      EventStore._flush_if_needed,method,(),247-250,false,4,2,flush if needed
+      EventStore._prune_old_events_if_needed,method,(),252-265,false,14,5,prune old events if needed
+      EventStore.flush,method,(),267-273,false,7,2,Flush pending writes to disk.
+      EventStore.close,method,(),275-285,false,11,3,Flush and close connection (call on app shutdown).
+      EventStore.append,method,"(event:Event)",287-338,false,52,8,"Append event to store (fire-and-forget, never blocks pipeline)."
+      EventStore.query,method,"(event_type:Optional[str]=None, source:Optional[str]=None, correlation_id:Optional[str]=None, since:Optional[float]=None, limit:int=100) -> List[Dict]",340-403,false,64,13,Query events from store.
+      EventStore.get_stats,method,() -> Dict,405-428,false,24,4,Get event store statistics.
+      EventBus.__init__,method,"(store:Optional[EventStore]=None, enable_store:bool=True)",445-462,false,18,3,creates
+      EventBus.subscribe,method,"(event_type:str, handler:EventHandler)",464-479,false,16,3,Subscribe a handler to a specific event type.
+      EventBus.unsubscribe,method,"(event_type:str, handler:EventHandler)",481-488,false,8,5,Remove a handler from an event type.
+      EventBus.add_middleware,method,"(middleware:Callable[Any,Event])",490-492,false,3,1,Add middleware that transforms events before dispatch.
+      EventBus.publish,method,"(event:Event)",494-532,true,39,6,Publish an event to all subscribed handlers.
+      EventBus.publish_many,method,"(events:List[Event])",534-537,true,4,2,Publish multiple events in order.
+      EventBus.emit,method,"(event_type:str, data:Dict, source:str='', correlation_id:str='') -> Event",539-553,false,15,1,"Convenience: create Event and return it (caller must await publish)."
+      EventBus._infer_category,method,"(event_type:str) -> str",556-564,false,9,4,Infer CQRS category from event type prefix.
+      EventBus.new_correlation_id,method,() -> str,566-568,false,3,1,Generate a new correlation ID for linking pipeline events.
+      EventBus.get_stats,method,() -> Dict,570-582,false,13,3,Get event bus statistics.
   backend/pipeline.py:
     functions[66]{name,kind,sig,loc,async,lines,cc,does}:
-      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",1094-1151,false,58,3,"Factory: create the standard analysis pipeline from components."
-      create_profile_selector,function,() -> ProfileSelector,1154-1159,false,6,2,Create ProfileSelector from environment variables.
+      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",1197-1255,false,59,3,"Factory: create the standard analysis pipeline from components."
+      create_profile_selector,function,() -> ProfileSelector,1258-1263,false,6,2,Create ProfileSelector from environment variables.
       ProfileSelector.__init__,method,"(full_interval:float=60.0, force_profile:Optional[str]=None)",63-74,false,12,3,creates
       ProfileSelector.select,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",76-113,false,38,6,Choose optimal profile for this pipeline tick.
       ProfileSelector.notify_active_window_changed,method,"(new_wid:int)",115-119,false,5,2,Signal that active window changed — next tick should be FULL.
@@ -589,55 +601,55 @@ function_details:
       BuildContextStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",419-474,true,56,15,starts
       AnalyzeStep.__init__,method,"(analyzer, cost_budget=None)",481-483,false,3,1,creates
       AnalyzeStep.can_run,method,"(ctx:PipelineContext) -> bool",485-486,false,2,2,checks run
-      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",488-570,true,83,16,starts
-      SuggestActionsStep.__init__,method,(shell_agent),577-578,false,2,1,creates
-      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",580-585,false,6,3,checks run
-      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",587-608,true,22,5,starts
-      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",615-616,false,2,2,checks run
-      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",618-669,true,52,6,starts
-      ParallelGroup.__init__,method,"(steps:List, name:Optional[str]=None)",682-684,false,3,3,creates
-      ParallelGroup.can_run,method,"(ctx:PipelineContext) -> bool",686-687,false,2,2,checks run
-      ParallelGroup.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",689-711,true,23,5,starts
-      MultiMonitorStep.__init__,method,"(monitor_capture, window_manager=None)",720-722,false,3,1,creates
-      MultiMonitorStep.can_run,method,"(ctx:PipelineContext) -> bool",724-725,false,2,2,checks run
-      MultiMonitorStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",727-751,true,25,7,starts
-      SemanticMemoryStep.__init__,method,(semantic_memory),758-759,false,2,1,creates
-      SemanticMemoryStep.can_run,method,"(ctx:PipelineContext) -> bool",761-764,false,4,3,checks run
-      SemanticMemoryStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",766-787,true,22,3,starts
-      ActionTemplateStep.__init__,method,(action_library),794-795,false,2,1,creates
-      ActionTemplateStep.can_run,method,"(ctx:PipelineContext) -> bool",797-800,false,4,3,checks run
-      ActionTemplateStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",802-823,true,22,8,starts
-      OCRPostProcessStep.__init__,method,(enhancer),830-831,false,2,1,creates
-      OCRPostProcessStep.can_run,method,"(ctx:PipelineContext) -> bool",833-841,false,9,5,checks run
-      OCRPostProcessStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",843-858,true,16,1,starts
-      PredictiveStep.__init__,method,(predictive_analyzer),865-866,false,2,1,creates
-      PredictiveStep.can_run,method,"(ctx:PipelineContext) -> bool",868-871,false,4,4,checks run
-      PredictiveStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",873-889,true,17,5,starts
-      ClipboardStep.__init__,method,(clipboard_manager),896-897,false,2,1,creates
-      ClipboardStep.can_run,method,"(ctx:PipelineContext) -> bool",899-902,false,4,3,checks run
-      ClipboardStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",904-939,true,36,14,starts
-      ParallelGroup.__init__,method,"(steps:List, name:str='')",952-954,false,3,3,creates
-      ParallelGroup.can_run,method,"(ctx:PipelineContext) -> bool",956-957,false,2,2,checks run
-      ParallelGroup.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",959-976,true,18,5,starts
-      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None)",989-993,false,5,2,creates
-      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",995-998,false,4,1,Add a step to the pipeline (builder pattern).
-      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",1000-1003,false,4,3,Remove a step by name.
-      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",1005-1012,false,8,3,Insert a step before another step by name.
-      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",1014-1021,false,8,3,Insert a step after another step by name.
-      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",1023-1079,true,57,5,Execute all pipeline steps in order.
-      PipelineOrchestrator.get_step_names,method,"() -> List[str]",1081-1083,false,3,2,Get ordered list of step names.
-      PipelineOrchestrator.get_stats,method,() -> Dict,1085-1091,false,7,1,retrieves stats
+      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",488-582,true,95,18,starts
+      SuggestActionsStep.__init__,method,(shell_agent),589-590,false,2,1,creates
+      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",592-597,false,6,3,checks run
+      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",599-620,true,22,5,starts
+      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",627-628,false,2,2,checks run
+      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",630-681,true,52,6,starts
+      MultiMonitorStep.__init__,method,"(monitor_capture, window_manager=None)",690-692,false,3,1,creates
+      MultiMonitorStep.can_run,method,"(ctx:PipelineContext) -> bool",694-695,false,2,2,checks run
+      MultiMonitorStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",697-721,true,25,7,starts
+      SemanticMemoryStep.__init__,method,(semantic_memory),728-729,false,2,1,creates
+      SemanticMemoryStep.can_run,method,"(ctx:PipelineContext) -> bool",731-734,false,4,3,checks run
+      SemanticMemoryStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",736-757,true,22,3,starts
+      ActionTemplateStep.__init__,method,(action_library),764-765,false,2,1,creates
+      ActionTemplateStep.can_run,method,"(ctx:PipelineContext) -> bool",767-770,false,4,3,checks run
+      ActionTemplateStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",772-793,true,22,8,starts
+      OCRPostProcessStep.__init__,method,(enhancer),800-801,false,2,1,creates
+      OCRPostProcessStep.can_run,method,"(ctx:PipelineContext) -> bool",803-811,false,9,5,checks run
+      OCRPostProcessStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",813-828,true,16,1,starts
+      PredictiveStep.__init__,method,(predictive_analyzer),835-836,false,2,1,creates
+      PredictiveStep.can_run,method,"(ctx:PipelineContext) -> bool",838-841,false,4,4,checks run
+      PredictiveStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",843-859,true,17,5,starts
+      ClipboardStep.__init__,method,(clipboard_manager),866-867,false,2,1,creates
+      ClipboardStep.can_run,method,"(ctx:PipelineContext) -> bool",869-872,false,4,3,checks run
+      ClipboardStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",874-935,true,62,21,starts
+      ClipboardRelationStep.__init__,method,"(clipboard_manager, app_state_ref=None)",950-954,false,5,2,creates
+      ClipboardRelationStep.can_run,method,"(ctx:PipelineContext) -> bool",956-963,false,8,5,checks run
+      ClipboardRelationStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",965-1037,true,73,12,starts
+      ParallelGroup.__init__,method,"(steps:List, name:Optional[str]=None)",1050-1052,false,3,3,creates
+      ParallelGroup.can_run,method,"(ctx:PipelineContext) -> bool",1054-1055,false,2,2,checks run
+      ParallelGroup.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",1057-1079,true,23,5,starts
+      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None)",1092-1096,false,5,2,creates
+      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",1098-1101,false,4,1,Add a step to the pipeline (builder pattern).
+      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",1103-1106,false,4,3,Remove a step by name.
+      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",1108-1115,false,8,3,Insert a step before another step by name.
+      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",1117-1124,false,8,3,Insert a step after another step by name.
+      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",1126-1182,true,57,5,Execute all pipeline steps in order.
+      PipelineOrchestrator.get_step_names,method,"() -> List[str]",1184-1186,false,3,2,Get ordered list of step names.
+      PipelineOrchestrator.get_stats,method,() -> Dict,1188-1194,false,7,1,retrieves stats
   backend/command_handlers.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
-      CommandHandlers.__init__,method,"(bus:EventBus, app_state:Dict[str,Any])",30-33,false,4,1,creates
-      CommandHandlers.set_broadcast,method,"(broadcast_fn:Callable)",35-37,false,3,1,Inject the SSE broadcast function (avoids circular import).
-      CommandHandlers.register_all,method,(),39-47,false,9,1,Subscribe all command handlers to the EventBus.
-      CommandHandlers.handle_switch_ocr,method,"(event:Event)",49-67,true,19,5,Switch OCR engine.
-      CommandHandlers.handle_switch_mode,method,"(event:Event)",69-88,true,20,5,Switch analysis mode.
-      CommandHandlers.handle_approve_action,method,"(event:Event)",90-98,true,9,2,Approve a pending agent action.
-      CommandHandlers.handle_execute_action,method,"(event:Event)",100-119,true,20,7,Execute an approved agent action.
-      CommandHandlers.handle_run_safe,method,"(event:Event)",121-133,true,13,4,Run a safe (read-only) command.
-      CommandHandlers.handle_run_benchmark,method,"(event:Event)",135-148,true,14,5,Run OCR benchmark.
+      CommandHandlers.__init__,method,"(bus:EventBus, app_state:Dict[str,Any])",31-34,false,4,1,creates
+      CommandHandlers.set_broadcast,method,"(broadcast_fn:Callable)",36-38,false,3,1,Inject the SSE broadcast function (avoids circular import).
+      CommandHandlers.register_all,method,(),40-48,false,9,1,Subscribe all command handlers to the EventBus.
+      CommandHandlers.handle_switch_ocr,method,"(event:Event)",50-68,true,19,5,Switch OCR engine.
+      CommandHandlers.handle_switch_mode,method,"(event:Event)",70-89,true,20,5,Switch analysis mode.
+      CommandHandlers.handle_approve_action,method,"(event:Event)",91-99,true,9,2,Approve a pending agent action.
+      CommandHandlers.handle_execute_action,method,"(event:Event)",101-120,true,20,7,Execute an approved agent action.
+      CommandHandlers.handle_run_safe,method,"(event:Event)",122-134,true,13,4,Run a safe (read-only) command.
+      CommandHandlers.handle_run_benchmark,method,"(event:Event)",136-149,true,14,5,Run OCR benchmark.
   backend/settings.py:
     functions[7]{name,kind,sig,loc,async,lines,cc,does}:
       get_settings,function,() -> Settings,245-252,false,8,1,Get cached application settings.
@@ -649,138 +661,138 @@ function_details:
       Settings.ocr_languages_list,method,"() -> List[str]",232-234,false,3,3,Parse OCR_LANGUAGES comma-separated string into list.
   backend/predictive_engine.py:
     functions[16]{name,kind,sig,loc,async,lines,cc,does}:
-      create_predictive_engine_from_env,function,(settings=None) -> PredictiveAnalyzer,433-445,false,13,2,Create PredictiveAnalyzer from settings.
-      TransitionStats.key,method,() -> str,44-45,false,2,1,key
-      PredictionResult.to_dict,method,() -> Dict,58-66,false,9,1,converts dict
-      PrefetchCache.is_valid,method,() -> bool,80-81,false,2,1,is valid
-      PrefetchCache.to_dict,method,() -> Dict,83-91,false,9,1,converts dict
-      PredictiveAnalyzer.__init__,method,"(confidence_threshold:float=0.6, max_history:int=1000, prefetch_ttl:float=10.0, min_observations:int=3, enabled:bool=True)",103-160,false,58,1,"Args:"
-      PredictiveAnalyzer.observe_window_change,method,"(new_category:str, new_window_id:int=0)",164-214,false,51,12,Record a window/app switch event to update the Markov chain.
-      PredictiveAnalyzer.predict_next_action,method,"(current_category:Optional[str]=None) -> Optional[PredictionResult]",216-271,false,56,8,Predict the next app/window the user will switch to.
-      PredictiveAnalyzer.set_prefetch_callback,method,"(fn:Callable)",275-282,false,8,1,Set the callback function for triggering background pre-fetch.
-      PredictiveAnalyzer.maybe_prefetch,method,"(prediction:Optional[PredictionResult]=None)",284-335,true,52,11,Trigger background pre-fetch if prediction is confident enough.
-      PredictiveAnalyzer.get_prefetched,method,"(window_id:int) -> Optional[PrefetchCache]",337-351,false,15,3,Check if pre-fetched data is available for a window.
-      PredictiveAnalyzer.get_prefetched_for_category,method,"(category:str) -> Optional[PrefetchCache]",353-359,false,7,4,Check if pre-fetched data is available for any window of a given category.
-      PredictiveAnalyzer.cleanup_cache,method,(),361-365,false,5,4,Remove expired cache entries.
-      PredictiveAnalyzer.get_transition_matrix,method,"() -> Dict[str, Dict[str, float]]",369-384,false,16,4,Get the full transition probability matrix.
-      PredictiveAnalyzer.get_top_patterns,method,"(n:int=5) -> List[Dict]",386-401,false,16,4,Get the most common transition patterns.
-      PredictiveAnalyzer.get_stats,method,() -> Dict,405-430,false,26,5,Get predictive engine statistics.
+      create_predictive_engine_from_env,function,(settings=None) -> PredictiveAnalyzer,435-447,false,13,2,Create PredictiveAnalyzer from settings.
+      TransitionStats.key,method,() -> str,45-46,false,2,1,key
+      PredictionResult.to_dict,method,() -> Dict,59-67,false,9,1,converts dict
+      PrefetchCache.is_valid,method,() -> bool,81-82,false,2,1,is valid
+      PrefetchCache.to_dict,method,() -> Dict,84-92,false,9,1,converts dict
+      PredictiveAnalyzer.__init__,method,"(confidence_threshold:float=0.6, max_history:int=1000, prefetch_ttl:float=10.0, min_observations:int=3, enabled:bool=True)",104-161,false,58,1,"Args:"
+      PredictiveAnalyzer.observe_window_change,method,"(new_category:str, new_window_id:int=0)",165-215,false,51,12,Record a window/app switch event to update the Markov chain.
+      PredictiveAnalyzer.predict_next_action,method,"(current_category:Optional[str]=None) -> Optional[PredictionResult]",217-272,false,56,8,Predict the next app/window the user will switch to.
+      PredictiveAnalyzer.set_prefetch_callback,method,"(fn:Callable)",276-283,false,8,1,Set the callback function for triggering background pre-fetch.
+      PredictiveAnalyzer.maybe_prefetch,method,"(prediction:Optional[PredictionResult]=None)",285-336,true,52,11,Trigger background pre-fetch if prediction is confident enough.
+      PredictiveAnalyzer.get_prefetched,method,"(window_id:int) -> Optional[PrefetchCache]",338-352,false,15,3,Check if pre-fetched data is available for a window.
+      PredictiveAnalyzer.get_prefetched_for_category,method,"(category:str) -> Optional[PrefetchCache]",354-360,false,7,4,Check if pre-fetched data is available for any window of a given category.
+      PredictiveAnalyzer.cleanup_cache,method,(),362-366,false,5,4,Remove expired cache entries.
+      PredictiveAnalyzer.get_transition_matrix,method,"() -> Dict[str, Dict[str, float]]",370-385,false,16,4,Get the full transition probability matrix.
+      PredictiveAnalyzer.get_top_patterns,method,"(n:int=5) -> List[Dict]",387-402,false,16,4,Get the most common transition patterns.
+      PredictiveAnalyzer.get_stats,method,() -> Dict,406-431,false,26,5,Get predictive engine statistics.
   backend/ocr_post_process.py:
     functions[17]{name,kind,sig,loc,async,lines,cc,does}:
-      create_ocr_enhancer_from_env,function,(settings=None) -> OCREnhancer,572-583,false,12,3,Create OCREnhancer from settings.
-      PostProcessResult.to_dict,method,() -> Dict,163-171,false,9,1,converts dict
-      OCREnhancer.__init__,method,"(enable_spell_check:bool=True, spell_dict_path:Optional[str]=None, max_edit_distance:int=2, enabled:bool=True)",186-218,false,33,3,"Args:"
-      OCREnhancer._init_spell_checker,method,"(dict_path:Optional[str]=None)",220-243,false,24,6,Initialize SymSpell spell checker.
-      OCREnhancer.enhance,method,"(text:str, hint_type:Optional[str]=None) -> PostProcessResult",245-313,false,69,12,Post-process OCR text to improve accuracy.
-      OCREnhancer._detect_text_type,method,"(text:str) -> str",317-333,false,17,3,"Detect whether text is code, terminal output, or prose."
-      OCREnhancer._score_line,method,"(line:str) -> Tuple[int, int, int]",336-341,false,6,5,"Score a single line for code, terminal, and prose indicators."
-      OCREnhancer._classify_scores,method,"(code_score:int, terminal_score:int, prose_score:int) -> str",344-362,false,19,7,Classify text type from accumulated scores.
-      OCREnhancer._fix_code_ocr,method,"(text:str) -> Tuple[str, List[Dict]]",366-389,false,24,4,Apply code-specific OCR corrections.
-      OCREnhancer._fix_terminal_ocr,method,"(text:str) -> Tuple[str, List[Dict]]",393-408,false,16,3,Apply terminal-output-specific OCR corrections.
-      OCREnhancer._fix_prose_ocr,method,"(text:str) -> Tuple[str, List[Dict]]",412-437,false,26,3,Apply prose-specific OCR corrections.
-      OCREnhancer._fix_char_confusions,method,"(text:str, text_type:str) -> Tuple[str, List[Dict]]",441-469,false,29,6,Fix common character confusions based on context.
-      OCREnhancer._merge_broken_words,method,"(text:str) -> str",474-502,false,29,10,Merge words broken across line breaks by OCR.
-      OCREnhancer._spell_check,method,"(text:str) -> Tuple[str, int]",506-527,false,22,5,"Apply spell checking to prose text, preserving code keywords."
-      OCREnhancer._should_skip_spell_check,method,"(clean:str) -> bool",530-542,false,13,9,Check if a word should be skipped during spell checking.
-      OCREnhancer._try_spell_correct,method,"(word:str, clean:str) -> Tuple[str, bool]",544-553,false,10,4,Try to spell-correct a single word.
-      OCREnhancer.get_stats,method,() -> Dict,557-569,false,13,2,Get OCR post-processing statistics.
+      create_ocr_enhancer_from_env,function,(settings=None) -> OCREnhancer,574-585,false,12,3,Create OCREnhancer from settings.
+      PostProcessResult.to_dict,method,() -> Dict,164-172,false,9,1,converts dict
+      OCREnhancer.__init__,method,"(enable_spell_check:bool=True, spell_dict_path:Optional[str]=None, max_edit_distance:int=2, enabled:bool=True)",187-219,false,33,3,"Args:"
+      OCREnhancer._init_spell_checker,method,"(dict_path:Optional[str]=None)",221-244,false,24,6,Initialize SymSpell spell checker.
+      OCREnhancer.enhance,method,"(text:str, hint_type:Optional[str]=None) -> PostProcessResult",246-314,false,69,12,Post-process OCR text to improve accuracy.
+      OCREnhancer._detect_text_type,method,"(text:str) -> str",318-334,false,17,3,"Detect whether text is code, terminal output, or prose."
+      OCREnhancer._score_line,method,"(line:str) -> Tuple[int, int, int]",337-342,false,6,5,"Score a single line for code, terminal, and prose indicators."
+      OCREnhancer._classify_scores,method,"(code_score:int, terminal_score:int, prose_score:int) -> str",345-363,false,19,7,Classify text type from accumulated scores.
+      OCREnhancer._fix_code_ocr,method,"(text:str) -> Tuple[str, List[Dict]]",367-390,false,24,4,Apply code-specific OCR corrections.
+      OCREnhancer._fix_terminal_ocr,method,"(text:str) -> Tuple[str, List[Dict]]",394-409,false,16,3,Apply terminal-output-specific OCR corrections.
+      OCREnhancer._fix_prose_ocr,method,"(text:str) -> Tuple[str, List[Dict]]",413-438,false,26,3,Apply prose-specific OCR corrections.
+      OCREnhancer._fix_char_confusions,method,"(text:str, text_type:str) -> Tuple[str, List[Dict]]",442-470,false,29,6,Fix common character confusions based on context.
+      OCREnhancer._merge_broken_words,method,"(text:str) -> str",475-503,false,29,10,Merge words broken across line breaks by OCR.
+      OCREnhancer._spell_check,method,"(text:str) -> Tuple[str, int]",507-528,false,22,5,"Apply spell checking to prose text, preserving code keywords."
+      OCREnhancer._should_skip_spell_check,method,"(clean:str) -> bool",531-543,false,13,9,Check if a word should be skipped during spell checking.
+      OCREnhancer._try_spell_correct,method,"(word:str, clean:str) -> Tuple[str, bool]",545-554,false,10,4,Try to spell-correct a single word.
+      OCREnhancer.get_stats,method,() -> Dict,558-570,false,13,2,Get OCR post-processing statistics.
   backend/semantic_memory.py:
     functions[19]{name,kind,sig,loc,async,lines,cc,does}:
-      create_semantic_memory_from_env,function,(settings=None) -> SemanticMemory,569-583,false,15,2,Create SemanticMemory from settings.
-      MemoryItem.to_dict,method,() -> Dict,56-64,false,9,1,converts dict
-      SemanticMemory.__init__,method,"(model_name:str='', db_path:str='logs/semantic_memory.db', max_memories:int=5000, recall_top_k:int=3, similarity_threshold:float=0.3, compress_after_hours:float=1.0, enabled:bool=True)",80-138,false,59,6,"Args:"
-      SemanticMemory._init_embedder,method,(),142-151,false,10,4,Lazy-load the sentence transformer model.
-      SemanticMemory._embed,method,"(text:str) -> Optional[np.ndarray]",153-162,false,10,4,Embed a single text string.
-      SemanticMemory._embed_batch,method,"(texts:List[str]) -> Optional[np.ndarray]",164-173,false,10,4,Embed a batch of texts.
-      SemanticMemory._init_db,method,(),177-198,false,22,2,Initialize SQLite database for persistent memory storage.
-      SemanticMemory._load_cache,method,(),200-228,false,29,6,Load all embeddings into memory for fast similarity search.
-      SemanticMemory.add_memory,method,"(content:str, context_type:str='screen', metadata:Optional[Dict]=None, timestamp:Optional[float]=None) -> Optional[str]",232-300,false,69,13,Embed and store a new memory item.
-      SemanticMemory.recall_relevant,method,"(query:str, k:Optional[int]=None, context_type:Optional[str]=None, since:Optional[float]=None) -> List[MemoryItem]",302-327,false,26,4,Recall relevant memories via semantic similarity search.
-      SemanticMemory.recall_recent,method,"(n:int=5, context_type:Optional[str]=None) -> List[MemoryItem]",329-335,false,7,4,Get most recent memories (like traditional sliding window).
-      SemanticMemory.compress_old_context,method,"(before_timestamp:Optional[float]=None) -> int",337-400,false,64,14,Summarize and compress memories older than threshold.
-      SemanticMemory.get_context_string,method,"(query:str='', n:int=5, max_length:int=500) -> str",402-449,false,48,8,Get relevant context as formatted string (drop-in for ContextManager).
-      SemanticMemory._recall_semantic,method,"(query:str, k:int, context_type:Optional[str], since:Optional[float]) -> List[MemoryItem]",453-493,false,41,12,Cosine similarity search against cached embeddings.
-      SemanticMemory._recall_keyword,method,"(query:str, k:int, context_type:Optional[str], since:Optional[float]) -> List[MemoryItem]",495-523,false,29,8,"Fallback: simple keyword matching when embedder is unavailable."
-      SemanticMemory._remove_memory,method,"(memory_id:str)",527-536,false,10,3,Remove a memory from cache and DB.
-      SemanticMemory._prune_oldest,method,"(count:int)",538-543,false,6,2,Remove oldest memories to stay under limit.
-      SemanticMemory.get_stats,method,() -> Dict,547-560,false,14,2,Get semantic memory statistics.
-      SemanticMemory.close,method,(),562-566,false,5,2,Close database connection.
+      create_semantic_memory_from_env,function,(settings=None) -> SemanticMemory,571-585,false,15,2,Create SemanticMemory from settings.
+      MemoryItem.to_dict,method,() -> Dict,57-65,false,9,1,converts dict
+      SemanticMemory.__init__,method,"(model_name:str='', db_path:str='logs/semantic_memory.db', max_memories:int=5000, recall_top_k:int=3, similarity_threshold:float=0.3, compress_after_hours:float=1.0, enabled:bool=True)",81-139,false,59,6,"Args:"
+      SemanticMemory._init_embedder,method,(),143-152,false,10,4,Lazy-load the sentence transformer model.
+      SemanticMemory._embed,method,"(text:str) -> Optional[np.ndarray]",154-163,false,10,4,Embed a single text string.
+      SemanticMemory._embed_batch,method,"(texts:List[str]) -> Optional[np.ndarray]",165-174,false,10,4,Embed a batch of texts.
+      SemanticMemory._init_db,method,(),178-199,false,22,2,Initialize SQLite database for persistent memory storage.
+      SemanticMemory._load_cache,method,(),201-229,false,29,6,Load all embeddings into memory for fast similarity search.
+      SemanticMemory.add_memory,method,"(content:str, context_type:str='screen', metadata:Optional[Dict]=None, timestamp:Optional[float]=None) -> Optional[str]",233-301,false,69,13,Embed and store a new memory item.
+      SemanticMemory.recall_relevant,method,"(query:str, k:Optional[int]=None, context_type:Optional[str]=None, since:Optional[float]=None) -> List[MemoryItem]",303-328,false,26,4,Recall relevant memories via semantic similarity search.
+      SemanticMemory.recall_recent,method,"(n:int=5, context_type:Optional[str]=None) -> List[MemoryItem]",330-336,false,7,4,Get most recent memories (like traditional sliding window).
+      SemanticMemory.compress_old_context,method,"(before_timestamp:Optional[float]=None) -> int",338-401,false,64,14,Summarize and compress memories older than threshold.
+      SemanticMemory.get_context_string,method,"(query:str='', n:int=5, max_length:int=500) -> str",403-450,false,48,8,Get relevant context as formatted string (drop-in for ContextManager).
+      SemanticMemory._recall_semantic,method,"(query:str, k:int, context_type:Optional[str], since:Optional[float]) -> List[MemoryItem]",454-494,false,41,12,Cosine similarity search against cached embeddings.
+      SemanticMemory._recall_keyword,method,"(query:str, k:int, context_type:Optional[str], since:Optional[float]) -> List[MemoryItem]",496-524,false,29,8,"Fallback: simple keyword matching when embedder is unavailable."
+      SemanticMemory._remove_memory,method,"(memory_id:str)",528-537,false,10,3,Remove a memory from cache and DB.
+      SemanticMemory._prune_oldest,method,"(count:int)",539-544,false,6,2,Remove oldest memories to stay under limit.
+      SemanticMemory.get_stats,method,() -> Dict,548-561,false,14,2,Get semantic memory statistics.
+      SemanticMemory.close,method,(),563-567,false,5,2,Close database connection.
   backend/cost_budget.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
-      create_cost_budget_from_env,function,(settings=None) -> CostBudget,149-160,false,12,2,Create CostBudget from settings.
-      CostBudget.__init__,method,"(config:BudgetConfig, state_path:str='logs/cost_state.json')",34-43,false,10,1,creates
-      CostBudget.check_and_reset,method,(),45-62,false,18,3,Reset counters if new day/hour started.
-      CostBudget.can_spend,method,"(estimated_cost:float=0.0) -> bool",64-84,false,21,3,Check if we can afford the next call.
-      CostBudget.record_spend,method,"(cost:float)",86-94,false,9,2,Record actual spend after API call.
-      CostBudget.get_suggested_mode,method,"(requested_mode:str) -> str",96-109,false,14,3,Return safe analysis mode based on budget.
-      CostBudget._load_state,method,(),111-121,false,11,3,retrieves state
-      CostBudget._save_state,method,(),123-136,false,14,2,caches state
-      CostBudget.get_stats,method,() -> Dict,138-146,false,9,2,retrieves stats
+      create_cost_budget_from_env,function,(settings=None) -> CostBudget,151-162,false,12,2,Create CostBudget from settings.
+      CostBudget.__init__,method,"(config:BudgetConfig, state_path:str='logs/cost_state.json')",35-44,false,10,1,creates
+      CostBudget.check_and_reset,method,(),46-63,false,18,3,Reset counters if new day/hour started.
+      CostBudget.can_spend,method,"(estimated_cost:float=0.0) -> bool",65-85,false,21,3,Check if we can afford the next call.
+      CostBudget.record_spend,method,"(cost:float)",87-95,false,9,2,Record actual spend after API call.
+      CostBudget.get_suggested_mode,method,"(requested_mode:str) -> str",97-110,false,14,3,Return safe analysis mode based on budget.
+      CostBudget._load_state,method,(),112-122,false,11,3,retrieves state
+      CostBudget._save_state,method,(),124-137,false,14,2,caches state
+      CostBudget.get_stats,method,() -> Dict,139-147,false,9,2,retrieves stats
   backend/analysis_loop.py:
     functions[11]{name,kind,sig,loc,async,lines,cc,does}:
-      AnalysisLoop.__init__,method,"(state:dict, broadcast_fn:Callable)",37-40,false,4,1,creates
-      AnalysisLoop.pipeline,method,() -> PipelineOrchestrator,43-44,false,2,1,pipeline
-      AnalysisLoop.profile_selector,method,() -> ProfileSelector,47-48,false,2,1,profile selector
-      AnalysisLoop.capture,method,(),51-52,false,2,1,capture
-      AnalysisLoop.context_mgr,method,(),55-56,false,2,1,context mgr
-      AnalysisLoop.run_forever,method,(),58-76,true,19,4,Main loop — runs ticks until cancelled.
-      AnalysisLoop.tick,method,() -> PipelineContext,78-96,true,19,1,Execute a single pipeline cycle.
-      AnalysisLoop._update_window_tracking,method,"(ctx:PipelineContext)",98-104,false,7,4,Notify profile selector on active window change (triggers FULL next tick).
-      AnalysisLoop._broadcast_state,method,"(ctx:PipelineContext)",106-145,true,40,10,"Push SSE updates for window, screen layout, and analysis."
-      AnalysisLoop._store_analysis,method,"(ctx:PipelineContext)",147-170,false,24,5,Persist analysis result to shared state and context history.
-      AnalysisLoop._log_errors,method,"(ctx:PipelineContext)",172-175,false,4,2,Log any pipeline step errors.
+      AnalysisLoop.__init__,method,"(state:dict, broadcast_fn:Callable)",38-41,false,4,1,creates
+      AnalysisLoop.pipeline,method,() -> PipelineOrchestrator,44-45,false,2,1,pipeline
+      AnalysisLoop.profile_selector,method,() -> ProfileSelector,48-49,false,2,1,profile selector
+      AnalysisLoop.capture,method,(),52-53,false,2,1,capture
+      AnalysisLoop.context_mgr,method,(),56-57,false,2,1,context mgr
+      AnalysisLoop.run_forever,method,(),60-78,true,19,4,Main loop — runs ticks until cancelled.
+      AnalysisLoop.tick,method,() -> PipelineContext,80-98,true,19,1,Execute a single pipeline cycle.
+      AnalysisLoop._update_window_tracking,method,"(ctx:PipelineContext)",100-106,false,7,4,Notify profile selector on active window change (triggers FULL next tick).
+      AnalysisLoop._broadcast_state,method,"(ctx:PipelineContext)",108-147,true,40,10,"Push SSE updates for window, screen layout, and analysis."
+      AnalysisLoop._store_analysis,method,"(ctx:PipelineContext)",149-172,false,24,5,Persist analysis result to shared state and context history.
+      AnalysisLoop._log_errors,method,"(ctx:PipelineContext)",174-177,false,4,2,Log any pipeline step errors.
   backend/clipboard_intel.py:
     functions[36]{name,kind,sig,loc,async,lines,cc,does}:
-      create_clipboard_manager_from_env,function,(settings=None) -> ClipboardManager,821-827,false,7,2,Create ClipboardManager from settings.
-      ClipboardItem.__post_init__,method,(),57-61,false,5,3,creates init
-      ClipboardItem.to_dict,method,() -> Dict,63-72,false,10,1,converts dict
-      ClipboardQueue.__init__,method,"(max_items:int=20)",85-88,false,4,1,creates
-      ClipboardQueue.push,method,"(text:str, source:ClipSource=ClipSource.USER, category:str='', label:str='') -> ClipboardItem",90-127,false,38,5,Add or promote an item.
-      ClipboardQueue.get_all,method,"() -> List[ClipboardItem]",129-131,false,3,1,"Get all items, newest first."
-      ClipboardQueue.get_recent,method,"(n:int=10) -> List[ClipboardItem]",133-135,false,3,1,Get N most recent items.
-      ClipboardQueue.get_by_source,method,"(source:ClipSource) -> List[ClipboardItem]",137-139,false,3,3,Filter items by source type.
-      ClipboardQueue.pin,method,"(text:str) -> bool",141-146,false,6,2,Pin an item so it's never evicted.
-      ClipboardQueue.unpin,method,"(text:str) -> bool",148-153,false,6,2,Unpin an item.
-      ClipboardQueue.remove,method,"(text:str) -> bool",155-161,false,7,2,Remove a specific item.
-      ClipboardQueue.clear,method,(),163-170,false,8,4,Clear all non-pinned items.
-      ClipboardQueue._evict,method,(),172-183,false,12,4,Remove oldest unpinned items if over max_items.
-      ClipboardQueue.__len__,method,() -> int,185-186,false,2,1,len
-      ClipboardQueue.__contains__,method,"(text:str) -> bool",188-189,false,2,1,contains
-      AutoCopyResult.to_dict,method,() -> Dict,280-286,false,7,1,converts dict
-      ContextCopyEngine.__init__,method,"(rules:Optional[List[Dict]]=None)",298-303,false,6,3,creates
-      ContextCopyEngine.scan,method,"(screen_text:str, category:AppCategory, max_results:int=5) -> List[AutoCopyResult]",305-365,false,61,16,Scan screen text for auto-copyable content.
-      PasteSuggestion.to_dict,method,() -> Dict,379-386,false,8,1,converts dict
-      PasteSuggester.suggest,method,"(queue:ClipboardQueue, category:AppCategory, screen_text:str='', max_suggestions:int=3) -> List[PasteSuggestion]",422-500,false,79,14,Generate paste suggestions ranked by relevance.
-      Snippet.to_dict,method,() -> Dict,513-519,false,7,2,converts dict
-      SnippetStore.__init__,method,(),525-526,false,2,1,creates
-      SnippetStore.add,method,"(trigger:str, expansion:str, label:str='', category:str='')",528-534,false,7,1,creates
-      SnippetStore.remove,method,"(trigger:str) -> bool",536-537,false,2,1,deletes
-      SnippetStore.expand,method,"(text:str, category:str='') -> Optional[str]",539-546,false,8,4,Try to expand a trigger.
-      SnippetStore.get_all,method,"() -> List[Snippet]",548-549,false,2,1,retrieves all
-      SnippetStore.__len__,method,() -> int,551-552,false,2,1,len
-      ClipboardManager.__init__,method,"(max_items:int=20)",564-575,false,12,1,creates
-      ClipboardManager.push,method,"(text:str, source:ClipSource=ClipSource.USER, category:str='', label:str='') -> Optional[ClipboardItem]",577-585,false,9,1,Add item to clipboard queue.
-      ClipboardManager.scan_and_copy,method,"(screen_text:str, category:AppCategory, max_items:int=3) -> List[AutoCopyResult]",587-607,false,21,2,Scan screen text and auto-add detected items to queue.
-      ClipboardManager.suggest_paste,method,"(category:AppCategory, screen_text:str='', max_suggestions:int=3) -> List[PasteSuggestion]",609-620,false,12,1,Get paste suggestions for current context.
-      ClipboardManager.mark_pasted,method,"(text:str)",622-627,false,6,2,Record that an item was pasted (boost future relevance).
-      ClipboardManager.get_stats,method,() -> Dict,629-641,false,13,4,retrieves stats
-      SelectionAnalysis.to_dict,method,() -> Dict,738-745,false,8,1,converts dict
-      SelectionAnalyzer.__init__,method,"(rules:Optional[List[Dict]]=None)",756-761,false,6,3,creates
-      SelectionAnalyzer.analyze,method,"(text:str) -> SelectionAnalysis",763-816,false,54,8,Analyze selected text and return structured response.
+      create_clipboard_manager_from_env,function,(settings=None) -> ClipboardManager,823-829,false,7,2,Create ClipboardManager from settings.
+      ClipboardItem.__post_init__,method,(),58-62,false,5,3,creates init
+      ClipboardItem.to_dict,method,() -> Dict,64-73,false,10,1,converts dict
+      ClipboardQueue.__init__,method,"(max_items:int=20)",86-89,false,4,1,creates
+      ClipboardQueue.push,method,"(text:str, source:ClipSource=ClipSource.USER, category:str='', label:str='') -> ClipboardItem",91-128,false,38,5,Add or promote an item.
+      ClipboardQueue.get_all,method,"() -> List[ClipboardItem]",130-132,false,3,1,"Get all items, newest first."
+      ClipboardQueue.get_recent,method,"(n:int=10) -> List[ClipboardItem]",134-136,false,3,1,Get N most recent items.
+      ClipboardQueue.get_by_source,method,"(source:ClipSource) -> List[ClipboardItem]",138-140,false,3,3,Filter items by source type.
+      ClipboardQueue.pin,method,"(text:str) -> bool",142-147,false,6,2,Pin an item so it's never evicted.
+      ClipboardQueue.unpin,method,"(text:str) -> bool",149-154,false,6,2,Unpin an item.
+      ClipboardQueue.remove,method,"(text:str) -> bool",156-162,false,7,2,Remove a specific item.
+      ClipboardQueue.clear,method,(),164-171,false,8,4,Clear all non-pinned items.
+      ClipboardQueue._evict,method,(),173-184,false,12,4,Remove oldest unpinned items if over max_items.
+      ClipboardQueue.__len__,method,() -> int,186-187,false,2,1,len
+      ClipboardQueue.__contains__,method,"(text:str) -> bool",189-190,false,2,1,contains
+      AutoCopyResult.to_dict,method,() -> Dict,281-287,false,7,1,converts dict
+      ContextCopyEngine.__init__,method,"(rules:Optional[List[Dict]]=None)",299-304,false,6,3,creates
+      ContextCopyEngine.scan,method,"(screen_text:str, category:AppCategory, max_results:int=5) -> List[AutoCopyResult]",306-366,false,61,16,Scan screen text for auto-copyable content.
+      PasteSuggestion.to_dict,method,() -> Dict,380-387,false,8,1,converts dict
+      PasteSuggester.suggest,method,"(queue:ClipboardQueue, category:AppCategory, screen_text:str='', max_suggestions:int=3) -> List[PasteSuggestion]",423-501,false,79,14,Generate paste suggestions ranked by relevance.
+      Snippet.to_dict,method,() -> Dict,514-520,false,7,2,converts dict
+      SnippetStore.__init__,method,(),526-527,false,2,1,creates
+      SnippetStore.add,method,"(trigger:str, expansion:str, label:str='', category:str='')",529-535,false,7,1,creates
+      SnippetStore.remove,method,"(trigger:str) -> bool",537-538,false,2,1,deletes
+      SnippetStore.expand,method,"(text:str, category:str='') -> Optional[str]",540-547,false,8,4,Try to expand a trigger.
+      SnippetStore.get_all,method,"() -> List[Snippet]",549-550,false,2,1,retrieves all
+      SnippetStore.__len__,method,() -> int,552-553,false,2,1,len
+      ClipboardManager.__init__,method,"(max_items:int=20)",565-576,false,12,1,creates
+      ClipboardManager.push,method,"(text:str, source:ClipSource=ClipSource.USER, category:str='', label:str='') -> Optional[ClipboardItem]",578-586,false,9,1,Add item to clipboard queue.
+      ClipboardManager.scan_and_copy,method,"(screen_text:str, category:AppCategory, max_items:int=3) -> List[AutoCopyResult]",588-608,false,21,2,Scan screen text and auto-add detected items to queue.
+      ClipboardManager.suggest_paste,method,"(category:AppCategory, screen_text:str='', max_suggestions:int=3) -> List[PasteSuggestion]",610-621,false,12,1,Get paste suggestions for current context.
+      ClipboardManager.mark_pasted,method,"(text:str)",623-628,false,6,2,Record that an item was pasted (boost future relevance).
+      ClipboardManager.get_stats,method,() -> Dict,630-642,false,13,4,retrieves stats
+      SelectionAnalysis.to_dict,method,() -> Dict,739-746,false,8,1,converts dict
+      SelectionAnalyzer.__init__,method,"(rules:Optional[List[Dict]]=None)",757-762,false,6,3,creates
+      SelectionAnalyzer.analyze,method,"(text:str) -> SelectionAnalysis",764-817,false,54,8,Analyze selected text and return structured response.
   backend/config_service.py:
     functions[12]{name,kind,sig,loc,async,lines,cc,does}:
-      _parse_env_file,function,"(path:str) -> Tuple[List[str], Dict[str, str], Dict[str, List[dict]]]",23-92,false,70,16,Parse .env file into raw lines + key→value dict + commented-out alternatives.
-      read_env,function,"() -> Dict[str, str]",95-98,false,4,1,Read current .env values as dict.
-      read_env_with_alternatives,function,"() -> Tuple[Dict[str, str], Dict[str, List[dict]]]",101-104,false,4,1,Read current .env values + commented-out alternatives.
-      update_env,function,"(updates:Dict[str,str]) -> Dict[str, str]",107-148,false,42,9,"Update .env file with new values, preserving comments and order."
-      _run_pactl,function,"(args:List[str]) -> Optional[str]",178-189,false,12,3,"Run pactl command, return stdout or None."
-      _parse_pactl_list,function,"(output:str, device_type:str) -> List[AudioDevice]",192-222,false,31,11,Parse 'pactl list sources/sinks' verbose output.
-      _build_device,function,"(d:Dict[str,str], device_type:str) -> AudioDevice",225-236,false,12,1,creates device
-      _discover_pactl,function,"() -> Tuple[List[AudioDevice], List[AudioDevice]]",239-252,false,14,3,Discover audio devices via pactl (PulseAudio/PipeWire).
-      _discover_sounddevice,function,"() -> List[dict]",255-272,false,18,3,Discover audio devices via sounddevice (fallback).
-      discover_audio_devices,function,() -> dict,275-303,false,29,8,Discover all audio devices.
-      get_config_with_schema,function,() -> dict,395-408,false,14,1,"Return full config: current values + schema + alternatives + audio devices."
-      AudioDevice.to_dict,method,() -> dict,165-175,false,11,1,converts dict
+      _parse_env_file,function,"(path:str) -> Tuple[List[str], Dict[str, str], Dict[str, List[dict]]]",24-93,false,70,16,Parse .env file into raw lines + key→value dict + commented-out alternatives.
+      read_env,function,"() -> Dict[str, str]",96-99,false,4,1,Read current .env values as dict.
+      read_env_with_alternatives,function,"() -> Tuple[Dict[str, str], Dict[str, List[dict]]]",102-105,false,4,1,Read current .env values + commented-out alternatives.
+      update_env,function,"(updates:Dict[str,str]) -> Dict[str, str]",108-149,false,42,9,"Update .env file with new values, preserving comments and order."
+      _run_pactl,function,"(args:List[str]) -> Optional[str]",179-190,false,12,3,"Run pactl command, return stdout or None."
+      _parse_pactl_list,function,"(output:str, device_type:str) -> List[AudioDevice]",193-223,false,31,11,Parse 'pactl list sources/sinks' verbose output.
+      _build_device,function,"(d:Dict[str,str], device_type:str) -> AudioDevice",226-237,false,12,1,creates device
+      _discover_pactl,function,"() -> Tuple[List[AudioDevice], List[AudioDevice]]",240-253,false,14,3,Discover audio devices via pactl (PulseAudio/PipeWire).
+      _discover_sounddevice,function,"() -> List[dict]",256-273,false,18,3,Discover audio devices via sounddevice (fallback).
+      discover_audio_devices,function,() -> dict,276-304,false,29,8,Discover all audio devices.
+      get_config_with_schema,function,() -> dict,396-409,false,14,1,"Return full config: current values + schema + alternatives + audio devices."
+      AudioDevice.to_dict,method,() -> dict,166-176,false,11,1,converts dict
   overlay/app-legacy.js:
     functions[31]{name,kind,sig,loc,async,lines,cc,does}:
       connect,function,(),55-170,false,116,1,registers
@@ -961,7 +973,7 @@ function_details:
       TestGetSettings.test_cached,method,(),125-129,false,5,1,checks cached
       TestGetSettings.test_reload_clears_cache,method,(),131-134,false,4,1,checks reload clears cache
   backend/tests/test_units.py:
-    functions[106]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[117]{name,kind,sig,loc,async,lines,cc,does}:
       TestAppClassification.test_ide_detection,method,(),29-35,false,7,1,checks ide detection
       TestAppClassification.test_terminal_detection,method,(),37-40,false,4,1,checks terminal detection
       TestAppClassification.test_browser_detection,method,(),42-45,false,4,1,checks browser detection
@@ -1068,6 +1080,17 @@ function_details:
       TestCropWindowsProfileGating.test_crop_runs_on_normal_profile,method,(),1195-1208,true,14,1,CropWindowsStep should run on NORMAL profile.
       TestBuildContextStepCaching.test_reuses_cached_context_when_inputs_unchanged,method,(),1213-1259,true,47,1,checks reuses cached context when inputs unchanged
       TestBuildContextStepCaching.test_cache_invalidates_when_context_version_changes,method,(),1262-1286,true,25,1,checks cache invalidates when context version changes
+      TestClipboardRelationStep._make_clipboard_manager,method,(top_text=''),1292-1306,false,15,2,Create a minimal fake clipboard manager.
+      TestClipboardRelationStep.test_can_run_false_on_fast_profile,method,(),1308-1316,false,9,1,checks can run false on fast profile
+      TestClipboardRelationStep.test_can_run_false_without_analysis,method,(),1318-1323,false,6,1,checks can run false without analysis
+      TestClipboardRelationStep.test_can_run_false_with_empty_clipboard,method,(),1325-1333,false,9,1,checks can run false with empty clipboard
+      TestClipboardRelationStep.test_can_run_true_with_clipboard_and_analysis,method,(),1335-1343,false,9,1,checks can run true with clipboard and analysis
+      TestClipboardRelationStep.test_execute_skips_short_screen_text,method,(),1346-1356,true,11,1,checks execute skips short screen text
+      TestClipboardRelationStep.test_execute_emits_event_on_strong_intent,method,(),1359-1381,true,23,1,checks execute emits event on strong intent
+      TestClipboardRelationStep.test_dedup_prevents_repeated_events,method,(),1384-1408,true,25,1,checks dedup prevents repeated events
+      TestClipboardRelationStep.test_create_pipeline_includes_clipboard_relation_step,method,(),1410-1419,false,10,1,create_pipeline should include clipboard_relation when clipboard_manager is prov...
+      TestFeedbackLoopWiring.test_agent_route_calls_learn_from_approval,method,(),1425-1446,false,22,1,Verify approve_action route calls library.learn_from_approval.
+      TestFeedbackLoopWiring.test_agent_route_calls_learn_from_execution,method,(),1448-1477,false,30,1,Verify execute_action route calls library.learn_from_execution.
   backend/tests/test_analysis_loop.py:
     functions[20]{name,kind,sig,loc,async,lines,cc,does}:
       _make_state,function,(),18-54,false,37,1,Minimal app_state with mocked components.
@@ -1091,7 +1114,7 @@ function_details:
       TestClipboardBroadcastRegression.test_no_clipboard_broadcast_when_empty,method,(),363-379,true,17,2,"When clipboard_suggestions is empty, no clipboard broadcast should occur."
       TestClipboardBroadcastRegression.test_clipboard_suggestions_without_auto_copies,method,(),382-400,true,19,1,Suggestions present but auto_copies empty — should still broadcast.
   backend/tests/test_skills.py:
-    functions[157]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[158]{name,kind,sig,loc,async,lines,cc,does}:
       _ctx,function,(),21-22,false,2,1,ctx
       TestSkillRouter.test_init,method,(),28-30,false,3,1,checks init
       TestSkillRouter.test_analyze_shell_command,method,(),32-38,false,7,1,checks analyze shell command
@@ -1249,6 +1272,7 @@ function_details:
       TestActionableOptions.test_env_missing_has_export,method,(),1110-1116,false,7,2,checks env missing has export
       TestActionableOptions.test_regex_has_local_match,method,(),1118-1124,false,7,2,checks regex has local match
       TestActionableOptions.test_json_has_json_diff,method,(),1126-1132,false,7,2,checks json has json diff
+      TestActionableOptions.test_all_builder_option_ids_have_execute_dispatch,method,(),1134-1160,false,27,3,checks all builder option ids have execute dispatch
   backend/tests/test_bootstrap.py:
     functions[20]{name,kind,sig,loc,async,lines,cc,does}:
       _make_state,function,(),16-48,false,33,1,Create a minimal app_state dict for testing.
@@ -1804,109 +1828,117 @@ function_details:
       TestParallelGroup.test_name_auto_generated,method,(),122-126,false,5,1,checks name auto generated
       TestParallelGroup.test_name_custom,method,(),128-130,false,3,1,checks name custom
       TestParallelGroup.test_empty_runnable_returns_ctx,method,(),132-137,false,6,1,checks empty runnable returns ctx
+  backend/tests/test_event_store.py:
+    functions[5]{name,kind,sig,loc,async,lines,cc,does}:
+      TestEventStore.test_append_query_and_stats,method,(tmp_path),12-27,false,16,1,checks append query and stats
+      TestEventStore.test_duplicate_event_id_does_not_increment_count,method,(tmp_path),29-40,false,12,1,checks duplicate event id does not increment count
+      TestEventStore.test_prune_respects_max_events,method,(tmp_path),42-54,false,13,3,checks prune respects max events
+      TestEventStore.test_close_is_idempotent,method,(tmp_path),56-66,false,11,1,checks close is idempotent
+      TestEventStore.test_sampled_nfo_trace_hooks,method,"(tmp_path, monkeypatch)",68-92,false,25,1,checks sampled nfo trace hooks
   backend/tests/test_pipeline_steps.py:
-    functions[4]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[5]{name,kind,sig,loc,async,lines,cc,does}:
       TestAnalyzeStepWithBudget.test_budget_check_downgrades_mode,method,(),14-43,true,30,1,checks budget check downgrades mode
       TestAnalyzeStepWithBudget.test_budget_ok_keeps_mode,method,(),46-71,true,26,1,checks budget ok keeps mode
       TestAnalyzeStepWithBudget.test_no_budget_component,method,(),74-88,true,15,1,checks no budget component
       TestAnalyzeStepWithBudget.test_budget_downgrade_is_per_run_not_persistent,method,(),91-107,true,17,1,checks budget downgrade is per run not persistent
+      TestAnalyzeStepWithBudget.test_analysis_completed_event_contains_budget_metadata,method,(),110-142,true,33,1,checks analysis completed event contains budget metadata
   backend/routes/screen.py:
     functions[8]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",14-17,false,4,1,creates
-      get_organized_screen,function,(),21-26,true,6,2,Get latest organized screen data (per-app crops + categories).
-      get_screen_stats,function,(),30-39,true,10,3,Get process scanner and window cropper statistics.
-      list_screenshots,function,(),43-57,true,15,4,List all saved screenshots.
-      get_screenshot,function,"(filename:str)",61-69,true,9,3,Serve a specific screenshot file.
-      list_crops,function,(),73-87,true,15,4,List all saved per-app crop files.
-      get_crop,function,"(filename:str)",91-99,true,9,3,Serve a specific crop file.
-      screenshot_browser,function,(),103-105,true,3,1,Serve the screenshot browser UI.
+      init,function,"(app_state:dict, broadcast_fn)",15-18,false,4,1,creates
+      get_organized_screen,function,(),22-27,true,6,2,Get latest organized screen data (per-app crops + categories).
+      get_screen_stats,function,(),31-40,true,10,3,Get process scanner and window cropper statistics.
+      list_screenshots,function,(),44-58,true,15,4,List all saved screenshots.
+      get_screenshot,function,"(filename:str)",62-70,true,9,3,Serve a specific screenshot file.
+      list_crops,function,(),74-88,true,15,4,List all saved per-app crop files.
+      get_crop,function,"(filename:str)",92-100,true,9,3,Serve a specific crop file.
+      screenshot_browser,function,(),104-106,true,3,1,Serve the screenshot browser UI.
   backend/routes/config.py:
     functions[5]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",16-19,false,4,1,creates
-      get_config,function,(),23-25,true,3,1,"Get full configuration: current .env values + schema + audio devices."
-      post_config,function,"(request:Request)",29-41,true,13,6,Update .env configuration.
-      get_audio_devices,function,(),45-47,true,3,1,List all available audio devices (PulseAudio/PipeWire + sounddevice).
-      config_ui,function,(),51-53,true,3,1,Serve the configuration UI.
+      init,function,"(app_state:dict, broadcast_fn)",17-20,false,4,1,creates
+      get_config,function,(),24-26,true,3,1,"Get full configuration: current .env values + schema + audio devices."
+      post_config,function,"(request:Request)",30-42,true,13,6,Update .env configuration.
+      get_audio_devices,function,(),46-48,true,3,1,List all available audio devices (PulseAudio/PipeWire + sounddevice).
+      config_ui,function,(),52-54,true,3,1,Serve the configuration UI.
   backend/routes/memory.py:
     functions[4]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",13-16,false,4,1,creates
-      search_memory,function,"(q:str='', k:int=5, type:Optional[str]=None)",20-35,true,16,4,Semantic search through memory (or recent items if no query).
-      memory_stats,function,(),39-44,true,6,2,Get semantic memory statistics.
-      compress_memory,function,(),48-54,true,7,2,Manually trigger memory compression.
+      init,function,"(app_state:dict, broadcast_fn)",14-17,false,4,1,creates
+      search_memory,function,"(q:str='', k:int=5, type:Optional[str]=None)",21-36,true,16,4,Semantic search through memory (or recent items if no query).
+      memory_stats,function,(),40-45,true,6,2,Get semantic memory statistics.
+      compress_memory,function,(),49-55,true,7,2,Manually trigger memory compression.
   backend/routes/events.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",13-16,false,4,1,creates
-      query_events,function,"(type:Optional[str]=None, source:Optional[str]=None, correlation_id:Optional[str]=None, since:Optional[float]=None, limit:int=50)",20-35,true,16,3,Query the event store (Event Sourcing read side).
-      event_bus_stats,function,(),39-44,true,6,2,Get event bus and event store statistics.
-      pipeline_info,function,(),48-60,true,13,3,"Get pipeline configuration, steps, and execution statistics."
-      get_read_model,function,(),64-73,true,10,2,Get CQRS read model — materialized views.
-      get_read_model_pipeline,function,(),77-82,true,6,2,Get pipeline execution view from CQRS read model.
-      get_read_model_stats,function,(),86-91,true,6,2,Get enriched stats from CQRS read model.
-      get_traces,function,"(name:Optional[str]=None, n:int=20)",95-102,true,8,1,Get tracer metrics and recent spans.
-      get_predictive_stats,function,(),106-115,true,10,2,Get predictive engine stats and transition patterns.
+      init,function,"(app_state:dict, broadcast_fn)",14-17,false,4,1,creates
+      query_events,function,"(type:Optional[str]=None, source:Optional[str]=None, correlation_id:Optional[str]=None, since:Optional[float]=None, limit:int=50)",21-36,true,16,3,Query the event store (Event Sourcing read side).
+      event_bus_stats,function,(),40-45,true,6,2,Get event bus and event store statistics.
+      pipeline_info,function,(),49-61,true,13,3,"Get pipeline configuration, steps, and execution statistics."
+      get_read_model,function,(),65-74,true,10,2,Get CQRS read model — materialized views.
+      get_read_model_pipeline,function,(),78-83,true,6,2,Get pipeline execution view from CQRS read model.
+      get_read_model_stats,function,(),87-92,true,6,2,Get enriched stats from CQRS read model.
+      get_traces,function,"(name:Optional[str]=None, n:int=20)",96-103,true,8,1,Get tracer metrics and recent spans.
+      get_predictive_stats,function,(),107-116,true,10,2,Get predictive engine stats and transition patterns.
   backend/routes/__init__.py:
     functions[1]{name,kind,sig,loc,async,lines,cc,does}:
       register_all_routes,function,"(app, app_state:dict, broadcast_fn)",21-44,false,24,2,Register all route modules on the FastAPI app.
   backend/routes/agent.py:
     functions[6]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",13-16,false,4,1,creates
-      get_pending_actions,function,(),20-28,true,9,2,Get pending agent actions awaiting approval.
-      approve_action,function,"(action_id:str)",32-41,true,10,3,Approve a pending agent action.
-      execute_action,function,"(action_id:str)",45-61,true,17,5,Execute an approved agent action.
-      agent_history,function,(),65-73,true,9,2,Get agent action execution history.
-      agent_run_safe,function,"(request:Request)",77-91,true,15,3,Run a safe (read-only) command directly.
+      init,function,"(app_state:dict, broadcast_fn)",14-17,false,4,1,creates
+      get_pending_actions,function,(),21-29,true,9,2,Get pending agent actions awaiting approval.
+      approve_action,function,"(action_id:str)",33-49,true,17,4,Approve a pending agent action.
+      execute_action,function,"(action_id:str)",53-75,true,23,6,Execute an approved agent action.
+      agent_history,function,(),79-87,true,9,2,Get agent action execution history.
+      agent_run_safe,function,"(request:Request)",91-105,true,15,3,Run a safe (read-only) command directly.
   backend/routes/templates.py:
     functions[4]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",14-17,false,4,1,creates
-      get_action_templates,function,(),21-29,true,9,3,Get all action templates with learning stats.
-      import_templates,function,"(request:Request)",33-40,true,8,2,Import action templates from JSON.
-      export_templates,function,"(include_stats:bool=False)",44-49,true,6,2,Export action templates as JSON.
+      init,function,"(app_state:dict, broadcast_fn)",15-18,false,4,1,creates
+      get_action_templates,function,(),22-30,true,9,3,Get all action templates with learning stats.
+      import_templates,function,"(request:Request)",34-41,true,8,2,Import action templates from JSON.
+      export_templates,function,"(include_stats:bool=False)",45-50,true,6,2,Export action templates as JSON.
   backend/routes/core.py:
     functions[10]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",16-19,false,4,1,creates
-      root,function,(),23-44,true,22,1,Root endpoint.
-      sse_stream,function,"(request:Request)",48-74,true,27,1,Server-Sent Events endpoint for real-time updates.
-      status,function,(),78-85,true,8,1,Get current status and latest data.
-      stats,function,(),89-111,true,23,5,Get detailed statistics.
-      health,function,(),115-129,true,15,5,Health check endpoint.
-      diagnostics,function,(),133-138,true,6,3,Get latest autodiagnostics result.
-      diagnostics_history,function,(),142-147,true,6,2,Get diagnostics history.
-      get_nfo_validation,function,(),151-154,true,4,1,Get latest nfo startup validation result.
-      get_profiles,function,(),158-167,true,10,3,Get all available per-app analysis profiles.
+      init,function,"(app_state:dict, broadcast_fn)",17-20,false,4,1,creates
+      root,function,(),24-45,true,22,1,Root endpoint.
+      sse_stream,function,"(request:Request)",49-75,true,27,1,Server-Sent Events endpoint for real-time updates.
+      status,function,(),79-86,true,8,1,Get current status and latest data.
+      stats,function,(),90-112,true,23,5,Get detailed statistics.
+      health,function,(),116-130,true,15,5,Health check endpoint.
+      diagnostics,function,(),134-139,true,6,3,Get latest autodiagnostics result.
+      diagnostics_history,function,(),143-148,true,6,2,Get diagnostics history.
+      get_nfo_validation,function,(),152-155,true,4,1,Get latest nfo startup validation result.
+      get_profiles,function,(),159-168,true,10,3,Get all available per-app analysis profiles.
   backend/routes/ocr.py:
     functions[8]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",15-18,false,4,1,creates
-      ocr_engines,function,(),22-29,true,8,2,List available OCR engines and their status.
-      set_ocr_engine,function,"(engine_name:str)",33-52,true,20,3,Switch active OCR engine at runtime.
-      ocr_benchmark,function,(),56-100,true,45,5,"Run benchmark: all OCR engines on current screen capture."
-      ocr_stats,function,(),104-108,true,5,2,Get OCR engine statistics.
-      ocr_post_process_stats,function,(),112-117,true,6,2,Get OCR post-processing statistics.
-      get_analysis_mode,function,(),121-134,true,14,2,Get current analysis mode.
-      set_analysis_mode,function,"(mode_name:str)",138-155,true,18,3,Switch analysis mode at runtime.
+      init,function,"(app_state:dict, broadcast_fn)",16-19,false,4,1,creates
+      ocr_engines,function,(),23-30,true,8,2,List available OCR engines and their status.
+      set_ocr_engine,function,"(engine_name:str)",34-53,true,20,3,Switch active OCR engine at runtime.
+      ocr_benchmark,function,(),57-101,true,45,5,"Run benchmark: all OCR engines on current screen capture."
+      ocr_stats,function,(),105-109,true,5,2,Get OCR engine statistics.
+      ocr_post_process_stats,function,(),113-118,true,6,2,Get OCR post-processing statistics.
+      get_analysis_mode,function,(),122-135,true,14,2,Get current analysis mode.
+      set_analysis_mode,function,"(mode_name:str)",139-156,true,18,3,Switch analysis mode at runtime.
   backend/routes/clipboard.py:
     functions[12]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",12-15,false,4,1,creates
-      get_clipboard_queue,function,"(n:int=10)",19-25,true,7,3,Get clipboard queue (newest first).
-      get_paste_suggestions,function,(),29-47,true,19,6,Get paste suggestions for current window context.
-      push_to_clipboard,function,"(request:Request)",51-66,true,16,4,Manually push text to clipboard queue.
-      mark_pasted,function,"(index:int)",70-81,true,12,3,Record that item at index was pasted (boosts future relevance).
-      pin_item,function,"(request:Request)",85-99,true,15,3,Pin/unpin a clipboard item.
-      get_snippets,function,(),103-108,true,6,3,Get all registered snippets.
-      add_snippet,function,"(request:Request)",112-125,true,14,4,Add a new snippet.
-      analyze_selection,function,"(request:Request)",129-191,true,63,16,Analyze selected text via SkillRouter — returns ranked skill matches with popup...
-      execute_skill,function,"(request:Request)",195-242,true,48,11,Execute a specific skill option chosen by user from the popup.
-      list_skills,function,(),246-253,true,8,2,List all registered skills.
-      clipboard_stats,function,(),257-262,true,6,2,Get clipboard intelligence statistics.
+      init,function,"(app_state:dict, broadcast_fn)",13-16,false,4,1,creates
+      get_clipboard_queue,function,"(n:int=10)",20-26,true,7,3,Get clipboard queue (newest first).
+      get_paste_suggestions,function,(),30-48,true,19,6,Get paste suggestions for current window context.
+      push_to_clipboard,function,"(request:Request)",52-67,true,16,4,Manually push text to clipboard queue.
+      mark_pasted,function,"(index:int)",71-82,true,12,3,Record that item at index was pasted (boosts future relevance).
+      pin_item,function,"(request:Request)",86-100,true,15,3,Pin/unpin a clipboard item.
+      get_snippets,function,(),104-109,true,6,3,Get all registered snippets.
+      add_snippet,function,"(request:Request)",113-126,true,14,4,Add a new snippet.
+      analyze_selection,function,"(request:Request)",130-192,true,63,16,Analyze selected text via SkillRouter — returns ranked skill matches with popup...
+      execute_skill,function,"(request:Request)",196-248,true,53,13,Execute a specific skill option chosen by user from the popup.
+      list_skills,function,(),252-259,true,8,2,List all registered skills.
+      clipboard_stats,function,(),263-268,true,6,2,Get clipboard intelligence statistics.
   backend/routes/windows.py:
     functions[8]{name,kind,sig,loc,async,lines,cc,does}:
-      init,function,"(app_state:dict, broadcast_fn)",13-16,false,4,1,creates
-      get_active_window,function,(),20-26,true,7,2,Get current active window information.
-      get_latest_window,function,(),30-35,true,6,2,Get latest cached window info (no subprocess call).
-      get_monitors,function,(),39-51,true,13,4,Get list of connected monitors.
-      window_stats,function,(),55-60,true,6,2,Get window manager statistics.
-      get_all_processes,function,(),64-69,true,6,2,Scan all visible windows with process info.
-      get_all_windows,function,(),73-82,true,10,3,Get all visible windows with geometry and process details.
-      get_multi_monitor,function,(),86-103,true,18,5,Get multi-monitor snapshot and activity analysis.
+      init,function,"(app_state:dict, broadcast_fn)",14-17,false,4,1,creates
+      get_active_window,function,(),21-27,true,7,2,Get current active window information.
+      get_latest_window,function,(),31-36,true,6,2,Get latest cached window info (no subprocess call).
+      get_monitors,function,(),40-52,true,13,4,Get list of connected monitors.
+      window_stats,function,(),56-61,true,6,2,Get window manager statistics.
+      get_all_processes,function,(),65-70,true,6,2,Scan all visible windows with process info.
+      get_all_windows,function,(),74-83,true,10,3,Get all visible windows with geometry and process details.
+      get_multi_monitor,function,(),87-104,true,18,5,Get multi-monitor snapshot and activity analysis.
   backend/plugins/loader.py:
     functions[6]{name,kind,sig,loc,async,lines,cc,does}:
       PluginLoader.__init__,method,"(plugin_dir:str='plugins', bus:EventBus=None, app_state:Dict[str,Any]=None)",28-36,false,9,2,creates
@@ -1917,141 +1949,158 @@ function_details:
       PluginLoader.shutdown,method,(),128-140,true,13,5,Shutdown all plugins.
   backend/plugins/example_window_notifier.py:
     functions[4]{name,kind,sig,loc,async,lines,cc,does}:
-      Plugin.__init__,method,(),26-29,false,4,1,creates
-      Plugin.register,method,"(bus, app_state)",31-35,false,5,1,Subscribe to window scan events to detect category changes.
-      Plugin._on_window,method,(event),37-67,false,31,6,handles window
-      Plugin.shutdown,method,(),69-74,true,6,1,stops
+      Plugin.__init__,method,(),27-30,false,4,1,creates
+      Plugin.register,method,"(bus, app_state)",32-36,false,5,1,Subscribe to window scan events to detect category changes.
+      Plugin._on_window,method,(event),38-63,true,26,5,handles window
+      Plugin.shutdown,method,(),65-70,true,6,1,stops
   backend/plugins/example_logger.py:
     functions[5]{name,kind,sig,loc,async,lines,cc,does}:
-      Plugin.__init__,method,(),23-24,false,2,1,creates
-      Plugin.register,method,"(bus, app_state)",26-30,false,5,1,Subscribe to pipeline events and log them.
-      Plugin._on_analysis,method,(event),32-40,false,9,2,handles analysis
-      Plugin._on_context,method,(event),42-50,false,9,2,handles context
-      Plugin.shutdown,method,(),52-53,true,2,1,stops
+      Plugin.__init__,method,(),24-25,false,2,1,creates
+      Plugin.register,method,"(bus, app_state)",27-31,false,5,1,Subscribe to pipeline events and log them.
+      Plugin._on_analysis,method,(event),33-41,true,9,2,handles analysis
+      Plugin._on_context,method,(event),43-51,true,9,2,handles context
+      Plugin.shutdown,method,(),53-54,true,2,1,stops
   backend/plugins/interface.py:
     functions[2]{name,kind,sig,loc,async,lines,cc,does}:
       PluginInterface.register,method,"(bus:EventBus, app_state:Dict[str,Any]) -> None",19-27,false,9,1,Register the plugin with the system.
       PluginInterface.shutdown,method,() -> None,29-33,true,5,1,Cleanup resources on system shutdown.
   backend/skills/error_fixer.py:
     functions[7]{name,kind,sig,loc,async,lines,cc,does}:
-      ErrorFixerSkill.__init__,method,(),107-111,false,5,2,creates
-      ErrorFixerSkill.detect,method,"(text:str, ctx:SkillContext) -> float",113-133,false,21,12,detect
-      ErrorFixerSkill._find_match,method,"(text:str)",135-140,false,6,3,retrieves match
-      ErrorFixerSkill._expand_template,method,"(template:str, match, text:str) -> str",142-158,false,17,6,expand template
-      ErrorFixerSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",160-200,false,41,5,retrieves options
-      ErrorFixerSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",202-240,true,39,14,starts
-      ErrorFixerSkill._label,method,"(text:str, ctx:SkillContext) -> str",242-246,false,5,3,label
+      ErrorFixerSkill.__init__,method,(),108-112,false,5,2,creates
+      ErrorFixerSkill.detect,method,"(text:str, ctx:SkillContext) -> float",114-134,false,21,12,detect
+      ErrorFixerSkill._find_match,method,"(text:str)",136-141,false,6,3,retrieves match
+      ErrorFixerSkill._expand_template,method,"(template:str, match, text:str) -> str",143-159,false,17,6,expand template
+      ErrorFixerSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",161-201,false,41,5,retrieves options
+      ErrorFixerSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",203-241,true,39,14,starts
+      ErrorFixerSkill._label,method,"(text:str, ctx:SkillContext) -> str",243-247,false,5,3,label
   backend/skills/base.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
-      SkillContext.__post_init__,method,(),68-70,false,3,2,creates init
-      SkillOption.to_dict,method,() -> Dict,87-95,false,9,1,converts dict
-      SkillResult.to_dict,method,() -> Dict,109-124,false,16,6,converts dict
-      SkillMatch.to_dict,method,() -> Dict,138-147,false,10,2,converts dict
-      BaseSkill.detect,method,"(text:str, ctx:SkillContext) -> float",168-175,false,8,1,Detect if this skill applies to the given text.
-      BaseSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",178-184,false,7,1,Get actionable options for the popup.
-      BaseSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",187-193,true,7,1,Execute the chosen option.
-      BaseSkill.get_match,method,"(text:str, ctx:SkillContext) -> Optional[SkillMatch]",195-221,false,27,4,"Convenience: detect + get_options in one call."
-      BaseSkill._label,method,"(text:str, ctx:SkillContext) -> str",223-225,false,3,1,Override to provide a human-readable label for the match.
+      SkillContext.__post_init__,method,(),69-71,false,3,2,creates init
+      SkillOption.to_dict,method,() -> Dict,88-96,false,9,1,converts dict
+      SkillResult.to_dict,method,() -> Dict,110-125,false,16,6,converts dict
+      SkillMatch.to_dict,method,() -> Dict,139-148,false,10,2,converts dict
+      BaseSkill.detect,method,"(text:str, ctx:SkillContext) -> float",169-176,false,8,1,Detect if this skill applies to the given text.
+      BaseSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",179-185,false,7,1,Get actionable options for the popup.
+      BaseSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",188-194,true,7,1,Execute the chosen option.
+      BaseSkill.get_match,method,"(text:str, ctx:SkillContext) -> Optional[SkillMatch]",196-222,false,27,4,"Convenience: detect + get_options in one call."
+      BaseSkill._label,method,"(text:str, ctx:SkillContext) -> str",224-226,false,3,1,Override to provide a human-readable label for the match.
   backend/skills/shell_command.py:
     functions[7]{name,kind,sig,loc,async,lines,cc,does}:
-      ShellCommandSkill.detect,method,"(text:str, ctx:SkillContext) -> float",65-97,false,33,15,detect
-      ShellCommandSkill._clipboard_relates_to_cmd,method,"(cmd:str, clipboard:str) -> bool",100-112,false,13,3,Check if clipboard error context is related to the command.
-      ShellCommandSkill._assess_risk,method,"(text:str) -> OptionRisk",114-122,false,9,6,assess risk
-      ShellCommandSkill._extract_command,method,"(text:str) -> str",124-127,false,4,5,Extract the core command (first meaningful line or full text).
-      ShellCommandSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",129-181,false,53,5,retrieves options
-      ShellCommandSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",183-239,true,57,11,starts
-      ShellCommandSkill._label,method,"(text:str, ctx:SkillContext) -> str",241-243,false,3,1,label
+      ShellCommandSkill.detect,method,"(text:str, ctx:SkillContext) -> float",66-98,false,33,15,detect
+      ShellCommandSkill._clipboard_relates_to_cmd,method,"(cmd:str, clipboard:str) -> bool",101-113,false,13,3,Check if clipboard error context is related to the command.
+      ShellCommandSkill._assess_risk,method,"(text:str) -> OptionRisk",115-123,false,9,6,assess risk
+      ShellCommandSkill._extract_command,method,"(text:str) -> str",125-128,false,4,5,Extract the core command (first meaningful line or full text).
+      ShellCommandSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",130-182,false,53,5,retrieves options
+      ShellCommandSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",184-240,true,57,11,starts
+      ShellCommandSkill._label,method,"(text:str, ctx:SkillContext) -> str",242-244,false,3,1,label
   backend/skills/__init__.py:
     functions[7]{name,kind,sig,loc,async,lines,cc,does}:
-      _load_builtins,function,(),30-49,false,20,1,Import and register all built-in skill classes.
-      SkillRouter.__init__,method,(),62-77,false,16,6,creates
-      SkillRouter.analyze,method,"(text:str, ctx:SkillContext) -> List[SkillMatch]",79-98,false,20,5,"Analyze text against all skills, return ranked matches."
-      SkillRouter.execute,method,"(skill_name:str, text:str, option_id:str, ctx:SkillContext) -> SkillResult",100-116,true,17,3,Execute a specific skill option chosen by the user.
-      SkillRouter.register_skill,method,"(skill:BaseSkill)",118-123,false,6,1,Register a custom/plugin skill at runtime.
-      SkillRouter.get_skill_names,method,"() -> List[str]",125-126,false,2,2,retrieves skill names
-      SkillRouter.get_stats,method,() -> Dict,128-135,false,8,2,retrieves stats
+      _load_builtins,function,(),31-50,false,20,1,Import and register all built-in skill classes.
+      SkillRouter.__init__,method,(),63-78,false,16,6,creates
+      SkillRouter.analyze,method,"(text:str, ctx:SkillContext) -> List[SkillMatch]",81-100,false,20,5,"Analyze text against all skills, return ranked matches."
+      SkillRouter.execute,method,"(skill_name:str, text:str, option_id:str, ctx:SkillContext) -> SkillResult",103-119,true,17,3,Execute a specific skill option chosen by the user.
+      SkillRouter.register_skill,method,"(skill:BaseSkill)",121-126,false,6,1,Register a custom/plugin skill at runtime.
+      SkillRouter.get_skill_names,method,"() -> List[str]",128-129,false,2,2,retrieves skill names
+      SkillRouter.get_stats,method,() -> Dict,131-138,false,8,2,retrieves stats
   backend/skills/clipboard_relation.py:
-    functions[45]{name,kind,sig,loc,async,lines,cc,does}:
-      _detect_lang,function,"(text:str) -> str",104-116,false,13,6,Lightweight language detection → lang code or 'unknown'.
-      _detect_lang_pair,function,"(text_a:str, text_b:str) -> Tuple[str, str]",119-121,false,3,1,Detect languages of both texts.
-      _text_similarity,function,"(a:str, b:str) -> float",124-128,false,5,3,Quick similarity ratio 0.0–1.0 between two texts.
-      _extract_domain,function,"(text:str) -> str",131-139,false,9,3,"Extract domain from first URL in text, or empty string."
-      _Intent.__init__,method,"(name:str, score:float, label:str, icon:str, options_fn=None)",148-153,false,6,1,creates
-      ClipboardRelationSkill.detect,method,"(text:str, ctx:SkillContext) -> float",164-168,false,5,3,detect
-      ClipboardRelationSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",170-176,false,7,3,retrieves options
-      ClipboardRelationSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",178-276,true,99,26,starts
-      ClipboardRelationSkill._run_cmd,method,"(cmd:str, cwd:Optional[str], label:str) -> SkillResult",279-298,true,20,6,Run a shell command and return the result.
-      ClipboardRelationSkill._execute_regex_match,method,"(text:str, clipboard:str) -> SkillResult",301-323,false,23,7,Test regex (from one side) against data (from the other).
-      ClipboardRelationSkill._execute_json_diff,method,"(text:str, clipboard:str) -> SkillResult",326-361,false,36,13,Pretty-print and diff two JSON objects.
-      ClipboardRelationSkill._best_intent,method,"(text:str, ctx:SkillContext) -> Optional[_Intent]",365-394,false,30,6,Score all intents and return the best one.
-      ClipboardRelationSkill._check_already_copied,method,"(text:str, clipboard:str) -> Optional[_Intent]",396-400,false,5,2,checks already copied
-      ClipboardRelationSkill._check_error_file_match,method,"(text:str, clipboard:str) -> Optional[_Intent]",402-422,false,21,7,"Selection is a file path/name, clipboard has traceback mentioning that file."
-      ClipboardRelationSkill._check_cross_language,method,"(text:str, clipboard:str, ctx:SkillContext) -> Optional[_Intent]",424-435,false,12,4,checks cross language
-      ClipboardRelationSkill._check_complement_cmd,method,"(text:str, clipboard:str) -> Optional[_Intent]",437-461,false,25,9,"Selection is a package name, clipboard has install error for it."
-      ClipboardRelationSkill._check_url_pair,method,"(text:str, clipboard:str) -> Optional[_Intent]",463-470,false,8,4,checks url pair
-      ClipboardRelationSkill._check_save_to_path,method,"(text:str, clipboard:str) -> Optional[_Intent]",472-482,false,11,4,"Selection is a file path, clipboard has content to save."
-      ClipboardRelationSkill._check_code_similarity,method,"(text:str, clipboard:str) -> Optional[_Intent]",484-494,false,11,4,Both look like code and are somewhat similar → refactor/replace.
-      ClipboardRelationSkill._check_diff_fragments,method,"(text:str, clipboard:str) -> Optional[_Intent]",496-501,false,6,4,Both are text fragments that are somewhat similar → show diff.
-      ClipboardRelationSkill._check_json_pair,method,"(text:str, clipboard:str) -> Optional[_Intent]",505-518,false,14,8,Both look like JSON → compare/merge/validate.
-      ClipboardRelationSkill._check_git_context,method,"(text:str, clipboard:str) -> Optional[_Intent]",520-537,false,18,6,"Selection is a git ref/hash, clipboard has diff or commit context."
-      ClipboardRelationSkill._check_ip_host,method,"(text:str, clipboard:str) -> Optional[_Intent]",539-557,false,19,6,"Selection is IP/host, clipboard has connection error or config."
-      ClipboardRelationSkill._check_env_var,method,"(text:str, clipboard:str) -> Optional[_Intent]",559-580,false,22,7,"Selection is env var name/value, clipboard has config or error referencing it."
-      ClipboardRelationSkill._check_docker_context,method,"(text:str, clipboard:str) -> Optional[_Intent]",582-600,false,19,8,Selection + clipboard both reference Docker → container management.
-      ClipboardRelationSkill._check_config_key_value,method,"(text:str, clipboard:str) -> Optional[_Intent]",602-617,false,16,4,"Selection is a config key, clipboard has config block or error about that key."
-      ClipboardRelationSkill._check_stack_trace_context,method,"(text:str, clipboard:str) -> Optional[_Intent]",619-635,false,17,4,"Selection is a function/class name, clipboard has stack trace mentioning it."
-      ClipboardRelationSkill._check_regex_test,method,"(text:str, clipboard:str) -> Optional[_Intent]",637-655,false,19,9,"Selection looks like a regex, clipboard has test data (or vice versa)."
-      ClipboardRelationSkill._default_options,method,"(text:str, ctx:SkillContext, intent:_Intent) -> List[SkillOption]",659-690,false,32,4,default options
-      ClipboardRelationSkill._error_file_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",692-710,false,19,2,error file options
-      ClipboardRelationSkill._translate_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",712-723,false,12,1,converts options
-      ClipboardRelationSkill._install_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",725-738,false,14,2,install options
-      ClipboardRelationSkill._json_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",740-755,false,16,1,json options
-      ClipboardRelationSkill._git_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",757-774,false,18,1,git options
-      ClipboardRelationSkill._git_compare_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",776-794,false,19,1,git compare options
-      ClipboardRelationSkill._ip_error_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",796-823,false,28,2,ip error options
-      ClipboardRelationSkill._env_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",825-841,false,17,1,env options
-      ClipboardRelationSkill._env_missing_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",843-859,false,17,1,env missing options
-      ClipboardRelationSkill._docker_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",861-884,false,24,1,docker options
-      ClipboardRelationSkill._config_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",886-897,false,12,1,config options
-      ClipboardRelationSkill._stack_trace_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",899-910,false,12,1,stack trace options
-      ClipboardRelationSkill._regex_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",912-927,false,16,1,regex options
-      ClipboardRelationSkill._save_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",929-942,false,14,1,caches options
-      ClipboardRelationSkill._make_diff,method,"(text_a:str, text_b:str) -> str",947-968,false,22,11,Simple line-by-line diff display.
-      ClipboardRelationSkill._label,method,"(text:str, ctx:SkillContext) -> str",970-972,false,3,2,label
+    functions[62]{name,kind,sig,loc,async,lines,cc,does}:
+      _detect_lang,function,"(text:str) -> str",105-117,false,13,6,Lightweight language detection → lang code or 'unknown'.
+      _detect_lang_pair,function,"(text_a:str, text_b:str) -> Tuple[str, str]",120-122,false,3,1,Detect languages of both texts.
+      _text_similarity,function,"(a:str, b:str) -> float",125-129,false,5,3,Quick similarity ratio 0.0–1.0 between two texts.
+      _extract_domain,function,"(text:str) -> str",132-140,false,9,3,"Extract domain from first URL in text, or empty string."
+      _Intent.__init__,method,"(name:str, score:float, label:str, icon:str, options_fn=None)",149-154,false,6,1,creates
+      ClipboardRelationSkill.detect,method,"(text:str, ctx:SkillContext) -> float",184-188,false,5,3,detect
+      ClipboardRelationSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",190-196,false,7,3,retrieves options
+      ClipboardRelationSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",198-204,true,7,3,starts
+      ClipboardRelationSkill._execute_copy_both_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",206-208,true,3,1,starts copy both option
+      ClipboardRelationSkill._execute_show_diff_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",210-212,true,3,1,starts show diff option
+      ClipboardRelationSkill._execute_replace_clipboard_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",214-215,true,2,1,starts replace clipboard option
+      ClipboardRelationSkill._execute_translate_pair_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",217-222,true,6,1,starts translate pair option
+      ClipboardRelationSkill._execute_install_package_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",224-234,true,11,5,starts install package option
+      ClipboardRelationSkill._execute_open_error_file_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",236-241,true,6,2,starts open error file option
+      ClipboardRelationSkill._execute_save_to_file_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",243-250,true,8,2,starts save to file option
+      ClipboardRelationSkill._execute_git_show_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",252-254,true,3,1,starts git show option
+      ClipboardRelationSkill._execute_git_diff_range_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",256-259,true,4,1,starts git diff range option
+      ClipboardRelationSkill._execute_ping_host_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",261-263,true,3,1,starts ping host option
+      ClipboardRelationSkill._execute_check_port_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",265-274,true,10,2,starts check port option
+      ClipboardRelationSkill._execute_docker_logs_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",276-278,true,3,1,starts docker logs option
+      ClipboardRelationSkill._execute_docker_inspect_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",280-282,true,3,1,starts docker inspect option
+      ClipboardRelationSkill._execute_env_export_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",284-288,true,5,2,starts env export option
+      ClipboardRelationSkill._execute_regex_match_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",290-291,true,2,1,starts regex match option
+      ClipboardRelationSkill._execute_json_diff_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",293-294,true,2,1,starts json diff option
+      ClipboardRelationSkill._execute_search_pair_option,method,"(text:str, clipboard:str, ctx:SkillContext) -> SkillResult",296-299,true,4,1,starts search pair option
+      ClipboardRelationSkill._run_cmd,method,"(cmd:str, cwd:Optional[str], label:str) -> SkillResult",302-321,true,20,6,Run a shell command and return the result.
+      ClipboardRelationSkill._execute_regex_match,method,"(text:str, clipboard:str) -> SkillResult",324-346,false,23,7,Test regex (from one side) against data (from the other).
+      ClipboardRelationSkill._execute_json_diff,method,"(text:str, clipboard:str) -> SkillResult",349-384,false,36,13,Pretty-print and diff two JSON objects.
+      ClipboardRelationSkill._best_intent,method,"(text:str, ctx:SkillContext) -> Optional[_Intent]",388-417,false,30,6,Score all intents and return the best one.
+      ClipboardRelationSkill._check_already_copied,method,"(text:str, clipboard:str) -> Optional[_Intent]",419-423,false,5,2,checks already copied
+      ClipboardRelationSkill._check_error_file_match,method,"(text:str, clipboard:str) -> Optional[_Intent]",425-445,false,21,7,"Selection is a file path/name, clipboard has traceback mentioning that file."
+      ClipboardRelationSkill._check_cross_language,method,"(text:str, clipboard:str, ctx:SkillContext) -> Optional[_Intent]",447-458,false,12,4,checks cross language
+      ClipboardRelationSkill._check_complement_cmd,method,"(text:str, clipboard:str) -> Optional[_Intent]",460-484,false,25,9,"Selection is a package name, clipboard has install error for it."
+      ClipboardRelationSkill._check_url_pair,method,"(text:str, clipboard:str) -> Optional[_Intent]",486-493,false,8,4,checks url pair
+      ClipboardRelationSkill._check_save_to_path,method,"(text:str, clipboard:str) -> Optional[_Intent]",495-505,false,11,4,"Selection is a file path, clipboard has content to save."
+      ClipboardRelationSkill._check_code_similarity,method,"(text:str, clipboard:str) -> Optional[_Intent]",507-517,false,11,4,Both look like code and are somewhat similar → refactor/replace.
+      ClipboardRelationSkill._check_diff_fragments,method,"(text:str, clipboard:str) -> Optional[_Intent]",519-524,false,6,4,Both are text fragments that are somewhat similar → show diff.
+      ClipboardRelationSkill._check_json_pair,method,"(text:str, clipboard:str) -> Optional[_Intent]",528-541,false,14,8,Both look like JSON → compare/merge/validate.
+      ClipboardRelationSkill._check_git_context,method,"(text:str, clipboard:str) -> Optional[_Intent]",543-560,false,18,6,"Selection is a git ref/hash, clipboard has diff or commit context."
+      ClipboardRelationSkill._check_ip_host,method,"(text:str, clipboard:str) -> Optional[_Intent]",562-580,false,19,6,"Selection is IP/host, clipboard has connection error or config."
+      ClipboardRelationSkill._check_env_var,method,"(text:str, clipboard:str) -> Optional[_Intent]",582-603,false,22,7,"Selection is env var name/value, clipboard has config or error referencing it."
+      ClipboardRelationSkill._check_docker_context,method,"(text:str, clipboard:str) -> Optional[_Intent]",605-623,false,19,8,Selection + clipboard both reference Docker → container management.
+      ClipboardRelationSkill._check_config_key_value,method,"(text:str, clipboard:str) -> Optional[_Intent]",625-640,false,16,4,"Selection is a config key, clipboard has config block or error about that key."
+      ClipboardRelationSkill._check_stack_trace_context,method,"(text:str, clipboard:str) -> Optional[_Intent]",642-658,false,17,4,"Selection is a function/class name, clipboard has stack trace mentioning it."
+      ClipboardRelationSkill._check_regex_test,method,"(text:str, clipboard:str) -> Optional[_Intent]",660-678,false,19,9,"Selection looks like a regex, clipboard has test data (or vice versa)."
+      ClipboardRelationSkill._default_options,method,"(text:str, ctx:SkillContext, intent:_Intent) -> List[SkillOption]",682-713,false,32,4,default options
+      ClipboardRelationSkill._error_file_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",715-733,false,19,2,error file options
+      ClipboardRelationSkill._translate_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",735-746,false,12,1,converts options
+      ClipboardRelationSkill._install_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",748-761,false,14,2,install options
+      ClipboardRelationSkill._json_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",763-778,false,16,1,json options
+      ClipboardRelationSkill._git_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",780-797,false,18,1,git options
+      ClipboardRelationSkill._git_compare_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",799-817,false,19,1,git compare options
+      ClipboardRelationSkill._ip_error_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",819-846,false,28,2,ip error options
+      ClipboardRelationSkill._env_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",848-864,false,17,1,env options
+      ClipboardRelationSkill._env_missing_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",866-882,false,17,1,env missing options
+      ClipboardRelationSkill._docker_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",884-907,false,24,1,docker options
+      ClipboardRelationSkill._config_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",909-920,false,12,1,config options
+      ClipboardRelationSkill._stack_trace_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",922-933,false,12,1,stack trace options
+      ClipboardRelationSkill._regex_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",935-950,false,16,1,regex options
+      ClipboardRelationSkill._save_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",952-965,false,14,1,caches options
+      ClipboardRelationSkill._make_diff,method,"(text_a:str, text_b:str) -> str",970-991,false,22,11,Simple line-by-line diff display.
+      ClipboardRelationSkill._label,method,"(text:str, ctx:SkillContext) -> str",993-995,false,3,2,label
   backend/skills/voice_command.py:
     functions[5]{name,kind,sig,loc,async,lines,cc,does}:
-      VoiceCommandSkill.detect,method,"(text:str, ctx:SkillContext) -> float",48-61,false,14,5,detect
-      VoiceCommandSkill._match_command,method,"(transcript:str) -> Optional[tuple]",63-69,false,7,3,Find the matching voice command.
-      VoiceCommandSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",71-97,false,27,2,retrieves options
-      VoiceCommandSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",99-160,true,62,15,starts
-      VoiceCommandSkill._label,method,"(text:str, ctx:SkillContext) -> str",162-167,false,6,2,label
+      VoiceCommandSkill.detect,method,"(text:str, ctx:SkillContext) -> float",49-62,false,14,5,detect
+      VoiceCommandSkill._match_command,method,"(transcript:str) -> Optional[tuple]",64-70,false,7,3,Find the matching voice command.
+      VoiceCommandSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",72-98,false,27,2,retrieves options
+      VoiceCommandSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",100-161,true,62,15,starts
+      VoiceCommandSkill._label,method,"(text:str, ctx:SkillContext) -> str",163-168,false,6,2,label
   backend/skills/translation.py:
     functions[7]{name,kind,sig,loc,async,lines,cc,does}:
-      detect_language,function,"(text:str) -> str",56-87,false,32,8,Simple language detection using word frequency heuristics.
-      _lang_name,function,"(code:str, pl:bool=True) -> str",90-98,false,9,6,Get human-readable language name.
-      TranslationSkill.detect,method,"(text:str, ctx:SkillContext) -> float",107-120,false,14,4,detect
-      TranslationSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",122-153,false,32,3,retrieves options
-      TranslationSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",155-179,true,25,4,starts
-      TranslationSkill._translate,method,"(text:str, source:str, target:str) -> str",181-204,true,24,7,Try translation via available backends.
-      TranslationSkill._label,method,"(text:str, ctx:SkillContext) -> str",206-208,false,3,1,label
+      detect_language,function,"(text:str) -> str",57-88,false,32,8,Simple language detection using word frequency heuristics.
+      _lang_name,function,"(code:str, pl:bool=True) -> str",91-99,false,9,6,Get human-readable language name.
+      TranslationSkill.detect,method,"(text:str, ctx:SkillContext) -> float",108-121,false,14,4,detect
+      TranslationSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",123-154,false,32,3,retrieves options
+      TranslationSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",156-180,true,25,4,starts
+      TranslationSkill._translate,method,"(text:str, source:str, target:str) -> str",182-205,true,24,7,Try translation via available backends.
+      TranslationSkill._label,method,"(text:str, ctx:SkillContext) -> str",207-209,false,3,1,label
   backend/skills/tts.py:
     functions[13]{name,kind,sig,loc,async,lines,cc,does}:
-      _resolve_piper_model,function,"(configured:str) -> str",115-136,false,22,8,"Return path to a piper .onnx model, if available."
-      _map_lang,function,"(engine_name:str, locale:str) -> str",139-143,false,5,3,converts lang
-      _build_speed_flag,function,"(engine_name:str, slow:bool) -> str",146-155,false,10,5,creates speed flag
-      _pick_play_command,function,"(file_path:str) -> Optional[str]",158-163,false,6,3,pick play command
-      _run_shell,function,"(cmd:str, timeout:float=30.0) -> Tuple[int, str, str]",166-175,true,10,3,starts shell
-      _format_engine_command,function,"(template:str, values:Dict[str,str]) -> str",178-182,false,5,2,formats engine command
-      detect_tts_engines,function,"() -> List[dict]",185-205,false,21,5,Detect available TTS engines on the system.
-      get_best_tts_engine,function,"(preferred:str='auto') -> Optional[dict]",208-230,false,23,9,"Get best available TTS engine, honoring explicit config selection."
-      TTSSkill.__init__,method,(),239-255,false,17,3,creates
-      TTSSkill.detect,method,"(text:str, ctx:SkillContext) -> float",257-272,false,16,6,detect
-      TTSSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",274-309,false,36,7,retrieves options
-      TTSSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",311-403,true,93,16,starts
-      TTSSkill._label,method,"(text:str, ctx:SkillContext) -> str",405-408,false,4,2,label
+      _resolve_piper_model,function,"(configured:str) -> str",116-137,false,22,8,"Return path to a piper .onnx model, if available."
+      _map_lang,function,"(engine_name:str, locale:str) -> str",140-144,false,5,3,converts lang
+      _build_speed_flag,function,"(engine_name:str, slow:bool) -> str",147-156,false,10,5,creates speed flag
+      _pick_play_command,function,"(file_path:str) -> Optional[str]",159-164,false,6,3,pick play command
+      _run_shell,function,"(cmd:str, timeout:float=30.0) -> Tuple[int, str, str]",167-176,true,10,3,starts shell
+      _format_engine_command,function,"(template:str, values:Dict[str,str]) -> str",179-183,false,5,2,formats engine command
+      detect_tts_engines,function,"() -> List[dict]",186-206,false,21,5,Detect available TTS engines on the system.
+      get_best_tts_engine,function,"(preferred:str='auto') -> Optional[dict]",209-231,false,23,9,"Get best available TTS engine, honoring explicit config selection."
+      TTSSkill.__init__,method,(),240-256,false,17,3,creates
+      TTSSkill.detect,method,"(text:str, ctx:SkillContext) -> float",258-273,false,16,6,detect
+      TTSSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",275-310,false,36,7,retrieves options
+      TTSSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",312-404,true,93,16,starts
+      TTSSkill._label,method,"(text:str, ctx:SkillContext) -> str",406-409,false,4,2,label
   backend/skills/url_handler.py:
     functions[5]{name,kind,sig,loc,async,lines,cc,does}:
-      URLHandlerSkill.detect,method,"(text:str, ctx:SkillContext) -> float",23-32,false,10,5,detect
-      URLHandlerSkill._extract,method,"(text:str)",34-48,false,15,5,Extract the primary navigable item.
-      URLHandlerSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",50-82,false,33,6,retrieves options
-      URLHandlerSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",84-112,true,29,9,starts
-      URLHandlerSkill._label,method,"(text:str, ctx:SkillContext) -> str",114-117,false,4,2,label
+      URLHandlerSkill.detect,method,"(text:str, ctx:SkillContext) -> float",24-33,false,10,5,detect
+      URLHandlerSkill._extract,method,"(text:str)",35-49,false,15,5,Extract the primary navigable item.
+      URLHandlerSkill.get_options,method,"(text:str, ctx:SkillContext) -> List[SkillOption]",51-83,false,33,6,retrieves options
+      URLHandlerSkill.execute,method,"(text:str, option_id:str, ctx:SkillContext) -> SkillResult",85-113,true,29,9,starts
+      URLHandlerSkill._label,method,"(text:str, ctx:SkillContext) -> str",115-118,false,4,2,label

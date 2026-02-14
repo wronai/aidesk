@@ -292,7 +292,7 @@ class AppBootstrap:
     @nfo.log_call(level="INFO")
     async def startup(self, screen_loop_coro, on_transcript_cb):
         """Run all initialization phases in order."""
-        logger.info("Starting AI Desktop Assistant backend")
+        logger.info("Starting Proxeen Assistant backend")
         self.init_core()
         self.init_window()
         self.init_scanners()

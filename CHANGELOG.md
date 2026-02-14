@@ -1,3 +1,32 @@
+## [2.1.22] - 2026-02-14
+
+### Summary
+
+refactor(docs): configuration management system
+
+### Docs
+
+- docs: update ARCHITECTURE.md
+- docs: update INSTALL.md
+- docs: update PROVIDERS.md
+- docs: update QUICKSTART.md
+- docs: update README
+
+### Other
+
+- build: update Makefile
+- update backend/.env.example
+- update backend/app_profiles.py
+- update backend/bootstrap.py
+- update backend/plugins/interface.py
+- update backend/process_scanner.py
+- update backend/routes/core.py
+- update backend/routes/ocr.py
+- update backend/server.py
+- update backend/shell_agent.py
+- ... and 14 more
+
+
 ## [2.1.21] - 2026-02-14
 
 ### Summary

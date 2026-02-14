@@ -1,5 +1,5 @@
 """
-End-to-end tests for the AI Desktop Assistant API.
+End-to-end tests for the Proxeen Assistant API.
 
 Tests exercise the full FastAPI server with lifespan (real component init).
 Grouped by feature area:

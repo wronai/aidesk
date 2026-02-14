@@ -1,4 +1,4 @@
-# 📦 Instalacja AI Desktop Assistant (v2.0.9)
+# 📦 Instalacja Proxeen Assistant (v2.0.9)
 
 ## Pobierz projekt
 

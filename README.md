@@ -1,4 +1,4 @@
-# AI Desktop Assistant — Real-time Screen + Voice Copilot (v2.1.9)
+# Proxeen Assistant — Real-time Screen + Voice Copilot (v2.1.9)
 
 Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym, rozpoznawaniem mowy i świadomością kontekstu okien.
 

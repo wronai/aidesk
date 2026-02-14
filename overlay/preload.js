@@ -1,5 +1,5 @@
 /**
- * AI Desktop Assistant - Electron Preload Script
+ * Proxeen Assistant - Electron Preload Script
  * 
  * Exposes safe APIs to the renderer process.
  */

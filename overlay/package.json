@@ -1,7 +1,7 @@
 {
-  "name": "ai-desktop-assistant-overlay",
+  "name": "proxeen-assistant-overlay",
   "version": "1.0.0",
-  "description": "AI Desktop Assistant - Transparent Overlay UI",
+  "description": "Proxeen Assistant - Transparent Overlay UI",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -17,7 +17,7 @@
     "screen-capture",
     "voice"
   ],
-  "author": "AI Desktop Assistant",
+  "author": "Proxeen Assistant",
   "license": "MIT",
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1"
@@ -28,7 +28,7 @@
   },
   "build": {
     "appId": "com.proxeentop.assistant",
-    "productName": "AI Desktop Assistant",
+    "productName": "Proxeen Assistant",
     "directories": {
       "output": "dist"
     },

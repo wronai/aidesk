@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AI Desktop Assistant - Setup Verification Script
+Proxeen Assistant - Setup Verification Script
 Tests all components and API connections.
 """
 import sys
@@ -182,7 +182,7 @@ def _check_backend_modules() -> bool:
 
 def main():
     print(f"\n{BLUE}{'='*50}")
-    print("AI Desktop Assistant - Setup Verification")
+    print("Proxeen Assistant - Setup Verification")
     print(f"{'='*50}{RESET}\n")
 
     ok = True

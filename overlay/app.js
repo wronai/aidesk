@@ -1,5 +1,5 @@
 /**
- * AI Desktop Assistant - Overlay App (Web Components Architecture)
+ * Proxeen Assistant - Overlay App (Web Components Architecture)
  */
 import { BACKEND_URL } from './config.js';
 import { sseService } from './services/sse.js';

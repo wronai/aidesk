@@ -1,5 +1,5 @@
 /**
- * AI Desktop Assistant - Overlay UI Logic
+ * Proxeen Assistant - Overlay UI Logic
  * Connects to backend via Server-Sent Events (SSE)
  */
 
@@ -878,7 +878,7 @@ function setupMouseForwarding() {
  * Initialize on page load
  */
 window.addEventListener('DOMContentLoaded', () => {
-  console.log('AI Desktop Assistant Overlay initialized');
+  console.log('Proxeen Assistant Overlay initialized');
   
   // Check if electron bridge is available
   if (window.electron) {

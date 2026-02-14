@@ -1,4 +1,4 @@
-# AI Desktop Assistant - Makefile
+# Proxeen Assistant - Makefile
 # ================================
 
 SHELL       := /bin/bash

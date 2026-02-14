@@ -1,8 +1,8 @@
 @echo off
-REM AI Desktop Assistant - Startup Script (Windows)
+REM Proxeen Assistant - Startup Script (Windows)
 
 echo ===================================
-echo AI Desktop Assistant
+echo Proxeen Assistant
 echo ===================================
 echo.
 
@@ -66,7 +66,7 @@ if not exist "overlay\node_modules" (
 
 echo.
 echo ===================================
-echo Starting AI Desktop Assistant...
+echo Starting Proxeen Assistant...
 echo ===================================
 echo.
 
@@ -87,7 +87,7 @@ start "AI Assistant Overlay" npm start
 cd ..
 
 echo.
-echo [OK] AI Desktop Assistant is running!
+echo [OK] Proxeen Assistant is running!
 echo.
 echo Keyboard shortcuts:
 echo   Ctrl+Shift+A - Toggle overlay

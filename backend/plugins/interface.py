@@ -1,5 +1,5 @@
 """
-Plugin Interface — Extensibility contract for AI Desktop Assistant.
+Plugin Interface — Extensibility contract for Proxeen Assistant.
 
 Plugins allow extending functionality without modifying core code.
 They interact primarily via the EventBus (subscribing to events, emitting new ones).

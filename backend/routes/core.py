@@ -25,7 +25,7 @@ async def root():
     """Root endpoint."""
     from server import APP_VERSION
     return {
-        "name": "AI Desktop Assistant API",
+        "name": "Proxeen Assistant API",
         "version": APP_VERSION,
         "status": "running",
         "endpoints": {

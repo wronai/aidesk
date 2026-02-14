@@ -1,8 +1,8 @@
 #!/bin/bash
-# AI Desktop Assistant - Startup Script (Linux/macOS)
+# Proxeen Assistant - Startup Script (Linux/macOS)
 
 echo "==================================="
-echo "AI Desktop Assistant"
+echo "Proxeen Assistant"
 echo "==================================="
 echo ""
 
@@ -66,7 +66,7 @@ fi
 
 echo ""
 echo "==================================="
-echo "Starting AI Desktop Assistant..."
+echo "Starting Proxeen Assistant..."
 echo "==================================="
 echo ""
 
@@ -89,7 +89,7 @@ OVERLAY_PID=$!
 cd ..
 
 echo ""
-echo -e "${GREEN}✓ AI Desktop Assistant is running!${NC}"
+echo -e "${GREEN}✓ Proxeen Assistant is running!${NC}"
 echo ""
 echo "Backend PID: $BACKEND_PID"
 echo "Overlay PID: $OVERLAY_PID"

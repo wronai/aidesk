@@ -1,5 +1,5 @@
 """
-Shell Agent - Safe command execution engine for AI Desktop Assistant.
+Shell Agent - Safe command execution engine for Proxeen Assistant.
 
 Provides:
 - Whitelisted safe commands (read-only by default)

@@ -84,7 +84,7 @@ async def ocr_benchmark():
         img = Image.new("RGB", (capture.screen_width, capture.screen_height), color=(30, 30, 35))
         draw = ImageDraw.Draw(img)
         sample_texts = [
-            (50, 30, "AI Desktop Assistant - Benchmark Test"),
+            (50, 30, "Proxeen Assistant - Benchmark Test"),
             (50, 80, "Analiza zrzutu ekranu w trybie testowym"),
             (50, 130, "def analyze(image): return ocr.extract(image)"),
             (50, 180, "Status: Connected | Mode: hybrid | OCR: active"),

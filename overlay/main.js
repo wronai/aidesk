@@ -1,5 +1,5 @@
 /**
- * AI Desktop Assistant - Electron Main Process
+ * Proxeen Assistant - Electron Main Process
  */
 const { app, BrowserWindow, screen, globalShortcut, ipcMain, clipboard } = require('electron');
 const path = require('path');

@@ -1,8 +1,8 @@
-# AI Desktop Assistant - Dokumentacja Architektury
+# Proxeen Assistant - Dokumentacja Architektury
 
 ## Przegląd systemu
 
-AI Desktop Assistant to real-time desktop monitoring system składający się z dwóch głównych komponentów:
+Proxeen Assistant to real-time desktop monitoring system składający się z dwóch głównych komponentów:
 - **Backend**: Python/FastAPI - przechwytywanie ekranu, AI, STT, Window Awareness, Shell Agent
 - **Frontend**: Electron - transparent overlay UI z kontekstem okna i sugerowanymi akcjami
 

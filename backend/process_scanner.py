@@ -98,7 +98,7 @@ class ProcessScanner:
         r"xwaylandvideobridge",
         r"jetbrains-toolbox",
         r"com-jetbrains-toolbox-entry",
-        r"ai-desktop-assistant-overlay",
+        r"proxeen-assistant-overlay",
     )
     _SERVICE_TITLES = {
         "mutter guard window",

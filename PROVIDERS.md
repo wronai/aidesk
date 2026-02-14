@@ -1,4 +1,4 @@
-# AI Desktop Assistant — Konfiguracja providerów AI
+# Proxeen Assistant — Konfiguracja providerów AI
 
 Aplikacja używa **LiteLLM** jako zunifikowanej bramki do 100+ providerów LLM.
 Zmiana modelu to edycja jednej zmiennej `VISION_MODEL` w `backend/.env` — bez zmian w kodzie.

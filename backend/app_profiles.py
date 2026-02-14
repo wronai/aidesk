@@ -1,5 +1,5 @@
 """
-Per-application analysis profiles for AI Desktop Assistant.
+Per-application analysis profiles for Proxeen Assistant.
 
 Each profile defines:
 - Custom system prompt tailored to the app category

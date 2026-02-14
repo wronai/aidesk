@@ -403,7 +403,7 @@ class TestProcessScanner:
         def _fake_scan(active_wid):
             return [
                 VisibleWindow(window_id=101, wm_class="jetbrains-pycharm", wm_class_name="jetbrains-pycharm", title="PyCharm", is_active=(active_wid == 101)),
-                VisibleWindow(window_id=202, wm_class="ai-desktop-assistant-overlay", wm_class_name="ai-desktop-assistant-overlay", title="Overlay", is_active=(active_wid == 202)),
+                VisibleWindow(window_id=202, wm_class="proxeen-assistant-overlay", wm_class_name="proxeen-assistant-overlay", title="Overlay", is_active=(active_wid == 202)),
             ]
 
         with patch.object(scanner, "_query_mouse_window_id", return_value=202), \

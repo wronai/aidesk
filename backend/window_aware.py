@@ -44,7 +44,7 @@ APP_RULES: List[Tuple[str, AppCategory]] = [
     # Service/compositor/helper windows (must be before app-specific rules)
     (r"mutter-x11-frames|gnome-shell|xwaylandvideobridge", AppCategory.SYSTEM),
     (r"jetbrains-toolbox|com-jetbrains-toolbox-entry", AppCategory.SYSTEM),
-    (r"ai-desktop-assistant-overlay", AppCategory.SYSTEM),
+    (r"proxeen-assistant-overlay", AppCategory.SYSTEM),
     (r"kwin_x11|kwin_wayland|plasmashell", AppCategory.SYSTEM),
     (r"dunst|notify-osd|xfce4-notifyd", AppCategory.SYSTEM),
 
@@ -123,7 +123,7 @@ SERVICE_WINDOW_CLASS_PATTERNS: Tuple[str, ...] = (
     r"xwaylandvideobridge",
     r"jetbrains-toolbox",
     r"com-jetbrains-toolbox-entry",
-    r"ai-desktop-assistant-overlay",
+    r"proxeen-assistant-overlay",
     r"kwin_x11",
     r"kwin_wayland",
     r"plasmashell",

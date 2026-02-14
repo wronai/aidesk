@@ -1,6 +1,6 @@
 # 🚀 Quick Start Guide (v2.0.9)
 
-Kompletny przewodnik uruchomienia AI Desktop Assistant w 5 minut.
+Kompletny przewodnik uruchomienia Proxeen Assistant w 5 minut.
 
 ## ⚡ Szybka instalacja
 

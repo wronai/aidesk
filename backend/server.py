@@ -1,5 +1,5 @@
 """
-AI Desktop Assistant - FastAPI Backend Server
+Proxeen Assistant - FastAPI Backend Server
 """
 import asyncio
 import json
@@ -321,7 +321,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="AI Desktop Assistant API",
+    title="Proxeen Assistant API",
     description="Real-time screen + voice AI assistant backend",
     version=APP_VERSION,
     lifespan=lifespan,
