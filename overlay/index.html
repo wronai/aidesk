@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Desktop Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="overlay-container" id="overlay">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <span class="logo">🤖</span>
+        <span class="title">AI Assistant</span>
+      </div>
+      <div class="header-right">
+        <div class="status-indicator" id="connectionStatus" title="Connecting...">
+          <div class="status-dot"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transcript (speech) -->
+    <div class="transcript-section" id="transcriptSection" style="display: none;">
+      <div class="transcript-header">🎤 Transkrypcja</div>
+      <div class="transcript-text" id="transcript"></div>
+    </div>
+
+    <!-- Analysis (screen) -->
+    <div class="analysis-section">
+      <div class="analysis-header">🖥️ Analiza ekranu</div>
+      <div class="analysis-content" id="analysis">
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Czekam na zmiany ekranu...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer with stats -->
+    <div class="footer" id="footer">
+      <div class="footer-item">
+        <span class="footer-label">📊</span>
+        <span class="footer-value" id="statsText">Inicjalizacja...</span>
+      </div>
+      <div class="footer-item">
+        <span class="footer-label">⏱️</span>
+        <span class="footer-value" id="timestamp">--:--:--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard shortcuts help (initially hidden) -->
+  <div class="shortcuts-help" id="shortcutsHelp" style="display: none;">
+    <div class="shortcuts-title">⌨️ Skróty klawiszowe</div>
+    <div class="shortcut-item">
+      <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>
+      <span>Pokaż/Ukryj</span>
+    </div>
+    <div class="shortcut-item">
+      <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd>
+      <span>Zamknij</span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
