@@ -30,7 +30,7 @@ from shell_agent import ShellAgent, create_shell_agent_from_env
 from process_scanner import ProcessScanner, create_process_scanner
 from window_cropper import WindowCropper, create_window_cropper
 from event_bus import EventBus, EventStore, Event, EventType, create_event_bus
-from pipeline import PipelineOrchestrator, PipelineContext, create_pipeline
+from pipeline import PipelineOrchestrator, PipelineContext, PipelineProfile, ProfileSelector, create_pipeline, create_profile_selector
 from command_handlers import CommandHandlers
 from query_handlers import QueryHandlers, ReadModel
 from config_service import get_config_with_schema, read_env, update_env, discover_audio_devices
@@ -141,6 +141,7 @@ app_state = {
     "window_cropper": None,
     "event_bus": None,
     "pipeline": None,
+    "profile_selector": None,
     "read_model": None,
     "command_handlers": None,
     "query_handlers": None,
@@ -186,11 +187,16 @@ async def screen_analysis_loop():
     """
     Main loop: delegates to PipelineOrchestrator (SOLID/CQRS/Event Sourcing).
 
+    Pipeline profiles (adaptive per tick):
+    - FAST:   skip cropping, cached window scan, low-latency
+    - NORMAL: cached scan, top-K crops, hybrid analysis
+    - FULL:   full scan, crop all, deep analysis (periodic or on app switch)
+
     Pipeline order (composable steps, each emits events to EventBus):
-    1. ScanWindows        → scan all visible windows with process info
+    1. ScanWindows        → scan all visible windows (cached on FAST/NORMAL)
     2. DetectActiveWindow  → detect active window, build window context, ROI
     3. CaptureScreen       → capture fullscreen or ROI screenshot
-    4. CropWindows         → crop each visible app from fullscreen
+    4. CropWindows         → crop visible apps (skipped on FAST)
     5. BuildContext        → build rich context from window info + profiles + TTS
     6. Analyze             → OCR + LLM analysis
     7. SuggestActions      → shell agent suggests commands
@@ -202,20 +208,31 @@ async def screen_analysis_loop():
     bus: EventBus = app_state["event_bus"]
     capture = app_state["capture"]
     context_mgr = app_state["context"]
+    profile_selector: ProfileSelector = app_state["profile_selector"]
+    prev_active_wid = 0
 
     logger.info(
-        "Screen analysis loop started (pipeline-based)",
+        "Screen analysis loop started (pipeline-based, profile-aware)",
         steps=pipeline.get_step_names(),
         total_steps=len(pipeline.steps),
     )
 
     while True:
         try:
-            # Create fresh context for this pipeline run
+            # Select pipeline profile for this tick
             ctx = PipelineContext()
+            profile = profile_selector.select(ctx, capture=capture)
+            ctx.profile = profile.value
 
-            # Execute all pipeline steps (skip if can_run() is False)
+            # Execute all pipeline steps (profile-aware gating)
             ctx = await pipeline.run(ctx)
+
+            # Notify selector on active window change (triggers FULL next tick)
+            if ctx.active_window and hasattr(ctx.active_window, 'window_id'):
+                new_wid = ctx.active_window.window_id
+                if new_wid != prev_active_wid:
+                    profile_selector.notify_active_window_changed(new_wid)
+                    prev_active_wid = new_wid
 
             # ── Post-pipeline: update shared state & SSE broadcasts ──
 
@@ -422,6 +439,9 @@ async def lifespan(app: FastAPI):
         window_cropper=app_state.get("window_cropper"),
         app_state_ref=app_state,
     )
+
+    # Pipeline Profile Selector (adaptive FAST/NORMAL/FULL routing)
+    app_state["profile_selector"] = create_profile_selector()
 
     # CQRS Read Model (materialized views for queries)
     read_model = ReadModel()
@@ -658,6 +678,9 @@ async def stats():
 
     if app_state.get("window_cropper"):
         stats_data["window_cropper"] = app_state["window_cropper"].get_stats()
+
+    if app_state.get("profile_selector"):
+        stats_data["profile_selector"] = app_state["profile_selector"].get_stats()
 
     stats_data["context"] = app_state["context"].get_stats()
 
@@ -1001,10 +1024,14 @@ async def pipeline_info():
     pipeline = app_state.get("pipeline")
     if not pipeline:
         return JSONResponse(status_code=503, content={"error": "Pipeline not initialized"})
-    return {
+    result = {
         "steps": pipeline.get_step_names(),
         "stats": pipeline.get_stats(),
     }
+    ps = app_state.get("profile_selector")
+    if ps:
+        result["profile_selector"] = ps.get_stats()
+    return result
 
 
 @app.get("/read-model")

@@ -856,5 +856,4 @@ MIT - See LICENSE file
 ---
 
 Dokument stworzony: 2025-02-14
-Aktualizacja: 2026-02-14
-Wersja: 2.0.9 (SOLID / CQRS / Event Sourcing + Configuration UI)
+Wersja: 2.0.0 (Window Awareness + Shell Agent)

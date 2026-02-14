@@ -1,3 +1,23 @@
+## [2.0.10] - 2026-02-14
+
+### Summary
+
+refactor(docs): configuration management system
+
+### Docs
+
+- docs: update ARCHITECTURE.md
+- docs: update README
+
+### Other
+
+- update backend/.env.example
+- update backend/command_handlers.py
+- update backend/diagnostics.py
+- update backend/server.py
+- update backend/tests/test_units.py
+
+
 ## [2.0.9] - 2026-02-14
 
 ### Summary

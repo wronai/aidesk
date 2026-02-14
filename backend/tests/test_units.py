@@ -396,7 +396,7 @@ class TestWindowCropper:
 # ===== EventBus Tests =====
 
 from event_bus import Event, EventBus, EventStore, EventType, EventCategory, create_event_bus
-from pipeline import PipelineContext, PipelineOrchestrator, create_pipeline
+from pipeline import PipelineContext, PipelineOrchestrator, PipelineProfile, ProfileSelector, create_pipeline
 from command_handlers import CommandHandlers
 from query_handlers import QueryHandlers, ReadModel
 
@@ -704,3 +704,232 @@ class TestReadModel:
         counts = rm.get_event_counts()
         assert counts["a"] == 2
         assert counts["b"] == 1
+
+
+# ===== Pipeline Profile Tests =====
+
+class TestPipelineProfile:
+    def test_enum_values(self):
+        assert PipelineProfile.FAST.value == "fast"
+        assert PipelineProfile.NORMAL.value == "normal"
+        assert PipelineProfile.FULL.value == "full"
+
+    def test_context_has_profile_field(self):
+        ctx = PipelineContext()
+        assert ctx.profile == "normal"  # default
+        ctx.profile = PipelineProfile.FAST.value
+        assert ctx.profile == "fast"
+
+
+class TestProfileSelector:
+    def test_first_tick_is_full(self):
+        """First tick should always be FULL (last_full_time=0)."""
+        ps = ProfileSelector(full_interval=60.0)
+        ctx = PipelineContext()
+        profile = ps.select(ctx)
+        assert profile == PipelineProfile.FULL
+
+    def test_second_tick_is_normal(self):
+        """After FULL, next tick should be NORMAL (not idle)."""
+        ps = ProfileSelector(full_interval=60.0)
+        ctx = PipelineContext()
+        ps.select(ctx)  # FULL
+        profile = ps.select(ctx)  # should be NORMAL
+        assert profile == PipelineProfile.NORMAL
+
+    def test_force_profile(self):
+        """force_profile overrides all heuristics."""
+        ps = ProfileSelector(force_profile="fast")
+        ctx = PipelineContext()
+        assert ps.select(ctx) == PipelineProfile.FAST
+        assert ps.select(ctx) == PipelineProfile.FAST
+
+    def test_idle_triggers_fast(self):
+        """When capture is idle, selector should return FAST."""
+        ps = ProfileSelector(full_interval=9999)  # prevent FULL
+        ps._last_full_time = time.time()  # pretend we just did FULL
+
+        class FakeCapture:
+            consecutive_unchanged = 100
+            idle_threshold = 30
+
+        ctx = PipelineContext()
+        profile = ps.select(ctx, capture=FakeCapture())
+        assert profile == PipelineProfile.FAST
+
+    def test_active_window_change_forces_full(self):
+        """Changing active window should force FULL on next tick."""
+        ps = ProfileSelector(full_interval=9999)
+        ps._last_full_time = time.time()
+        ctx = PipelineContext()
+
+        # Normal first
+        assert ps.select(ctx) == PipelineProfile.NORMAL
+
+        # Notify window change
+        ps.notify_active_window_changed(12345)
+
+        # Next tick should be FULL
+        assert ps.select(ctx) == PipelineProfile.FULL
+
+    def test_get_stats(self):
+        ps = ProfileSelector(full_interval=60.0)
+        stats = ps.get_stats()
+        assert "profile_counts" in stats
+        assert "full_interval" in stats
+        assert stats["full_interval"] == 60.0
+
+    def test_profile_counts_tracked(self):
+        ps = ProfileSelector(full_interval=9999)
+        ps._last_full_time = time.time()
+        ctx = PipelineContext()
+        ps.select(ctx)  # NORMAL
+        ps.select(ctx)  # NORMAL
+        assert ps.profile_counts["normal"] == 2
+
+
+class TestTopKCropSelection:
+    def test_select_top_k_prioritizes_active(self):
+        """Active window should always be in top-K."""
+        scanner = ProcessScanner()
+        cropper = WindowCropper(process_scanner=scanner, max_crop_windows=2)
+        windows = [
+            VisibleWindow(window_id=1, title="Small", x=0, y=0, width=100, height=100,
+                          is_active=False, category=AppCategory.UNKNOWN),
+            VisibleWindow(window_id=2, title="Active", x=0, y=0, width=500, height=500,
+                          is_active=True, category=AppCategory.IDE),
+            VisibleWindow(window_id=3, title="Big", x=0, y=0, width=1000, height=1000,
+                          is_active=False, category=AppCategory.BROWSER),
+        ]
+        selected = cropper._select_top_k(windows, 2)
+        assert len(selected) == 2
+        # Active window must be first
+        assert selected[0].is_active is True
+
+    def test_top_k_respects_category_priority(self):
+        """IDE should rank higher than UNKNOWN."""
+        scanner = ProcessScanner()
+        cropper = WindowCropper(process_scanner=scanner, max_crop_windows=1)
+        windows = [
+            VisibleWindow(window_id=1, title="Unknown", x=0, y=0, width=500, height=500,
+                          category=AppCategory.UNKNOWN),
+            VisibleWindow(window_id=2, title="IDE", x=0, y=0, width=500, height=500,
+                          category=AppCategory.IDE),
+        ]
+        selected = cropper._select_top_k(windows, 1)
+        assert selected[0].category == AppCategory.IDE
+
+    def test_crop_all_with_max_crop_windows(self):
+        """With max_crop_windows=1, only 1 window should be cropped."""
+        scanner = ProcessScanner()
+        cropper = WindowCropper(process_scanner=scanner, max_crop_windows=1, save_to_disk=False)
+        img = Image.new("RGB", (1920, 1080), color=(30, 30, 35))
+        windows = [
+            VisibleWindow(window_id=1, title="A", wm_class_name="A", x=0, y=0,
+                          width=960, height=1080, is_active=True, category=AppCategory.IDE),
+            VisibleWindow(window_id=2, title="B", wm_class_name="B", x=960, y=0,
+                          width=960, height=1080, category=AppCategory.BROWSER),
+        ]
+        crops = cropper.crop_all_windows(img, windows)
+        assert len(crops) == 1
+
+
+class TestSaveToDiskFlags:
+    def test_cropper_save_to_disk_false(self):
+        """With save_to_disk=False, crops should have empty filepath."""
+        scanner = ProcessScanner()
+        cropper = WindowCropper(process_scanner=scanner, save_to_disk=False)
+        img = Image.new("RGB", (1920, 1080), color=(30, 30, 35))
+        windows = [
+            VisibleWindow(window_id=1, title="A", wm_class_name="A", x=0, y=0,
+                          width=960, height=1080, is_active=True, category=AppCategory.IDE),
+        ]
+        crops = cropper.crop_all_windows(img, windows)
+        assert len(crops) == 1
+        assert crops[0].filepath == ""
+
+
+class TestScanWindowsCaching:
+    @pytest.mark.asyncio
+    async def test_cached_scan_on_fast_profile(self):
+        """FAST profile should use cached windows if cache is fresh."""
+        from pipeline import ScanWindowsStep
+
+        class FakeScanner:
+            call_count = 0
+            def scan_all_windows(self):
+                self.call_count += 1
+                return [VisibleWindow(window_id=self.call_count)]
+
+        scanner = FakeScanner()
+        step = ScanWindowsStep(scanner, cache_ttl=10.0)
+        bus = EventBus(enable_store=False)
+
+        # First call: FULL → must scan
+        ctx1 = PipelineContext(profile=PipelineProfile.FULL.value)
+        await step.execute(ctx1, bus)
+        assert scanner.call_count == 1
+        assert len(ctx1.all_windows) == 1
+
+        # Second call: FAST → should use cache
+        ctx2 = PipelineContext(profile=PipelineProfile.FAST.value)
+        await step.execute(ctx2, bus)
+        assert scanner.call_count == 1  # not called again
+        assert len(ctx2.all_windows) == 1
+
+    @pytest.mark.asyncio
+    async def test_full_profile_always_rescans(self):
+        """FULL profile should always call scanner."""
+        from pipeline import ScanWindowsStep
+
+        class FakeScanner:
+            call_count = 0
+            def scan_all_windows(self):
+                self.call_count += 1
+                return [VisibleWindow(window_id=self.call_count)]
+
+        scanner = FakeScanner()
+        step = ScanWindowsStep(scanner, cache_ttl=10.0)
+        bus = EventBus(enable_store=False)
+
+        ctx1 = PipelineContext(profile=PipelineProfile.FULL.value)
+        await step.execute(ctx1, bus)
+        assert scanner.call_count == 1
+
+        ctx2 = PipelineContext(profile=PipelineProfile.FULL.value)
+        await step.execute(ctx2, bus)
+        assert scanner.call_count == 2
+
+
+class TestCropWindowsProfileGating:
+    @pytest.mark.asyncio
+    async def test_crop_skipped_on_fast_profile(self):
+        """CropWindowsStep should skip on FAST profile."""
+        from pipeline import CropWindowsStep
+
+        class FakeCropper:
+            pass
+
+        step = CropWindowsStep(FakeCropper())
+        ctx = PipelineContext(
+            profile=PipelineProfile.FAST.value,
+            image_b64="test",
+            all_windows=[VisibleWindow()],
+        )
+        assert step.can_run(ctx) is False
+
+    @pytest.mark.asyncio
+    async def test_crop_runs_on_normal_profile(self):
+        """CropWindowsStep should run on NORMAL profile."""
+        from pipeline import CropWindowsStep
+
+        class FakeCropper:
+            pass
+
+        step = CropWindowsStep(FakeCropper())
+        ctx = PipelineContext(
+            profile=PipelineProfile.NORMAL.value,
+            image_b64="test",
+            all_windows=[VisibleWindow()],
+        )
+        assert step.can_run(ctx) is True

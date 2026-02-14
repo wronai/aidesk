@@ -180,87 +180,29 @@ Każdy krok emituje typowany event do EventBus, persystencja w SQLite, ReadModel
 ## 📁 Struktura projektu
 
 ```
-aidesk/
+ai-desktop-assistant/
 ├── backend/
-│   ├── server.py              # FastAPI — główny serwer + endpointy
-│   ├── capture.py             # Screen capture (mss/grim/PipeWire)
-│   ├── analyzer.py            # Vision AI (LiteLLM → 100+ providerów)
-│   ├── ocr_engines.py         # OCR Manager (PaddleOCR/EasyOCR/Tesseract)
-│   ├── stt.py                 # Deepgram STT streaming
-│   ├── context.py             # Context Manager (sliding window)
-│   ├── window_aware.py        # Window Awareness (xdotool/xprop)
-│   ├── app_profiles.py        # Per-app analysis profiles (7 kategorii)
-│   ├── shell_agent.py         # Shell Agent (suggest + execute)
-│   ├── process_scanner.py     # Skanowanie widocznych okien + procesów
-│   ├── window_cropper.py      # Per-app wycinki z fullscreen screenshot
-│   ├── event_bus.py           # EventBus + EventStore (Event Sourcing)
-│   ├── pipeline.py            # 8-step PipelineOrchestrator (SOLID)
-│   ├── command_handlers.py    # CQRS write side (6 command handlers)
-│   ├── query_handlers.py      # CQRS read side + ReadModel
-│   ├── protocols.py           # 11 Protocol interfaces (ISP + DIP)
-│   ├── config_service.py      # .env read/write + audio device discovery
-│   ├── diagnostics.py         # Auto-diagnostics (15 health checks)
-│   ├── wayland_screencast.py  # PipeWire ScreenCast daemon (Wayland)
-│   ├── config.html            # Konfiguracja UI (Tailwind CSS)
-│   ├── screenshots.html       # Screenshot browser UI
-│   ├── requirements.txt       # Python dependencies
-│   ├── test_setup.py          # Weryfikacja instalacji (12 checks)
-│   ├── tests/
-│   │   ├── test_units.py      # 68 unit tests
-│   │   └── test_e2e.py        # 7 e2e API tests
-│   └── .env                   # Konfiguracja (NIE commitować!)
+│   ├── server.py           # FastAPI główny serwer
+│   ├── capture.py          # Screen capture + change detection
+│   ├── analyzer.py         # Vision AI (Gemini/GPT-4o/Claude)
+│   ├── stt.py             # Deepgram STT streaming
+│   ├── context.py         # Context manager
+│   ├── requirements.txt   # Python dependencies
+│   └── .env              # API keys (NIE commitować!)
 ├── overlay/
-│   ├── main.js                # Electron main process
-│   ├── preload.js             # Electron preload
-│   ├── index.html             # Overlay UI
-│   ├── styles.css             # Overlay styling
-│   ├── app.js                 # SSE client logic
-│   └── package.json           # Node dependencies
-├── Makefile                   # setup, run, stop, test, status, clean, logs
-├── ARCHITECTURE.md            # Szczegółowa dokumentacja architektury
-├── PROVIDERS.md               # Konfiguracja 100+ providerów AI
-├── CHANGELOG.md               # Historia zmian
-├── INSTALL.md                 # Krok po kroku instalacja
-├── QUICKSTART.md              # Szybki start (5 minut)
-├── start.sh / start.bat       # Skrypty startowe
-└── LICENSE                    # Apache License
+│   ├── main.js           # Electron main process
+│   ├── preload.js        # Electron preload
+│   ├── index.html        # Overlay UI
+│   ├── styles.css        # Overlay styling
+│   ├── app.js            # SSE client logic
+│   └── package.json      # Node dependencies
+├── start.sh              # Startup script (Linux/macOS)
+├── start.bat             # Startup script (Windows)
+├── README.md             # Ten plik
+└── LICENSE               # MIT License
 ```
 
-## 🌐 API Endpoints
-
-| Grupa | Endpoint | Opis |
-|-------|----------|------|
-| **Core** | `GET /stream` | SSE real-time updates |
-| | `GET /status` | Bieżący status |
-| | `GET /stats` | Szczegółowe statystyki |
-| | `GET /health` | Health check (12 komponentów) |
-| **Window** | `GET /window` | Aktywne okno (live) |
-| | `GET /processes` | Wszystkie okna wg kategorii |
-| | `GET /screen/organized` | Per-app wycinki + kategorie |
-| **OCR** | `GET /ocr/engines` | Dostępne silniki OCR |
-| | `POST /ocr/engine/{name}` | Zmień silnik w locie |
-| | `POST /ocr/benchmark` | Benchmark A/B wszystkich silników |
-| **Agent** | `GET /agent/actions` | Oczekujące akcje |
-| | `POST /agent/execute/{id}` | Wykonaj akcję |
-| | `POST /agent/run` | Uruchom bezpieczną komendę |
-| **Events** | `GET /events` | Zapytanie do event store |
-| | `GET /events/stats` | Statystyki EventBus |
-| | `GET /pipeline` | Kroki i metryki pipeline |
-| **CQRS** | `GET /read-model` | Materialized views |
-| | `GET /read-model/pipeline` | Pipeline execution state |
-| | `GET /read-model/stats` | Enriched stats + event metrics |
-| **Config** | `GET /config` | Pełna konfiguracja + schemat |
-| | `POST /config` | Aktualizuj .env |
-| | `GET /config/ui` | Web UI konfiguracji |
-| | `GET /audio/devices` | Wykrywanie urządzeń audio |
-| **Files** | `GET /browser` | Screenshot browser |
-| | `GET /crops` | Lista per-app wycinków |
-
-## 🔧 Konfiguracja
-
-### Przez przeglądarkę (zalecane)
-
-Otwórz `http://localhost:PORT/config/ui` — 7 grup ustawień z wykrywaniem urządzeń audio.
+## 🔧 Konfiguracja zaawansowana
 
 ### Zmiana modelu Vision AI
 
@@ -274,104 +216,80 @@ W `.env` ustaw `VISION_MODEL` (format LiteLLM: `provider/model`):
 
 > Pełna dokumentacja: **[PROVIDERS.md](PROVIDERS.md)**
 
-### Tryby analizy
-
-- `hybrid` — **rekomendowany** — OCR + LLM tekstowy (5-10x tańszy)
-- `vision_only` — obraz + VLM
-- `ocr_only` — tylko OCR, zero kosztów LLM
-- `ocr_plus_vision` — OCR kontekst + obraz + VLM
-
-### Czułość detekcji zmian
+### Dostosowanie czułości detekcji zmian
 
 `CHANGE_THRESHOLD` w `.env`:
 - `5` = bardzo czuły (więcej API calls, wyższe koszty)
 - `8` = rekomendowane (dobry balans)
 - `15` = mało czuły (mniej API calls, może pominąć drobne zmiany)
 
-### Urządzenia audio
+### Wyłączenie STT
 
-Konfiguruj mikrofon, monitor głośnika i wyjście audio w `/config/ui` lub w `.env`:
+Jeśli nie potrzebujesz rozpoznawania mowy, ustaw w `.env`:
 ```env
-STT_INPUT_DEVICE=alsa_input.usb-Generic_USB_Audio-00.iec958-stereo
-STT_MONITOR_DEVICE=alsa_output.pci-0000_01_00.1.hdmi-stereo.monitor
-AUDIO_OUTPUT_DEVICE=alsa_output.pci-0000_01_00.1.hdmi-stereo
-```
-
-## 🧪 Testy
-
-```bash
-make test          # Uruchom wszystkie testy (75 tests: 68 unit + 7 e2e)
-make test-units    # Tylko unit testy (szybkie, bez serwera)
-make test-e2e      # Tylko e2e API testy (z lifespan)
-make test-setup    # Weryfikacja instalacji (12 checks)
+ENABLE_STT=false
 ```
 
 ## 🐛 Troubleshooting
 
 ### Backend nie startuje
 ```bash
-make status                           # Sprawdź czy działa
-make stop                             # Zabij stare procesy
-curl http://localhost:8001/health     # Health check
+# Sprawdź czy port 8000 jest wolny
+lsof -i :8000  # Linux/macOS
+netstat -ano | findstr :8000  # Windows
+
+# Zainstaluj brakujące biblioteki
+pip install -r backend/requirements.txt --upgrade
 ```
 
-### Overlay nie łączy się
+### Overlay nie łączy się z backendem
 ```bash
-curl http://localhost:8001/status     # Sprawdź backend
-# Otwórz DevTools w overlay: Ctrl+Shift+I
+# Sprawdź czy backend działa
+curl http://localhost:8000/status
+
+# Sprawdź logi w konsoli Electron (Ctrl+Shift+I)
 ```
 
 ### STT nie działa
 ```bash
-# Sprawdź urządzenia audio
-curl http://localhost:8001/audio/devices
+# Sprawdź mikrofon
+python -c "import sounddevice as sd; print(sd.query_devices())"
 
-# Lub w config UI
-xdg-open http://localhost:8001/config/ui
+# Sprawdź klucz Deepgram
+curl -H "Authorization: Token YOUR_KEY" https://api.deepgram.com/v1/projects
 ```
 
-### Wayland — czarny ekran
-Na GNOME Wayland (Shell 49+) standardowe narzędzia nie działają.
-AIDesk automatycznie używa PipeWire ScreenCast Portal — przy pierwszym uruchomieniu
-pojawi się dialog GNOME z prośbą o zgodę na udostępnienie ekranu.
-
 ### Wysokie zużycie CPU
-- Zwiększ `MIN_CAPTURE_INTERVAL` do 2.0
-- Zwiększ `CHANGE_THRESHOLD` do 12-15
-- Użyj trybu `hybrid` zamiast `vision_only`
+- Zwiększ `MIN_CAPTURE_INTERVAL` w `.env` (np. 2.0 zamiast 1.0)
+- Zmniejsz rozdzielczość w `capture.py` (np. 960x540 zamiast 1280x720)
 
-## 📊 Monitoring
+## 📊 Monitoring kosztów
 
-- **Stats**: `http://localhost:PORT/stats` — szczegółowe statystyki
-- **Health**: `http://localhost:PORT/health` — 12 komponentów
-- **Diagnostics**: auto-check co 30s, wyniki w overlay
-- **Event Store**: `http://localhost:PORT/events` — pełny audit trail
-- **Pipeline**: `http://localhost:PORT/pipeline` — metryki kroków
-- **Logi**: `make logs` — tail backend log
+Backend loguje statystyki do `logs/usage.log`:
+```
+[2025-02-14 10:30:45] Vision API call: gemini-2.0-flash | tokens: 1548 | cost: $0.00015
+[2025-02-14 10:30:46] STT streaming: 15s | cost: $0.00192
+```
+
+Podgląd dziennych kosztów:
+```bash
+python backend/analyze_costs.py
+```
 
 ## 🔐 Bezpieczeństwo i prywatność
 
-- **Wszystkie dane zostają lokalnie** — zrzuty ekranu nie są zapisywane
+- **Wszystkie dane zostają lokalnie** - zrzuty ekranu i audio nie są zapisywane
 - API keys w `.env` są w `.gitignore`
 - Overlay nie wysyła danych nigdzie poza backend
-- Shell Agent: 15+ zablokowanych wzorców (rm -rf /, fork bomb...), whitelist bezpiecznych komend
-- Electron: `contextIsolation: true`, `nodeIntegration: false`
-- Event Store: lokalna baza SQLite, auto-prune przy 50k eventów
+- Możesz używać lokalnych modeli (Ollama/LM Studio) zamiast cloud API
 
 ### Wersja lokalna (zero cloud API calls)
 
+W `backend/.env` ustaw model Ollama:
 ```env
 VISION_MODEL=ollama/llava:13b
 ENABLE_STT=false
 ```
-
-## 📖 Dokumentacja
-
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — szczegółowa architektura (pipeline, CQRS, event sourcing)
-- **[PROVIDERS.md](PROVIDERS.md)** — konfiguracja 100+ providerów AI (Ollama, Gemini, OpenAI, Claude...)
-- **[INSTALL.md](INSTALL.md)** — krok po kroku instalacja
-- **[QUICKSTART.md](QUICKSTART.md)** — szybki start w 5 minut
-- **[CHANGELOG.md](CHANGELOG.md)** — historia zmian
 
 ## 🤝 Contributing
 
@@ -379,23 +297,23 @@ Pull requesty mile widziane! Sprawdź CONTRIBUTING.md dla guidelines.
 
 ## 📄 Licencja
 
-Apache License — użyj jak chcesz, komercyjnie lub prywatnie.
+Apache License - użyj jak chcesz, komercyjnie lub prywatnie.
 
 ## 🙏 Podziękowania
 
 Projekt inspirowany przez:
-- [Screenpipe](https://github.com/mediar-ai/screenpipe) — 24/7 screen + audio capture
-- [MIRIX](https://github.com/acui51/mirix) — Multi-agent memory system
-- [Natively](https://github.com/ShivanshDubey1/natively) — Voice AI assistant
+- [Screenpipe](https://github.com/mediar-ai/screenpipe) - 24/7 screen + audio capture
+- [MIRIX](https://github.com/acui51/mirix) - Multi-agent memory system
+- [Natively](https://github.com/ShivanshDubey1/natively) - Voice AI assistant
 
 ## 🔗 Przydatne linki
 
-- [LiteLLM Providers](https://docs.litellm.ai/docs/providers) — 100+ AI providerów
-- [Deepgram Docs](https://developers.deepgram.com/)
-- [Gemini API](https://ai.google.dev/docs)
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Electron](https://www.electronjs.org/docs/latest/)
+- [Dokumentacja Deepgram](https://developers.deepgram.com/)
+- [Gemini API Docs](https://ai.google.dev/docs)
+- [OpenAI Vision Guide](https://platform.openai.com/docs/guides/vision)
+- [Electron Docs](https://www.electronjs.org/docs/latest/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
 
 ---
 
-**Wersja:** 2.0.9 | **Aktualizacja:** 2026-02-14 | **Kontakt:** [info@softreck.com]
+**Pytania? Problemy?** Otwórz issue na GitHubie lub kontakt: [info@softreck.com]
