@@ -1,3 +1,24 @@
+## [2.1.4] - 2026-02-14
+
+### Summary
+
+refactor(goal): CLI interface improvements
+
+### Other
+
+- update backend/app_profiles.py
+- update backend/bootstrap.py
+- update backend/clipboard_intel.py
+- update backend/multi_monitor.py
+- update backend/ocr_post_process.py
+- update backend/predictive_engine.py
+- update backend/process_scanner.py
+- update backend/semantic_memory.py
+- update backend/tests/test_bootstrap.py
+- update backend/tests/test_clipboard_intel.py
+- ... and 1 more
+
+
 ## [2.1.3] - 2026-02-14
 
 ### Summary
