@@ -1,3 +1,24 @@
+## [2.1.3] - 2026-02-14
+
+### Summary
+
+refactor(tests): code analysis engine
+
+### Other
+
+- update backend/analysis_loop.py
+- update backend/bootstrap.py
+- update backend/event_bus.py
+- update backend/pipeline.py
+- update backend/server.py
+- update backend/tests/test_analysis_loop.py
+- update backend/tests/test_bootstrap.py
+- update backend/tests/test_e2e.py
+- update backend/tests/test_routes.py
+- update backend/typed_events.py
+- ... and 2 more
+
+
 ## [2.1.2] - 2026-02-14
 
 ### Summary

@@ -19,35 +19,9 @@ from fastapi.staticfiles import StaticFiles
 
 import nfo
 
-from capture import create_capture_from_env
-from analyzer import create_analyzer_from_env
-from ocr_engines import create_ocr_manager_from_env
 from context import ContextManager
-from diagnostics import AutoDiagnostics
-from window_aware import WindowManager, create_window_manager_from_env
-from app_profiles import ProfileManager, create_profile_manager
-from shell_agent import ShellAgent, create_shell_agent_from_env
-from process_scanner import ProcessScanner, create_process_scanner
-from window_cropper import WindowCropper, create_window_cropper
-from event_bus import EventBus, EventStore, Event, EventType, create_event_bus
-from pipeline import PipelineOrchestrator, PipelineContext, PipelineProfile, ProfileSelector, create_pipeline, create_profile_selector
-from command_handlers import CommandHandlers
-from query_handlers import QueryHandlers, ReadModel
-from config_service import get_config_with_schema, read_env, update_env, discover_audio_devices
-from multi_monitor import MonitorAwareCapture, create_multi_monitor_from_env
-from semantic_memory import SemanticMemory, create_semantic_memory_from_env
-from action_templates import AppActionLibrary, create_action_library_from_env
-from ocr_post_process import OCREnhancer, create_ocr_enhancer_from_env
-from predictive_engine import PredictiveAnalyzer, create_predictive_engine_from_env
-
-# Lazy STT import - sounddevice may not be available
-def _import_stt():
-    try:
-        from stt import create_stt_from_env
-        return create_stt_from_env
-    except (ImportError, OSError) as e:
-        structlog.get_logger().warning("STT module unavailable", error=str(e))
-        return None
+from event_bus import EventBus, Event, EventType
+from typed_events import typed_event, TranscriptPayload
 
 # Load environment variables
 load_dotenv()
@@ -195,126 +169,14 @@ async def broadcast(event_type: str, data: Dict):
 
 async def screen_analysis_loop():
     """
-    Main loop: delegates to PipelineOrchestrator (SOLID/CQRS/Event Sourcing).
+    Main loop — delegates to AnalysisLoop (testable tick extraction).
 
-    Pipeline profiles (adaptive per tick):
-    - FAST:   skip cropping, cached window scan, low-latency
-    - NORMAL: cached scan, top-K crops, hybrid analysis
-    - FULL:   full scan, crop all, deep analysis (periodic or on app switch)
-
-    Pipeline order (composable steps, each emits events to EventBus):
-    1. ScanWindows        → scan all visible windows (cached on FAST/NORMAL)
-    2. DetectActiveWindow  → detect active window, build window context, ROI
-    3. CaptureScreen       → capture fullscreen or ROI screenshot
-    4. CropWindows         → crop visible apps (skipped on FAST)
-    5. BuildContext        → build rich context from window info + profiles + TTS
-    6. Analyze             → OCR + LLM analysis
-    7. SuggestActions      → shell agent suggests commands
-    8. BuildBroadcast      → assemble SSE broadcast payload
-
-    Each step is independently testable, swappable, and emits typed events.
+    All pipeline execution, state broadcasting, and context persistence
+    logic lives in analysis_loop.py for testability.
     """
-    pipeline: PipelineOrchestrator = app_state["pipeline"]
-    bus: EventBus = app_state["event_bus"]
-    capture = app_state["capture"]
-    context_mgr = app_state["context"]
-    profile_selector: ProfileSelector = app_state["profile_selector"]
-    prev_active_wid = 0
-
-    logger.info(
-        "Screen analysis loop started (pipeline-based, profile-aware)",
-        steps=pipeline.get_step_names(),
-        total_steps=len(pipeline.steps),
-    )
-
-    while True:
-        try:
-            # Select pipeline profile for this tick
-            ctx = PipelineContext()
-            profile = profile_selector.select(ctx, capture=capture)
-            ctx.profile = profile.value
-
-            # Execute all pipeline steps (profile-aware gating)
-            ctx = await pipeline.run(ctx)
-
-            # Notify selector on active window change (triggers FULL next tick)
-            if ctx.active_window and hasattr(ctx.active_window, 'window_id'):
-                new_wid = ctx.active_window.window_id
-                if new_wid != prev_active_wid:
-                    profile_selector.notify_active_window_changed(new_wid)
-                    prev_active_wid = new_wid
-
-            # ── Post-pipeline: update shared state & SSE broadcasts ──
-
-            # Update latest window state
-            if ctx.active_window:
-                app_state["latest_window"] = ctx.active_window.to_dict()
-                await broadcast("window", ctx.active_window.to_dict())
-
-            # Broadcast all-windows layout
-            if ctx.all_windows:
-                await broadcast("windows_layout", {
-                    "total": len(ctx.all_windows),
-                    "windows": [w.to_dict() for w in ctx.all_windows],
-                })
-
-            # Broadcast organized screen
-            if ctx.organized_screen:
-                app_state["latest_organized_screen"] = ctx.organized_screen.to_dict()
-                await broadcast("organized_screen", {
-                    "total_windows": ctx.organized_screen.total_windows,
-                    "summary": ctx.organized_screen.screen_summary,
-                    "active_app": (
-                        ctx.organized_screen.active_app.window.to_dict()
-                        if ctx.organized_screen.active_app else None
-                    ),
-                    "categories": list(ctx.organized_screen.by_category.keys()),
-                })
-
-            # Store analysis and broadcast
-            if ctx.analysis_result:
-                analysis = ctx.analysis_result
-                app_state["latest_analysis"] = analysis["text"]
-                app_state["stats"]["total_screen_analyses"] += 1
-
-                # Add to context history
-                context_mgr.add(
-                    content=analysis["text"][:200],
-                    context_type="screen",
-                    metadata={
-                        "tokens": analysis.get("tokens", 0),
-                        "cost": analysis.get("cost", 0.0),
-                        "provider": analysis.get("provider", "unknown"),
-                        "window": ctx.active_window.title if ctx.active_window else None,
-                        "category": ctx.active_window.category.value if ctx.active_window else None,
-                        "organized_windows": ctx.organized_screen.total_windows if ctx.organized_screen else 0,
-                        "pipeline_run_id": ctx.run_id,
-                        "steps_executed": ctx.steps_executed,
-                        "step_timings": ctx.step_timings,
-                    },
-                )
-
-                # Broadcast agent actions
-                if ctx.agent_actions:
-                    await broadcast("agent_actions", {"actions": ctx.agent_actions})
-
-                # Broadcast main analysis payload
-                if ctx.broadcast_data:
-                    await broadcast("analysis", ctx.broadcast_data)
-
-            # Log pipeline metrics
-            if ctx.errors:
-                for err in ctx.errors:
-                    logger.warning("Pipeline step error", **err)
-
-            # Adaptive sleep based on capture interval
-            await asyncio.sleep(capture.adaptive_interval)
-
-        except Exception as e:
-            logger.error("Screen analysis loop error", error=str(e))
-            app_state["stats"]["total_errors"] += 1
-            await broadcast("error", {"message": f"Screen analysis error: {str(e)}"})
-            await asyncio.sleep(5)
+    from analysis_loop import AnalysisLoop
+    loop = AnalysisLoop(app_state, broadcast)
+    await loop.run_forever()
 
 
 async def on_transcript(text: str, is_final: bool):
@@ -338,10 +200,10 @@ async def on_transcript(text: str, is_final: bool):
     # Emit to EventBus
     bus = app_state.get("event_bus")
     if bus:
-        etype = EventType.SPEECH_FINAL.value if is_final else EventType.TRANSCRIPT_RECEIVED.value
-        await bus.publish(Event(
-            type=etype,
-            data={"text": text, "is_final": is_final},
+        etype = EventType.SPEECH_FINAL if is_final else EventType.TRANSCRIPT_RECEIVED
+        await bus.publish(typed_event(
+            etype,
+            TranscriptPayload(text=text, is_final=is_final),
             source="stt",
         ))
 
@@ -391,183 +253,21 @@ def _nfo_validate_startup(state: Dict):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    FastAPI lifespan context manager for startup/shutdown.
+    FastAPI lifespan context manager — delegates to AppBootstrap.
+
+    All initialization logic lives in bootstrap.py for testability.
     """
-    # Startup
-    logger.info("Starting AI Desktop Assistant backend")
+    from bootstrap import AppBootstrap
 
-    # Initialize core components
-    app_state["capture"] = create_capture_from_env()
-    app_state["ocr_manager"] = create_ocr_manager_from_env()
-    app_state["analyzer"] = create_analyzer_from_env(ocr_manager=app_state["ocr_manager"])
-
-    # Initialize window awareness (Linux X11/Wayland)
-    if os.getenv("ENABLE_WINDOW_AWARE", "true").lower() == "true":
-        try:
-            app_state["window_manager"] = create_window_manager_from_env()
-            logger.info("Window awareness enabled")
-        except Exception as e:
-            logger.warning("Window awareness initialization failed", error=str(e))
-
-    # Initialize per-app profiles
-    app_state["profile_manager"] = create_profile_manager()
-
-    # Initialize shell agent
-    if os.getenv("ENABLE_SHELL_AGENT", "true").lower() == "true":
-        try:
-            app_state["shell_agent"] = create_shell_agent_from_env()
-            logger.info("Shell agent enabled")
-        except Exception as e:
-            logger.warning("Shell agent initialization failed", error=str(e))
-
-    # Initialize process scanner and window cropper
-    try:
-        app_state["process_scanner"] = create_process_scanner(
-            window_manager=app_state.get("window_manager")
-        )
-        app_state["window_cropper"] = create_window_cropper(
-            process_scanner=app_state["process_scanner"]
-        )
-        logger.info("Process scanner & window cropper enabled")
-    except Exception as e:
-        logger.warning("Process scanner/cropper initialization failed", error=str(e))
-
-    # Initialize Tier 1 modules: Multi-Monitor, Semantic Memory, Action Templates, OCR Post-Processing, Predictive Engine
-    try:
-        app_state["multi_monitor"] = create_multi_monitor_from_env()
-        logger.info("Multi-monitor intelligence enabled")
-    except Exception as e:
-        logger.warning("Multi-monitor initialization failed", error=str(e))
-
-    try:
-        app_state["semantic_memory"] = create_semantic_memory_from_env()
-        logger.info("Semantic memory enabled", model=app_state["semantic_memory"].model_name if app_state["semantic_memory"].enabled else "disabled")
-    except Exception as e:
-        logger.warning("Semantic memory initialization failed", error=str(e))
-
-    try:
-        app_state["action_library"] = create_action_library_from_env()
-        logger.info("Action templates enabled", templates=len(app_state["action_library"]._templates))
-    except Exception as e:
-        logger.warning("Action templates initialization failed", error=str(e))
-
-    try:
-        app_state["ocr_enhancer"] = create_ocr_enhancer_from_env()
-        logger.info("OCR post-processing enabled")
-    except Exception as e:
-        logger.warning("OCR post-processing initialization failed", error=str(e))
-
-    try:
-        app_state["predictive_engine"] = create_predictive_engine_from_env()
-        logger.info("Predictive pre-fetching enabled")
-    except Exception as e:
-        logger.warning("Predictive engine initialization failed", error=str(e))
+    bootstrap = AppBootstrap(app_state, broadcast, version=APP_VERSION)
+    await bootstrap.startup(screen_analysis_loop, on_transcript)
 
     # nfo startup validation — log all initialized components
     _nfo_validate_startup(app_state)
 
-    # Initialize Event Bus (Event Sourcing + CQRS)
-    app_state["event_bus"] = create_event_bus(
-        enable_store=True,
-        db_path=os.getenv("EVENT_STORE_DB", "logs/events.db"),
-    )
-
-    # Initialize Pipeline Orchestrator (SOLID composable steps)
-    app_state["pipeline"] = create_pipeline(
-        bus=app_state["event_bus"],
-        capture=app_state["capture"],
-        analyzer=app_state["analyzer"],
-        context_mgr=app_state["context"],
-        window_mgr=app_state.get("window_manager"),
-        profile_mgr=app_state.get("profile_manager"),
-        shell_agent=app_state.get("shell_agent"),
-        process_scanner=app_state.get("process_scanner"),
-        window_cropper=app_state.get("window_cropper"),
-        app_state_ref=app_state,
-        multi_monitor=app_state.get("multi_monitor"),
-        semantic_memory=app_state.get("semantic_memory"),
-        action_library=app_state.get("action_library"),
-        ocr_enhancer=app_state.get("ocr_enhancer"),
-        predictive_engine=app_state.get("predictive_engine"),
-    )
-
-    # Pipeline Profile Selector (adaptive FAST/NORMAL/FULL routing)
-    app_state["profile_selector"] = create_profile_selector()
-
-    # CQRS Read Model (materialized views for queries)
-    read_model = ReadModel()
-    app_state["read_model"] = read_model
-
-    # Command handlers (CQRS write side)
-    cmd_handlers = CommandHandlers(app_state["event_bus"], app_state)
-    cmd_handlers.set_broadcast(broadcast)
-    cmd_handlers.register_all()
-    app_state["command_handlers"] = cmd_handlers
-
-    # Query handlers (CQRS read side — domain event projectors)
-    qry_handlers = QueryHandlers(app_state["event_bus"], app_state, read_model)
-    qry_handlers.register_all()
-    app_state["query_handlers"] = qry_handlers
-
-    # Emit startup event
-    await app_state["event_bus"].publish(Event(
-        type=EventType.SYSTEM_STARTUP.value,
-        data={
-            "version": APP_VERSION,
-            "pipeline_steps": app_state["pipeline"].get_step_names(),
-            "components": {k: v is not None for k, v in app_state.items()
-                          if k not in ("stats", "subscribers", "latest_analysis",
-                                       "latest_transcript", "latest_window",
-                                       "latest_organized_screen")},
-        },
-        source="lifespan",
-    ))
-
-    # Start screen analysis loop (pipeline-driven)
-    screen_task = asyncio.create_task(screen_analysis_loop())
-
-    # Initialize and start STT if enabled
-    stt_task = None
-    if os.getenv("ENABLE_STT", "true").lower() == "true":
-        try:
-            create_stt = _import_stt()
-            app_state["stt"] = create_stt() if create_stt else None
-            if app_state["stt"]:
-                stt_task = asyncio.create_task(app_state["stt"].start(on_transcript))
-                logger.info("STT enabled and started")
-        except Exception as e:
-            logger.warning("STT initialization failed", error=str(e))
-
-    # Start autodiagnostics
-    diag_interval = float(os.getenv("DIAG_INTERVAL", "30"))
-    app_state["diagnostics"] = AutoDiagnostics(app_state, interval=diag_interval)
-    diag_task = asyncio.create_task(app_state["diagnostics"].run_loop(broadcast))
-
-    logger.info("Backend fully initialized and running")
-
     yield
 
-    # Shutdown
-    logger.info("Shutting down backend")
-
-    # Emit shutdown event
-    bus = app_state.get("event_bus")
-    if bus:
-        await bus.publish(Event(
-            type=EventType.SYSTEM_SHUTDOWN.value,
-            data={"uptime_seconds": round(time.time() - app_state["stats"]["start_time"], 1)},
-            source="lifespan",
-        ))
-
-    screen_task.cancel()
-    diag_task.cancel()
-
-    if stt_task:
-        stt_task.cancel()
-        if app_state["stt"]:
-            await app_state["stt"].stop()
-
-    logger.info("Backend shutdown complete")
+    await bootstrap.shutdown()
 
 
 # Create FastAPI app

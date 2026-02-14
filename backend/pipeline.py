@@ -30,6 +30,12 @@ import structlog
 from PIL import Image
 
 from event_bus import Event, EventBus, EventType
+from typed_events import (
+    typed_event,
+    WindowsScannedPayload, ActiveWindowPayload, ScreenCapturedPayload,
+    ScreenOrganizedPayload, ContextBuiltPayload, AnalysisCompletedPayload,
+    AgentSuggestedPayload, BroadcastSentPayload, PipelineCompletedPayload,
+)
 
 logger = structlog.get_logger()
 
@@ -265,9 +271,12 @@ class ScanWindowsStep:
             self._cached_windows = ctx.all_windows
             self._cache_time = now
 
-        await bus.publish(Event(
-            type=EventType.WINDOWS_SCANNED.value,
-            data={"total": len(ctx.all_windows), "cached": ctx.profile != PipelineProfile.FULL.value and cache_age < self._cache_ttl},
+        await bus.publish(typed_event(
+            EventType.WINDOWS_SCANNED,
+            WindowsScannedPayload(
+                total=len(ctx.all_windows),
+                cached=ctx.profile != PipelineProfile.FULL.value and cache_age < self._cache_ttl,
+            ),
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -293,9 +302,9 @@ class DetectActiveWindowStep:
         if self._use_roi and info.width > 0:
             ctx.roi = self._wm.get_window_roi(info)
 
-        await bus.publish(Event(
-            type=EventType.WINDOWS_SCANNED.value,
-            data={"active": info.to_dict()},
+        await bus.publish(typed_event(
+            EventType.WINDOWS_SCANNED,
+            ActiveWindowPayload(active=info.to_dict()),
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -326,13 +335,12 @@ class CaptureScreenStep:
         if hasattr(self._capture, '_last_resized_image') and self._capture._last_resized_image is not None:
             ctx.capture_image = self._capture._last_resized_image
 
-        await bus.publish(Event(
-            type=EventType.SCREEN_CAPTURED.value,
-            data={
-                "size_kb": result.get("size_kb", 0),
-                "timestamp": result.get("timestamp", 0),
-                "has_change": True,
-            },
+        await bus.publish(typed_event(
+            EventType.SCREEN_CAPTURED,
+            ScreenCapturedPayload(
+                size_kb=result.get("size_kb", 0),
+                changed=True,
+            ),
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -384,13 +392,13 @@ class CropWindowsStep:
         ctx.organized_screen = organized
         ctx.screen_summary = organized.screen_summary
 
-        await bus.publish(Event(
-            type=EventType.SCREEN_ORGANIZED.value,
-            data={
-                "total_windows": organized.total_windows,
-                "summary": organized.screen_summary,
-                "categories": list(organized.by_category.keys()),
-            },
+        await bus.publish(typed_event(
+            EventType.SCREEN_ORGANIZED,
+            ScreenOrganizedPayload(
+                total_windows=organized.total_windows,
+                categories=list(organized.by_category.keys()),
+                active_app=organized.active_app.window.wm_class_name if organized.active_app else "",
+            ),
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -445,9 +453,9 @@ class BuildContextStep:
         if latest_transcript:
             ctx.full_context = f"🎤 Użytkownik powiedział: {latest_transcript}\n\n{ctx.full_context}"
 
-        await bus.publish(Event(
-            type=EventType.CONTEXT_BUILT.value,
-            data={"context_length": len(ctx.full_context)},
+        await bus.publish(typed_event(
+            EventType.CONTEXT_BUILT,
+            ContextBuiltPayload(context_length=len(ctx.full_context)),
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -468,15 +476,14 @@ class AnalyzeStep:
         analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
         ctx.analysis_result = analysis
 
-        await bus.publish(Event(
-            type=EventType.ANALYSIS_COMPLETED.value,
-            data={
-                "tokens": analysis.get("tokens", 0),
-                "cost": analysis.get("cost", 0.0),
-                "provider": analysis.get("provider", "unknown"),
-                "mode": analysis.get("mode", "unknown"),
-                "has_ocr": "ocr" in analysis,
-            },
+        await bus.publish(typed_event(
+            EventType.ANALYSIS_COMPLETED,
+            AnalysisCompletedPayload(
+                tokens=analysis.get("tokens", 0),
+                cost=analysis.get("cost", 0.0),
+                provider=analysis.get("provider", "unknown"),
+                mode=analysis.get("mode", "unknown"),
+            ),
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -512,9 +519,9 @@ class SuggestActionsStep:
         if actions:
             ctx.agent_actions = [a.to_dict() for a in actions]
 
-            await bus.publish(Event(
-                type=EventType.AGENT_SUGGESTED.value,
-                data={"count": len(actions)},
+            await bus.publish(typed_event(
+                EventType.AGENT_SUGGESTED,
+                AgentSuggestedPayload(count=len(actions)),
                 source=self.name,
                 correlation_id=ctx.correlation_id,
             ))
@@ -573,9 +580,9 @@ class BuildBroadcastStep:
 
         ctx.broadcast_data = data
 
-        await bus.publish(Event(
-            type=EventType.BROADCAST_SENT.value,
-            data={"keys": list(data.keys())},
+        await bus.publish(typed_event(
+            EventType.BROADCAST_SENT,
+            BroadcastSentPayload(keys=list(data.keys())),
             source=self.name,
             correlation_id=ctx.correlation_id,
         ))
@@ -796,12 +803,17 @@ class ParallelGroup:
         if not runnable:
             return ctx
 
-        async def _run_one(step):
-            try:
-                await step.execute(ctx, bus)
-                return (step.name, None)
-            except Exception as e:
-                return (step.name, e)
+        from observability import get_tracer
+        tracer = get_tracer()
+
+        async def _run_one(step, parent_span=None):
+            with tracer.span(step.name, parent=parent_span) as span:
+                try:
+                    await step.execute(ctx, bus)
+                    return (step.name, None)
+                except Exception as e:
+                    span.set_error(str(e))
+                    return (step.name, e)
 
         results = await asyncio.gather(*[_run_one(s) for s in runnable])
 
@@ -904,15 +916,15 @@ class PipelineOrchestrator:
                         )
 
         # Emit pipeline completion event for ReadModel projection
-        await self.bus.publish(Event(
-            type="pipeline.completed",
-            data={
-                "run_id": ctx.run_id,
-                "steps_executed": ctx.steps_executed,
-                "step_timings": ctx.step_timings,
-                "errors": ctx.errors,
-                "skipped": ctx.skipped,
-            },
+        await self.bus.publish(typed_event(
+            EventType.PIPELINE_COMPLETED,
+            PipelineCompletedPayload(
+                run_id=ctx.run_id,
+                steps_run=len(ctx.steps_executed),
+                steps_skipped=len(ctx.skipped),
+                errors=[e["error"] for e in ctx.errors] if ctx.errors else [],
+                timings=ctx.step_timings,
+            ),
             source="orchestrator",
             correlation_id=ctx.correlation_id,
         ))

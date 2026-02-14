@@ -213,7 +213,7 @@ class TestEventSourcingEndpoints:
         assert data["total"] >= 1
         event = data["events"][0]
         assert "version" in event["data"]
-        assert "pipeline_steps" in event["data"]
+        assert "components" in event["data"]
 
 
 # ═══════════════════════════════════════════════════════════════════

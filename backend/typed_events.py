@@ -146,6 +146,11 @@ class SystemStartupPayload(EventPayload):
     components: List[str] = Field(default_factory=list)
 
 
+class SystemShutdownPayload(EventPayload):
+    """Payload for system.shutdown."""
+    uptime_seconds: float = 0.0
+
+
 class TranscriptPayload(EventPayload):
     """Payload for external.transcript."""
     text: str
@@ -181,7 +186,10 @@ PAYLOAD_REGISTRY: Dict[str, type] = {
     EventType.COMPONENT_INITIALIZED.value: ComponentInitPayload,
     EventType.COMPONENT_FAILED.value: ComponentInitPayload,
     EventType.SYSTEM_STARTUP.value: SystemStartupPayload,
+    EventType.SYSTEM_SHUTDOWN.value: SystemShutdownPayload,
     EventType.TRANSCRIPT_RECEIVED.value: TranscriptPayload,
+    EventType.SPEECH_FINAL.value: TranscriptPayload,
+    EventType.PIPELINE_COMPLETED.value: PipelineCompletedPayload,
 }
 
 
