@@ -3,7 +3,7 @@
  * Connects to backend via Server-Sent Events (SSE)
  */
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = 'http://localhost:8001';
 const RECONNECT_INTERVAL = 3000; // ms
 
 let eventSource = null;
@@ -425,6 +425,29 @@ async function loadOCRSettings() {
 }
 
 /**
+ * Set up mouse event forwarding for click-through overlay.
+ * Interactive elements (selects, buttons) disable click-through on hover.
+ */
+function setupMouseForwarding() {
+  if (!window.electron || !window.electron.setIgnoreMouseEvents) return;
+
+  // All interactive elements that should be clickable
+  const interactiveSelectors = 'select, button, input, .ocr-controls, .header';
+
+  document.addEventListener('mouseover', (e) => {
+    if (e.target.closest(interactiveSelectors)) {
+      window.electron.setIgnoreMouseEvents(false);
+    }
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    if (e.target.closest(interactiveSelectors)) {
+      window.electron.setIgnoreMouseEvents(true, { forward: true });
+    }
+  });
+}
+
+/**
  * Initialize on page load
  */
 window.addEventListener('DOMContentLoaded', () => {
@@ -436,6 +459,9 @@ window.addEventListener('DOMContentLoaded', () => {
     window.electron.log('Overlay UI loaded');
   }
   
+  // Enable click-through forwarding for interactive elements
+  setupMouseForwarding();
+
   // Connect to backend
   connect();
 

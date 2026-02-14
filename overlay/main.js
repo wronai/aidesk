@@ -12,9 +12,9 @@ function createOverlay() {
 
   overlay = new BrowserWindow({
     width: 400,
-    height: 480,
+    height: 620,
     x: width - 420,
-    y: height - 500,
+    y: height - 640,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -30,7 +30,7 @@ function createOverlay() {
     },
   });
 
-  // Make window click-through except on interactive elements
+  // Click-through by default; renderer tells us when mouse is over interactive areas
   overlay.setIgnoreMouseEvents(true, { forward: true });
   
   // Keep on top of all windows, even fullscreen
@@ -93,4 +93,11 @@ app.on('will-quit', () => {
 // Handle IPC from renderer
 ipcMain.on('log', (event, message) => {
   console.log('[Renderer]', message);
+});
+
+// Mouse event forwarding: make interactive elements clickable
+ipcMain.on('set-ignore-mouse-events', (event, ignore, opts) => {
+  if (overlay) {
+    overlay.setIgnoreMouseEvents(ignore, opts || {});
+  }
 });

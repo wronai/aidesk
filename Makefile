@@ -81,8 +81,9 @@ test: ## Run backend test_setup.py
 status: ## Check if backend is running
 	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"
 
-stop: ## Stop backend (kill uvicorn on configured port)
+stop: ## Stop backend and overlay applications
 	@-fuser -k $(PORT)/tcp 2>/dev/null && sleep 1 && echo "🛑 Backend stopped (port $(PORT))" || true
+	@-pkill -f "electron.*main.js" 2>/dev/null && sleep 1 && echo "🛑 Overlay stopped" || true
 
 clean: ## Remove venv and node_modules
 	rm -rf $(VENV_DIR)

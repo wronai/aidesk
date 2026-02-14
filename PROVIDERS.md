@@ -24,6 +24,11 @@ Zmiana modelu to edycja jednej zmiennej `VISION_MODEL` w `backend/.env` — bez 
 - [Zmienne środowiskowe](#zmienne-środowiskowe)
 - [Przykładowe konfiguracje](#przykładowe-konfiguracje)
 - [Rozwiązywanie problemów](#rozwiązywanie-problemów)
+- [Tryby analizy (Analysis Modes)](#tryby-analizy-analysis-modes)
+- [Silniki OCR](#silniki-ocr)
+  - [Tesseract](#tesseract)
+  - [EasyOCR](#easyocr)
+  - [PaddleOCR](#paddleocr)
 
 ---
 
@@ -543,6 +548,176 @@ ma wsparcie vision w dokumentacji providera. Bezpieczne wybory:
 2. **Zmniejsz rozdzielczość:** `SCREEN_WIDTH=960`, `SCREEN_HEIGHT=540`
 3. **Zwiększ interwał:** `MIN_CAPTURE_INTERVAL=3.0`
 4. **Użyj GPU:** Ollama automatycznie wykrywa CUDA/ROCm/Metal
+
+---
+
+## Tryby analizy (Analysis Modes)
+
+Aplikacja obsługuje 4 tryby analizy ekranu, łączące OCR z LLM w różnych proporcjach.
+Zmiana trybu to jedna zmienna `ANALYSIS_MODE` w `.env` lub runtime API `POST /mode/{mode}`.
+
+| Tryb              | Przepływ                      | Szybkość | Koszt  | Dokładność | Kiedy używać                    |
+|-------------------|-------------------------------|----------|--------|------------|---------------------------------|
+| `vision_only`     | obraz → VLM                   | ★★☆      | ★★★    | ★★★        | Gdy OCR niedostępny             |
+| `ocr_only`        | obraz → OCR → tekst           | ★★★      | ☆☆☆    | ★★☆        | Monitoring, logi, proste UI     |
+| **`hybrid`**      | obraz → OCR → tekst → LLM    | ★★★      | ★☆☆    | ★★★        | **Rekomendowany** — 5-10x taniej|
+| `ocr_plus_vision` | obraz → OCR + obraz → VLM     | ★☆☆      | ★★★    | ★★★+       | Złożone UI, wykresy + tekst     |
+
+### Jak działa tryb hybrid (rekomendowany)
+
+```
+Screenshot → OCR (Tesseract/EasyOCR/PaddleOCR) → wyekstrahowany tekst
+                                                        ↓
+                                              LLM (tekst-only prompt)
+                                              — brak obrazu w requeście!
+                                              — 5-10x mniej tokenów
+                                              — działa z każdym LLM (nie wymaga vision)
+```
+
+**Zalety hybrid:**
+- Można użyć tanich modeli tekstowych (np. `ollama/llama3`, `gemini/gemini-2.0-flash`) zamiast drogich VLM
+- 5-10x mniej tokenów = 5-10x niższy koszt
+- Szybsza odpowiedź (mniejszy payload)
+- OCR działa lokalnie = zero kosztów za ekstrakcję tekstu
+
+### Konfiguracja .env
+
+```bash
+# Rekomendowany: OCR + tani LLM tekstowy
+ANALYSIS_MODE=hybrid
+VISION_MODEL=ollama/llama3
+OCR_ENGINE=tesseract
+
+# Najszybszy: tylko OCR, zero LLM
+ANALYSIS_MODE=ocr_only
+
+# Najdokładniejszy: OCR kontekst + obraz do VLM
+ANALYSIS_MODE=ocr_plus_vision
+VISION_MODEL=gemini/gemini-2.0-flash
+
+# Oryginalny: czysty VLM (bez OCR)
+ANALYSIS_MODE=vision_only
+VISION_MODEL=ollama/llava
+```
+
+### Runtime API
+
+```bash
+# Sprawdź aktualny tryb
+curl http://localhost:8001/mode
+
+# Zmień tryb w locie
+curl -X POST http://localhost:8001/mode/hybrid
+curl -X POST http://localhost:8001/mode/ocr_only
+```
+
+---
+
+## Silniki OCR
+
+Trzy silniki OCR z hot-swappingiem i benchmarkingiem A/B.
+Każdy jest ładowany leniwie — inicjalizacja dopiero przy pierwszym użyciu.
+
+### Tesseract
+
+**Lekki, systemowy, dobry fallback.** Wymaga binarki `tesseract-ocr`.
+
+| Parametr     | Wartość              |
+|--------------|----------------------|
+| Latency      | ~300-800ms           |
+| Rozmiar      | ~10 MB (binarka)     |
+| GPU          | ❌ Tylko CPU          |
+| Języki       | 100+ (pakiety `tesseract-ocr-*`) |
+| Instalacja   | System package       |
+
+```bash
+# Ubuntu/Debian
+sudo apt install tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng
+
+# macOS
+brew install tesseract tesseract-lang
+
+# Sprawdź
+tesseract --list-langs
+```
+
+```bash
+# .env
+OCR_ENGINE=tesseract
+```
+
+### EasyOCR
+
+**Wysoka dokładność, prosty Python API.** Automatycznie pobiera modele.
+
+| Parametr     | Wartość              |
+|--------------|----------------------|
+| Latency      | ~500-1500ms          |
+| Rozmiar      | ~200 MB (modele)     |
+| GPU          | ✅ CUDA (opcjonalne)  |
+| Języki       | 80+ (auto-download)  |
+| Instalacja   | `pip install easyocr` |
+
+```bash
+# .env
+OCR_ENGINE=easyocr
+OCR_USE_GPU=false   # true jeśli masz CUDA
+```
+
+### PaddleOCR
+
+**Najszybszy, najlepszy dla UI/screenshots.** Wymaga PaddlePaddle.
+
+| Parametr     | Wartość              |
+|--------------|----------------------|
+| Latency      | ~200-500ms           |
+| Rozmiar      | ~500 MB (modele)     |
+| GPU          | ✅ CUDA (opcjonalne)  |
+| Języki       | 80+ (auto-download)  |
+| Instalacja   | `pip install paddleocr paddlepaddle` |
+
+```bash
+# .env
+OCR_ENGINE=paddleocr
+OCR_USE_GPU=false   # true jeśli masz CUDA
+```
+
+> **Uwaga:** PaddlePaddle może mieć konflikty z PyTorch. Jeśli masz problemy,
+> użyj Tesseract lub EasyOCR.
+
+### Porównanie silników OCR
+
+| Silnik       | Szybkość | Dokładność | Rozmiar | GPU  | Najlepszy dla              |
+|--------------|----------|------------|---------|------|----------------------------|
+| **Tesseract**| ★★☆      | ★★☆        | 10 MB   | ❌   | Czysty tekst, dokumenty    |
+| **EasyOCR**  | ★★☆      | ★★★        | 200 MB  | ✅   | Mieszany tekst, zdjęcia    |
+| **PaddleOCR**| ★★★      | ★★★        | 500 MB  | ✅   | UI screenshots, tabele     |
+
+### Runtime API — zarządzanie silnikami
+
+```bash
+# Lista dostępnych silników
+curl http://localhost:8001/ocr/engines
+
+# Zmień silnik w locie
+curl -X POST http://localhost:8001/ocr/engine/easyocr
+
+# Benchmark: porównaj wszystkie silniki na aktualnym screenshocie
+curl -X POST http://localhost:8001/ocr/benchmark
+
+# Statystyki OCR
+curl http://localhost:8001/ocr/stats
+```
+
+### Zmienne środowiskowe OCR
+
+| Zmienna        | Opis                                    | Domyślna      |
+|----------------|-----------------------------------------|---------------|
+| `ENABLE_OCR`   | Włącz/wyłącz OCR                        | `true`        |
+| `OCR_ENGINE`   | Aktywny silnik: `tesseract`, `easyocr`, `paddleocr` | `tesseract` |
+| `OCR_LANGUAGES`| Języki OCR (oddzielone przecinkami)      | `pl,en`       |
+| `OCR_USE_GPU`  | Użyj GPU (PaddleOCR/EasyOCR)            | `false`       |
+| `ANALYSIS_MODE`| Tryb analizy (patrz wyżej)              | `hybrid`      |
 
 ---
 

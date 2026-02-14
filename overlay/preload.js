@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('electron', {
   log: (message) => {
     ipcRenderer.send('log', message);
   },
+
+  // Mouse event forwarding for click-through overlay
+  setIgnoreMouseEvents: (ignore, opts) => {
+    ipcRenderer.send('set-ignore-mouse-events', ignore, opts);
+  },
   
   // App info
   versions: {

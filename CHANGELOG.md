@@ -1,3 +1,22 @@
+## [1.0.3] - 2026-02-14
+
+### Summary
+
+feat(docs): deep code analysis engine with 5 supporting modules
+
+### Docs
+
+- docs: update ARCHITECTURE.md
+- docs: update PROVIDERS.md
+
+### Other
+
+- build: update Makefile
+- update overlay/app.js
+- update overlay/main.js
+- update overlay/preload.js
+
+
 ## [1.0.2] - 2026-02-14
 
 ### Summary
