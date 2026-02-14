@@ -1,3 +1,21 @@
+## [2.0.7] - 2026-02-14
+
+### Summary
+
+feat(docs): deep code analysis engine with 2 supporting modules
+
+### Docs
+
+- docs: update ARCHITECTURE.md
+
+### Other
+
+- update backend/.env.example
+- update backend/diagnostics.py
+- update backend/server.py
+- update backend/tests/test_units.py
+
+
 ## [2.0.6] - 2026-02-14
 
 ### Summary

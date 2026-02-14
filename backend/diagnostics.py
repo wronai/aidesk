@@ -91,6 +91,8 @@ class AutoDiagnostics:
         checks.append(self._check_shell_agent())
         checks.append(self._check_process_scanner())
         checks.append(self._check_window_cropper())
+        checks.append(self._check_event_bus())
+        checks.append(self._check_pipeline())
 
         elapsed = round(time.time() - start, 3)
         all_ok = all(c["ok"] for c in checks)
@@ -382,6 +384,48 @@ class AutoDiagnostics:
             }
         except Exception as e:
             return {"name": "window_cropper", "ok": False, "detail": str(e)}
+
+    def _check_event_bus(self) -> Dict:
+        """Check event bus status."""
+        bus = self.app_state.get("event_bus")
+        if bus is None:
+            return {"name": "event_bus", "ok": False, "detail": "Not initialized"}
+
+        try:
+            stats = bus.get_stats()
+            return {
+                "name": "event_bus",
+                "ok": True,
+                "detail": {
+                    "total_published": stats.get("total_published", 0),
+                    "total_handled": stats.get("total_handled", 0),
+                    "handler_errors": stats.get("handler_errors", 0),
+                    "registered_types": stats.get("registered_types", 0),
+                },
+            }
+        except Exception as e:
+            return {"name": "event_bus", "ok": False, "detail": str(e)}
+
+    def _check_pipeline(self) -> Dict:
+        """Check pipeline orchestrator status."""
+        pipeline = self.app_state.get("pipeline")
+        if pipeline is None:
+            return {"name": "pipeline", "ok": False, "detail": "Not initialized"}
+
+        try:
+            stats = pipeline.get_stats()
+            return {
+                "name": "pipeline",
+                "ok": True,
+                "detail": {
+                    "total_runs": stats.get("total_runs", 0),
+                    "total_errors": stats.get("total_errors", 0),
+                    "step_count": stats.get("step_count", 0),
+                    "steps": stats.get("steps", []),
+                },
+            }
+        except Exception as e:
+            return {"name": "pipeline", "ok": False, "detail": str(e)}
 
     def get_latest(self) -> Optional[Dict]:
         """Return latest diagnostics result."""

@@ -681,6 +681,9 @@ async def health():
                 "shell_agent": app_state["shell_agent"] is not None,
                 "process_scanner": app_state["process_scanner"] is not None,
                 "window_cropper": app_state["window_cropper"] is not None,
+                "event_bus": app_state.get("event_bus") is not None,
+                "pipeline": app_state.get("pipeline") is not None,
+                "read_model": app_state.get("read_model") is not None,
             },
         },
     )

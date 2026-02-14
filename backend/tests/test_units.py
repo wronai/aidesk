@@ -391,3 +391,316 @@ class TestWindowCropper:
         assert "total_crops" in stats
         assert "total_organizes" in stats
         assert "scanner" in stats
+
+
+# ===== EventBus Tests =====
+
+from event_bus import Event, EventBus, EventStore, EventType, EventCategory, create_event_bus
+from pipeline import PipelineContext, PipelineOrchestrator, create_pipeline
+from command_handlers import CommandHandlers
+from query_handlers import QueryHandlers, ReadModel
+
+
+class TestEvent:
+    def test_immutable_event(self):
+        e = Event(type="test.event", data={"key": "value"}, source="test")
+        assert e.type == "test.event"
+        assert e.data["key"] == "value"
+        assert e.event_id  # auto-generated
+        assert e.timestamp > 0
+
+    def test_to_dict(self):
+        e = Event(type="test.event", data={"x": 1}, source="unit")
+        d = e.to_dict()
+        assert d["type"] == "test.event"
+        assert d["source"] == "unit"
+        assert d["data"] == {"x": 1}
+        assert "event_id" in d
+        assert "timestamp" in d
+
+    def test_to_json(self):
+        e = Event(type="test.event", data={"x": 1})
+        j = e.to_json()
+        import json
+        parsed = json.loads(j)
+        assert parsed["type"] == "test.event"
+
+    def test_category_inference(self):
+        bus = EventBus(enable_store=False)
+        e1 = bus.emit("cmd.do_thing", {}, source="test")
+        assert e1.category == EventCategory.COMMAND.value
+        e2 = bus.emit("query.get_thing", {}, source="test")
+        assert e2.category == EventCategory.QUERY.value
+        e3 = bus.emit("system.startup", {}, source="test")
+        assert e3.category == EventCategory.SYSTEM.value
+        e4 = bus.emit("pipeline.captured", {}, source="test")
+        assert e4.category == EventCategory.EVENT.value
+
+
+class TestEventBus:
+    @pytest.mark.asyncio
+    async def test_publish_subscribe(self):
+        bus = EventBus(enable_store=False)
+        received = []
+
+        async def handler(event: Event):
+            received.append(event)
+
+        bus.subscribe("test.ping", handler)
+        await bus.publish(Event(type="test.ping", data={"msg": "hello"}))
+
+        assert len(received) == 1
+        assert received[0].data["msg"] == "hello"
+
+    @pytest.mark.asyncio
+    async def test_wildcard_handler(self):
+        bus = EventBus(enable_store=False)
+        received = []
+
+        async def handler(event: Event):
+            received.append(event.type)
+
+        bus.subscribe("*", handler)
+        await bus.publish(Event(type="a.one", data={}))
+        await bus.publish(Event(type="b.two", data={}))
+
+        assert received == ["a.one", "b.two"]
+
+    @pytest.mark.asyncio
+    async def test_unsubscribe(self):
+        bus = EventBus(enable_store=False)
+        received = []
+
+        async def handler(event: Event):
+            received.append(1)
+
+        bus.subscribe("x", handler)
+        await bus.publish(Event(type="x", data={}))
+        assert len(received) == 1
+
+        bus.unsubscribe("x", handler)
+        await bus.publish(Event(type="x", data={}))
+        assert len(received) == 1  # no new calls
+
+    @pytest.mark.asyncio
+    async def test_handler_error_doesnt_crash(self):
+        bus = EventBus(enable_store=False)
+        ok = []
+
+        async def bad_handler(event: Event):
+            raise ValueError("boom")
+
+        async def good_handler(event: Event):
+            ok.append(1)
+
+        bus.subscribe("test", bad_handler)
+        bus.subscribe("test", good_handler)
+        await bus.publish(Event(type="test", data={}))
+
+        assert len(ok) == 1
+        assert bus._errors == 1
+
+    def test_get_stats(self):
+        bus = EventBus(enable_store=False)
+        stats = bus.get_stats()
+        assert stats["total_published"] == 0
+        assert stats["total_handled"] == 0
+        assert stats["registered_types"] == 0
+
+    def test_new_correlation_id(self):
+        bus = EventBus(enable_store=False)
+        cid = bus.new_correlation_id()
+        assert len(cid) == 8
+
+
+class TestEventStore:
+    def test_append_and_query(self, tmp_path):
+        db = str(tmp_path / "test_events.db")
+        store = EventStore(db_path=db)
+        e = Event(type="test.stored", data={"val": 42}, source="unit")
+        store.append(e)
+
+        results = store.query(event_type="test.stored")
+        assert len(results) == 1
+        assert results[0]["data"]["val"] == 42
+
+    def test_query_by_source(self, tmp_path):
+        db = str(tmp_path / "test_events.db")
+        store = EventStore(db_path=db)
+        store.append(Event(type="a", data={}, source="src1"))
+        store.append(Event(type="b", data={}, source="src2"))
+
+        results = store.query(source="src1")
+        assert len(results) == 1
+        assert results[0]["type"] == "a"
+
+    def test_get_stats(self, tmp_path):
+        db = str(tmp_path / "test_events.db")
+        store = EventStore(db_path=db)
+        store.append(Event(type="x", data={}))
+        stats = store.get_stats()
+        assert stats["total_events"] == 1
+
+
+# ===== Pipeline Tests =====
+
+class TestPipelineContext:
+    def test_defaults(self):
+        ctx = PipelineContext()
+        assert ctx.run_id
+        assert ctx.correlation_id == ctx.run_id
+        assert ctx.timestamp > 0
+        assert ctx.all_windows == []
+        assert ctx.image_b64 is None
+
+    def test_custom_run_id(self):
+        ctx = PipelineContext(run_id="abc123")
+        assert ctx.run_id == "abc123"
+        assert ctx.correlation_id == "abc123"
+
+
+class TestPipelineOrchestrator:
+    @pytest.mark.asyncio
+    async def test_empty_pipeline(self):
+        bus = EventBus(enable_store=False)
+        pipeline = PipelineOrchestrator(bus)
+        ctx = await pipeline.run()
+        assert ctx.steps_executed == []
+        assert ctx.errors == []
+
+    @pytest.mark.asyncio
+    async def test_step_can_run_gate(self):
+        bus = EventBus(enable_store=False)
+
+        class AlwaysSkip:
+            name = "skip_me"
+            def can_run(self, ctx): return False
+            async def execute(self, ctx, bus): raise RuntimeError("should not run")
+
+        pipeline = PipelineOrchestrator(bus, steps=[AlwaysSkip()])
+        ctx = await pipeline.run()
+        assert "skip_me" in ctx.skipped
+        assert ctx.steps_executed == []
+
+    @pytest.mark.asyncio
+    async def test_step_execution_and_timing(self):
+        bus = EventBus(enable_store=False)
+
+        class DummyStep:
+            name = "dummy"
+            def can_run(self, ctx): return True
+            async def execute(self, ctx, bus):
+                ctx.image_b64 = "test_b64"
+                return ctx
+
+        pipeline = PipelineOrchestrator(bus, steps=[DummyStep()])
+        ctx = await pipeline.run()
+        assert "dummy" in ctx.steps_executed
+        assert "dummy" in ctx.step_timings
+        assert ctx.image_b64 == "test_b64"
+
+    @pytest.mark.asyncio
+    async def test_step_error_continues(self):
+        bus = EventBus(enable_store=False)
+
+        class FailStep:
+            name = "fail"
+            def can_run(self, ctx): return True
+            async def execute(self, ctx, bus): raise ValueError("oops")
+
+        class OkStep:
+            name = "ok"
+            def can_run(self, ctx): return True
+            async def execute(self, ctx, bus):
+                ctx.context_str = "done"
+                return ctx
+
+        pipeline = PipelineOrchestrator(bus, steps=[FailStep(), OkStep()])
+        ctx = await pipeline.run()
+        assert len(ctx.errors) == 1
+        assert ctx.errors[0]["step"] == "fail"
+        assert "ok" in ctx.steps_executed
+        assert ctx.context_str == "done"
+
+    def test_add_remove_step(self):
+        bus = EventBus(enable_store=False)
+        pipeline = PipelineOrchestrator(bus)
+
+        class S1:
+            name = "s1"
+        class S2:
+            name = "s2"
+
+        pipeline.add_step(S1()).add_step(S2())
+        assert pipeline.get_step_names() == ["s1", "s2"]
+
+        pipeline.remove_step("s1")
+        assert pipeline.get_step_names() == ["s2"]
+
+    def test_insert_before_after(self):
+        bus = EventBus(enable_store=False)
+
+        class A:
+            name = "a"
+        class B:
+            name = "b"
+        class C:
+            name = "c"
+
+        pipeline = PipelineOrchestrator(bus, steps=[B()])
+        pipeline.insert_before("b", A())
+        pipeline.insert_after("b", C())
+        assert pipeline.get_step_names() == ["a", "b", "c"]
+
+    def test_get_stats(self):
+        bus = EventBus(enable_store=False)
+        pipeline = PipelineOrchestrator(bus)
+        stats = pipeline.get_stats()
+        assert stats["total_runs"] == 0
+        assert stats["step_count"] == 0
+
+
+# ===== ReadModel Tests =====
+
+class TestReadModel:
+    def test_initial_state(self):
+        rm = ReadModel()
+        assert rm.total_pipeline_runs == 0
+        assert rm.last_analysis_tokens == 0
+
+    def test_on_windows_scanned(self):
+        rm = ReadModel()
+        rm.on_windows_scanned({"total": 5})
+        assert rm.last_window_count == 5
+
+    def test_on_analysis_completed(self):
+        rm = ReadModel()
+        rm.on_analysis_completed({"tokens": 100, "cost": 0.001, "provider": "gemini"})
+        view = rm.get_analysis_view()
+        assert view["last_tokens"] == 100
+        assert view["last_cost"] == 0.001
+        assert view["last_provider"] == "gemini"
+
+    def test_on_agent_suggested(self):
+        rm = ReadModel()
+        rm.on_agent_suggested({"count": 3})
+        rm.on_agent_suggested({"count": 2})
+        assert rm.total_agent_suggestions == 5
+        assert rm.last_agent_action_count == 2
+
+    def test_on_pipeline_completed(self):
+        rm = ReadModel()
+        rm.on_pipeline_completed("run1", ["a", "b"], {"a": 10, "b": 20}, [])
+        view = rm.get_pipeline_view()
+        assert view["last_run_id"] == "run1"
+        assert view["total_runs"] == 1
+        assert view["total_errors"] == 0
+
+    def test_event_counts(self):
+        rm = ReadModel()
+        rm.on_event(Event(type="a", data={}))
+        rm.on_event(Event(type="a", data={}))
+        rm.on_event(Event(type="b", data={}))
+        counts = rm.get_event_counts()
+        assert counts["a"] == 2
+        assert counts["b"] == 1

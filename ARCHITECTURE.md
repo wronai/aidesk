@@ -135,48 +135,58 @@ AI Desktop Assistant to real-time desktop monitoring system składający się z 
 
 ## Przepływ danych
 
-### 1. Screen Analysis Flow (v2.0)
+### 1. Screen Analysis Pipeline (v2.0.3 — SOLID / CQRS / Event Sourcing)
+
+The analysis loop is implemented as a **composable pipeline** (`pipeline.py`).
+Each step is an independent class satisfying the `PipelineStep` Protocol.
+All steps emit typed events to the `EventBus`, persisted to an SQLite event store.
 
 ```
-Step 1: Window Detection (xdotool/xprop)
-    → title, WM_CLASS, PID, geometry, category
-    → Git context (branch, status) for IDE/Terminal
-    ↓
-Step 2: Screen Capture (mss/grim)
-    → Full screen or ROI (active window region)
-    → Resize (1280x720) → Hash (phash)
-    ↓
-Hash diff < threshold? → NO → Sleep (adaptive)
-    ↓ YES
-Encode JPEG (quality 60) → Base64
-    ↓
-Step 3: Build Context
-    → Window context string (app, CWD, git branch)
-    → Recent context (sliding window)
-    ↓
-Step 4: Per-App Profile
-    → Get prompt addon for app category (IDE, Terminal, Browser...)
-    → Merge into analysis context
-    ↓
-Step 5: OCR + Analysis
-    → OCR Pre-Processing (PaddleOCR/EasyOCR/Tesseract)
-    → Mode Selection:
-      ┌── vision_only:     image → VLM                   ┐
-      │   ocr_only:        OCR text only (no LLM call)   │
-      │   hybrid:          OCR text → LLM text prompt    │
-      └── ocr_plus_vision: OCR text + image → VLM        ┘
-    ↓
-Step 6: Shell Agent
-    → Pattern match on analysis + OCR text
-    → Suggest safe commands (git status, pip install, etc.)
-    → Broadcast agent_actions to overlay
-    ↓
-Step 7: Broadcast via SSE
-    → analysis (text + window + agent_actions + OCR meta)
-    → window (active window info)
-    → agent_actions (suggested commands)
-    → Overlay displays all components
+PipelineOrchestrator.run(PipelineContext)
+  │
+  ├─ ScanWindowsStep        → scan all visible windows (wmctrl/xdotool)
+  │   └─ emits: pipeline.windows_scanned {total: N}
+  │
+  ├─ DetectActiveWindowStep → detect active window, ROI, git context
+  │   └─ emits: pipeline.windows_scanned {active: WindowInfo}
+  │
+  ├─ CaptureScreenStep      → capture fullscreen or ROI (mss/grim)
+  │   └─ emits: pipeline.screen_captured {size_kb, has_change}
+  │   └─ GATE: skips rest if no change detected
+  │
+  ├─ CropWindowsStep        → crop each visible app from fullscreen
+  │   └─ emits: pipeline.screen_organized {total, summary, categories}
+  │
+  ├─ BuildContextStep       → window info + profiles + TTS transcript → rich prompt
+  │   └─ emits: pipeline.context_built {context_length}
+  │
+  ├─ AnalyzeStep             → OCR + LLM (hybrid/vision modes)
+  │   └─ emits: pipeline.analysis_completed {tokens, cost, provider, mode}
+  │
+  ├─ SuggestActionsStep      → pattern-match text → safe commands
+  │   └─ emits: pipeline.agent_suggested {count}
+  │
+  └─ BuildBroadcastStep     → assemble SSE payload from context
+      └─ emits: pipeline.broadcast_sent {keys}
 ```
+
+**SOLID compliance:**
+- **S**: Each step has exactly one responsibility
+- **O**: Add steps via `pipeline.add_step()` / `insert_after()` without modifying existing code
+- **L**: Any class satisfying `PipelineStep` Protocol is valid (duck typing)
+- **I**: `protocols.py` defines minimal contracts: `ScreenCapture`, `OCRExtractor`, `WindowDetector`, etc.
+- **D**: Pipeline receives injected components, never imports concrete classes
+
+**CQRS:**
+- Commands (`cmd.*`) — state-changing: switch OCR engine, execute action, run benchmark
+- Queries (`query.*`) — read-only: health, stats, window info
+- Events (`pipeline.*`) — facts: captured, analyzed, suggested
+
+**Event Sourcing:**
+- All pipeline events persisted to `logs/events.db` (SQLite)
+- Query by type, source, correlation_id, time range: `GET /events?type=...`
+- Correlation IDs link events from the same pipeline run
+- Full audit trail for debugging and replay
 
 ### 2. Speech-to-Text Flow
 
@@ -487,15 +497,82 @@ FastAPI App
 │   ├── POST /agent/execute/{id} - Execute action
 │   ├── POST /agent/run - Run safe command directly
 │   └── GET  /agent/history - Execution history
+├── Process & Screen Endpoints
+│   ├── GET  /processes - All windows grouped by category
+│   ├── GET  /windows/all - Raw window list with geometry
+│   ├── GET  /screen/organized - Per-app crops + categories
+│   └── GET  /screen/stats - Scanner & cropper stats
+├── CQRS / Event Sourcing Endpoints
+│   ├── GET  /events - Query event store (type, source, correlation_id, since)
+│   ├── GET  /events/stats - Event bus statistics
+│   └── GET  /pipeline - Pipeline steps and execution stats
 └── Background Tasks
-    └── screen_analysis_loop()
-        ├── Step 1: Detect active window
-        ├── Step 2: Capture screen (full or ROI)
-        ├── Step 3: Build context + window awareness
-        ├── Step 4: Get per-app prompt addon
-        ├── Step 5: Analyze (OCR + LLM)
-        ├── Step 6: Shell agent suggestions
-        └── Step 7: Broadcast to overlay
+    └── screen_analysis_loop() → PipelineOrchestrator
+        └── 8 composable steps (see Pipeline section above)
+```
+
+#### event_bus.py - Event Bus (Event Sourcing + CQRS)
+```python
+EventBus
+├── subscribe(type, handler) - Register async handler for event type
+├── publish(event) → persist + dispatch to all matching handlers
+├── emit(type, data, source) → create Event (convenience)
+├── new_correlation_id() → str (links pipeline events)
+└── add_middleware(fn) - Transform events before dispatch
+
+EventStore (SQLite)
+├── append(event) - Persist immutable event
+├── query(type, source, correlation_id, since, limit) → List[Dict]
+└── get_stats() → Dict
+
+Event (frozen dataclass)
+├── type: str (EventType enum or custom)
+├── data: Dict (JSON-serializable payload)
+├── event_id: str (auto UUID)
+├── correlation_id: str (links related events)
+├── category: str (command | query | event | system)
+└── to_dict() / to_json()
+```
+
+#### pipeline.py - Pipeline Orchestrator (SOLID)
+```python
+PipelineOrchestrator
+├── add_step(step) / remove_step(name) - Builder pattern
+├── insert_before(name, step) / insert_after(name, step)
+├── run(ctx) → PipelineContext - Execute all steps in order
+└── get_stats() → Dict
+
+PipelineContext (shared accumulator)
+├── run_id, correlation_id - Identity
+├── all_windows, active_window, roi - Phase 1 output
+├── image_b64, capture_result - Phase 2 output
+├── organized_screen, screen_summary - Phase 3+4 output
+├── full_context, prompt_addon - Phase 5 output
+├── analysis_result - Phase 6 output
+├── agent_actions - Phase 7 output
+├── broadcast_data - Phase 8 output
+└── steps_executed, step_timings, errors - Metrics
+
+PipelineStep (Protocol)
+├── name: str
+├── can_run(ctx) → bool - Gate check
+└── execute(ctx, bus) → PipelineContext - Do work + emit events
+```
+
+#### protocols.py - Component Interfaces (ISP + DIP)
+```python
+Protocols (runtime_checkable)
+├── ScreenCapture    - capture(), adaptive_interval, get_monitors()
+├── OCRExtractor     - extract(), set_engine(), benchmark()
+├── ScreenAnalyzer   - analyze(), set_mode()
+├── WindowDetector   - get_active_window(), get_monitors(), get_window_roi()
+├── ProcessScanning  - scan_all_windows(), get_window_layout()
+├── WindowCropping   - organize_screen()
+├── ProfileProvider  - get_prompt_addon(), get_all_profiles()
+├── CommandAgent     - suggest_actions(), execute_action(), execute_safe()
+├── ContextStore     - add(), get_context_string(), get_recent()
+├── SpeechToText     - start(), stop()
+└── EventBroadcaster - broadcast(event_type, data)
 ```
 
 ### Frontend (Electron/Overlay)
