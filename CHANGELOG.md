@@ -1,3 +1,15 @@
+## [2.0.6] - 2026-02-14
+
+### Summary
+
+refactor(backend): deep code analysis engine with 3 supporting modules
+
+### Other
+
+- update backend/server.py
+- update backend/wayland_screencast.py
+
+
 ## [2.0.5] - 2026-02-14
 
 ### Summary

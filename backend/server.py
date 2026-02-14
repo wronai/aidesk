@@ -7,7 +7,7 @@ import os
 import time
 import sqlite3
 from contextlib import asynccontextmanager
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import structlog
 from loguru import logger as loguru_logger
@@ -307,6 +307,16 @@ async def on_transcript(text: str, is_final: bool):
 
     await broadcast("transcript", {"text": text, "is_final": is_final})
 
+    # Emit to EventBus
+    bus = app_state.get("event_bus")
+    if bus:
+        etype = EventType.SPEECH_FINAL.value if is_final else EventType.TRANSCRIPT_RECEIVED.value
+        await bus.publish(Event(
+            type=etype,
+            data={"text": text, "is_final": is_final},
+            source="stt",
+        ))
+
 
 @nfo.log_call(level="INFO")
 def _nfo_validate_startup(state: Dict):
@@ -323,6 +333,9 @@ def _nfo_validate_startup(state: Dict):
         "shell_agent": state.get("shell_agent") is not None,
         "process_scanner": state.get("process_scanner") is not None,
         "window_cropper": state.get("window_cropper") is not None,
+        "event_bus": state.get("event_bus") is not None,
+        "pipeline": state.get("pipeline") is not None,
+        "read_model": state.get("read_model") is not None,
     }
     ok = [k for k, v in components.items() if v]
     failed = [k for k, v in components.items() if not v]
@@ -409,6 +422,21 @@ async def lifespan(app: FastAPI):
         app_state_ref=app_state,
     )
 
+    # CQRS Read Model (materialized views for queries)
+    read_model = ReadModel()
+    app_state["read_model"] = read_model
+
+    # Command handlers (CQRS write side)
+    cmd_handlers = CommandHandlers(app_state["event_bus"], app_state)
+    cmd_handlers.set_broadcast(broadcast)
+    cmd_handlers.register_all()
+    app_state["command_handlers"] = cmd_handlers
+
+    # Query handlers (CQRS read side — domain event projectors)
+    qry_handlers = QueryHandlers(app_state["event_bus"], app_state, read_model)
+    qry_handlers.register_all()
+    app_state["query_handlers"] = qry_handlers
+
     # Emit startup event
     await app_state["event_bus"].publish(Event(
         type=EventType.SYSTEM_STARTUP.value,
@@ -423,7 +451,7 @@ async def lifespan(app: FastAPI):
         source="lifespan",
     ))
 
-    # Start screen analysis loop
+    # Start screen analysis loop (pipeline-driven)
     screen_task = asyncio.create_task(screen_analysis_loop())
 
     # Initialize and start STT if enabled
@@ -449,6 +477,16 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down backend")
+
+    # Emit shutdown event
+    bus = app_state.get("event_bus")
+    if bus:
+        await bus.publish(Event(
+            type=EventType.SYSTEM_SHUTDOWN.value,
+            data={"uptime_seconds": round(time.time() - app_state["stats"]["start_time"], 1)},
+            source="lifespan",
+        ))
+
     screen_task.cancel()
     diag_task.cancel()
 
@@ -504,6 +542,12 @@ async def root():
             "screen_organized": "/screen/organized - Latest organized screen data (GET)",
             "screen_stats": "/screen/stats - Process scanner & cropper stats (GET)",
             "nfo_validation": "/nfo/validation - nfo startup validation (GET)",
+            "events": "/events - Query event store (GET, ?type=&source=&correlation_id=&limit=)",
+            "events_stats": "/events/stats - Event bus statistics (GET)",
+            "pipeline_info": "/pipeline - Pipeline steps and stats (GET)",
+            "read_model": "/read-model - CQRS materialized views (GET)",
+            "read_model_pipeline": "/read-model/pipeline - Pipeline execution view (GET)",
+            "read_model_stats": "/read-model/stats - Enriched stats with event metrics (GET)",
         },
     }
 
@@ -906,6 +950,85 @@ async def get_screen_stats():
 async def get_nfo_validation():
     """Get latest nfo startup validation result."""
     return _nfo_validate_startup(app_state)
+
+
+# ===== Event Bus & Pipeline Endpoints (CQRS/Event Sourcing) =====
+
+@app.get("/events")
+async def query_events(
+    type: Optional[str] = None,
+    source: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+    since: Optional[float] = None,
+    limit: int = 50,
+):
+    """
+    Query the event store (Event Sourcing read side).
+    Supports filtering by type, source, correlation_id, and time range.
+    """
+    bus = app_state.get("event_bus")
+    if not bus or not bus.store:
+        return JSONResponse(status_code=503, content={"error": "Event store not enabled"})
+    events = bus.store.query(
+        event_type=type,
+        source=source,
+        correlation_id=correlation_id,
+        since=since,
+        limit=limit,
+    )
+    return {"total": len(events), "events": events}
+
+
+@app.get("/events/stats")
+async def event_bus_stats():
+    """Get event bus and event store statistics."""
+    bus = app_state.get("event_bus")
+    if not bus:
+        return JSONResponse(status_code=503, content={"error": "Event bus not initialized"})
+    return bus.get_stats()
+
+
+@app.get("/pipeline")
+async def pipeline_info():
+    """Get pipeline configuration, steps, and execution statistics."""
+    pipeline = app_state.get("pipeline")
+    if not pipeline:
+        return JSONResponse(status_code=503, content={"error": "Pipeline not initialized"})
+    return {
+        "steps": pipeline.get_step_names(),
+        "stats": pipeline.get_stats(),
+    }
+
+
+@app.get("/read-model")
+async def get_read_model():
+    """Get CQRS read model — materialized views of pipeline and analysis state."""
+    qry = app_state.get("query_handlers")
+    if not qry:
+        return JSONResponse(status_code=503, content={"error": "Query handlers not initialized"})
+    return {
+        "pipeline": qry.read_model.get_pipeline_view(),
+        "analysis": qry.read_model.get_analysis_view(),
+        "event_counts": qry.read_model.get_event_counts(),
+    }
+
+
+@app.get("/read-model/pipeline")
+async def get_read_model_pipeline():
+    """Get pipeline execution view from CQRS read model."""
+    qry = app_state.get("query_handlers")
+    if not qry:
+        return JSONResponse(status_code=503, content={"error": "Query handlers not initialized"})
+    return qry.query_pipeline()
+
+
+@app.get("/read-model/stats")
+async def get_read_model_stats():
+    """Get enriched stats from CQRS read model (includes event bus + pipeline metrics)."""
+    qry = app_state.get("query_handlers")
+    if not qry:
+        return JSONResponse(status_code=503, content={"error": "Query handlers not initialized"})
+    return qry.query_stats()
 
 
 # ===== App Profiles Endpoints =====

@@ -29,6 +29,10 @@ OUTPUT_PATH = os.environ.get('AIDESK_FRAME_PATH', '/tmp/aidesk_wayland_frame.jpg
 QUALITY = int(os.environ.get('AIDESK_FRAME_QUALITY', '80'))
 MAX_FPS = float(os.environ.get('AIDESK_MAX_FPS', '1.0'))
 STATUS_PATH = OUTPUT_PATH + '.status'
+TOKEN_PATH = os.path.join(
+    os.environ.get('XDG_DATA_HOME', os.path.expanduser('~/.local/share')),
+    'aidesk', 'screencast_restore_token'
+)
 
 SCREENCAST_IFACE = 'org.freedesktop.portal.ScreenCast'
 REQUEST_IFACE = 'org.freedesktop.portal.Request'
@@ -51,6 +55,7 @@ class ScreenCastCapture:
         self.frame_count = 0
         self.last_width = 0
         self.last_height = 0
+        self.restore_token = self._load_restore_token()
 
         # Unique sender name for request paths
         self.sender_name = (
@@ -143,17 +148,21 @@ class ScreenCastCapture:
         token = self._next_token()
         self._subscribe_response(token, self._on_sources_selected)
 
+        options = {
+            'handle_token': GLib.Variant('s', token),
+            'types': GLib.Variant('u', 1),       # 1 = MONITOR
+            'multiple': GLib.Variant('b', False),
+            'persist_mode': GLib.Variant('u', 2), # 2 = persist until revoked
+        }
+
+        # Pass saved restore_token to skip the permission dialog
+        if self.restore_token:
+            options['restore_token'] = GLib.Variant('s', self.restore_token)
+            self._log(f"Using saved restore_token (len={len(self.restore_token)})")
+
         self._portal_call(
             'SelectSources',
-            GLib.Variant('(oa{sv})', [
-                self.session_handle,
-                {
-                    'handle_token': GLib.Variant('s', token),
-                    'types': GLib.Variant('u', 1),       # 1 = MONITOR
-                    'multiple': GLib.Variant('b', False),
-                    'persist_mode': GLib.Variant('u', 2), # 2 = persist until revoked
-                },
-            ]),
+            GLib.Variant('(oa{sv})', [self.session_handle, options]),
         )
         self._log("SelectSources called")
 
@@ -186,9 +195,24 @@ class ScreenCastCapture:
     def _on_session_started(self, response, results):
         if response != 0:
             self._log(f"Start failed (response={response})")
+            # If restore_token was invalid, clear it and retry from scratch
+            if self.restore_token:
+                self._log("Clearing stale restore_token and retrying...")
+                self.restore_token = None
+                self._save_restore_token(None)
+                self._create_session()
+                return
             self._write_status({"state": "error", "error": "Start denied"})
             self.loop.quit()
             return
+
+        # Save restore_token for next startup (skips permission dialog)
+        restore_token_v = results.lookup_value('restore_token', GLib.VariantType.new('s'))
+        if restore_token_v:
+            new_token = restore_token_v.get_string()
+            self._save_restore_token(new_token)
+            self.restore_token = new_token
+            self._log(f"Restore token saved (len={len(new_token)})")
 
         # Extract PipeWire node ID from streams
         streams = results.lookup_value('streams', None)
@@ -328,6 +352,32 @@ class ScreenCastCapture:
                 json.dump(data, f)
         except Exception:
             pass
+
+    @staticmethod
+    def _load_restore_token():
+        """Load saved restore_token from disk (skips permission dialog)."""
+        try:
+            if os.path.exists(TOKEN_PATH):
+                with open(TOKEN_PATH) as f:
+                    token = f.read().strip()
+                if token:
+                    return token
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _save_restore_token(token):
+        """Save restore_token to disk for next startup."""
+        try:
+            os.makedirs(os.path.dirname(TOKEN_PATH), exist_ok=True)
+            if token:
+                with open(TOKEN_PATH, 'w') as f:
+                    f.write(token)
+            elif os.path.exists(TOKEN_PATH):
+                os.unlink(TOKEN_PATH)
+        except Exception as e:
+            print(f"[screencast] Failed to save restore_token: {e}", flush=True)
 
     @staticmethod
     def _log(msg):
