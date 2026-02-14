@@ -1,0 +1,77 @@
+project: aidesk
+generated: "2026-02-14T06:58:35.638269"
+modules[9]{path,lang,items}:
+  backend/stt.py,python,6
+  backend/analyzer.py,python,9
+  backend/capture.py,python,5
+  backend/server.py,python,9
+  backend/context.py,python,6
+  backend/test_setup.py,python,2
+  overlay/preload.js,javascript,0
+  overlay/main.js,javascript,1
+  overlay/app.js,javascript,9
+
+function_details:
+  backend/stt.py:
+    functions[6]{name,kind,sig,loc,async,lines,cc,does}:
+      create_stt_from_env,function,"() -> Optional[RealtimeSTT]",196-215,false,20,3,Create STT instance from environment variables.
+      RealtimeSTT.__init__,method,"(api_key:str, language:str='pl', model:str='nova-3')",25-53,false,29,1,Initialize STT.
+      RealtimeSTT.start,method,"(on_transcript:Callable)",55-125,true,71,4,Start streaming STT.
+      RealtimeSTT._capture_audio,method,(),127-163,true,37,3,Capture audio from microphone and stream to Deepgram.
+      RealtimeSTT.stop,method,(),165-183,true,19,4,Stop streaming STT.
+      RealtimeSTT.get_stats,method,() -> dict,185-193,false,9,1,Get STT statistics.
+  backend/analyzer.py:
+    functions[9]{name,kind,sig,loc,async,lines,cc,does}:
+      create_analyzer_from_env,function,() -> ScreenAnalyzer,285-296,false,12,1,Create analyzer from environment variables.
+      TokenBucketLimiter.__init__,method,"(max_tokens:int=5, refill_rate:float=1.0)",25-30,false,6,1,creates
+      TokenBucketLimiter.acquire,method,(),32-47,true,16,3,"Acquire a token, waiting if necessary."
+      ScreenAnalyzer.__init__,method,"(provider:VisionProvider='gemini', gemini_model:str='gemini-2.0-flash-exp', openai_model:str='gpt-4o-mini', claude_model:str='claude-sonnet-4-20250514')",76-125,false,50,7,Initialize analyzer.
+      ScreenAnalyzer.analyze,method,"(image_b64:str, context:str='') -> Dict",127-173,true,47,6,Analyze screen image.
+      ScreenAnalyzer._analyze_gemini,method,"(image_b64:str, prompt:str) -> Dict",175-192,true,18,2,Analyze with Gemini.
+      ScreenAnalyzer._analyze_openai,method,"(image_b64:str, prompt:str) -> Dict",194-228,true,35,1,Analyze with OpenAI.
+      ScreenAnalyzer._analyze_claude,method,"(image_b64:str, prompt:str) -> Dict",230-267,true,38,1,Analyze with Claude.
+      ScreenAnalyzer.get_stats,method,() -> Dict,269-282,false,14,2,Get analyzer statistics.
+  backend/capture.py:
+    functions[5]{name,kind,sig,loc,async,lines,cc,does}:
+      create_capture_from_env,function,() -> SmartScreenCapture,171-185,false,15,1,Create capture instance from environment variables.
+      SmartScreenCapture.__init__,method,"(change_threshold:int=8, min_interval:float=1.0, idle_threshold:int=30, idle_interval:float=10.0, screen_width:int=1280, screen_height:int=720, jpeg_quality:int=60)",23-64,false,42,1,Initialize screen capture.
+      SmartScreenCapture.capture,method,"() -> Optional[Dict]",66-140,false,75,6,Capture screen and return if meaningful change detected.
+      SmartScreenCapture.adaptive_interval,method,() -> float,143-152,false,10,2,Adaptive polling interval based on screen activity.
+      SmartScreenCapture.get_stats,method,() -> Dict,154-167,false,14,2,Get capture statistics.
+  backend/server.py:
+    functions[9]{name,kind,sig,loc,async,lines,cc,does}:
+      broadcast,function,"(event_type:str, data:Dict)",53-77,true,25,5,Broadcast SSE event to all connected overlay clients.
+      screen_analysis_loop,function,(),80-137,true,58,4,"Main loop: capture → detect change → analyze → broadcast."
+      on_transcript,function,"(text:str, is_final:bool)",140-156,true,17,2,Callback for STT transcripts.
+      lifespan,function,"(app:FastAPI)",160-198,true,39,6,FastAPI lifespan context manager for startup/shutdown.
+      root,function,(),220-232,true,13,1,Root endpoint.
+      sse_stream,function,"(request:Request)",236-282,true,47,1,Server-Sent Events endpoint for real-time updates.
+      status,function,(),286-293,true,8,1,Get current status and latest data.
+      stats,function,(),297-322,true,26,4,Get detailed statistics.
+      health,function,(),326-342,true,17,4,Health check endpoint.
+  backend/context.py:
+    functions[6]{name,kind,sig,loc,async,lines,cc,does}:
+      ContextManager.__init__,method,"(max_items:int=20)",19-30,false,12,1,Initialize context manager.
+      ContextManager.add,method,"(content:str, context_type:ContextType='screen', metadata:Dict=None)",32-61,false,30,2,Add item to context.
+      ContextManager.get_recent,method,"(n:int=5, context_type:ContextType=None) -> List[Dict]",63-79,false,17,4,Get recent context items.
+      ContextManager.get_context_string,method,"(n:int=5, max_length:int=500) -> str",81-123,false,43,5,Get recent context as formatted string.
+      ContextManager.clear,method,(),125-128,false,4,1,Clear all context.
+      ContextManager.get_stats,method,() -> Dict,130-148,false,19,4,Get context statistics.
+  backend/test_setup.py:
+    functions[2]{name,kind,sig,loc,async,lines,cc,does}:
+      check,function,"(name, passed, details='')",16-22,false,7,3,Print check result.
+      main,function,(),24-195,false,172,23,main
+  overlay/main.js:
+    functions[1]{name,kind,sig,loc,async,lines,cc,does}:
+      createOverlay,function,(),9-46,false,38,1,creates overlay
+  overlay/app.js:
+    functions[9]{name,kind,sig,loc,async,lines,cc,does}:
+      connect,function,(),26-81,false,56,1,registers
+      updateConnectionStatus,function,(status),86-102,false,17,1,updates connection status
+      handleAnalysis,function,(data),107-125,false,19,1,handles analysis
+      handleTranscript,function,(data),130-150,false,21,1,handles transcript
+      handleError,function,(data),155-165,false,11,1,handles error
+      formatAnalysisText,function,(text),170-209,false,40,1,formats analysis text
+      updateTimestamp,function,(unixTimestamp),214-222,false,9,1,updates timestamp
+      escapeHtml,function,(text),227-231,false,5,1,escape html
+      checkHealth,function,(),236-246,true,11,1,checks health
