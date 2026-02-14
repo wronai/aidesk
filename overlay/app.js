@@ -174,10 +174,16 @@ class App {
 
   async analyzeSelection(text) {
     try {
+      // Read system clipboard to send alongside selection for intent detection
+      let clipboard_text = '';
+      try {
+        clipboard_text = await navigator.clipboard.readText();
+      } catch (_) { /* clipboard read may fail without focus */ }
+
       const res = await fetch(`${BACKEND_URL}/analyze-selection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, clipboard_text }),
       });
       const data = await res.json();
       this.selectionPanel.showResult(data);
@@ -189,10 +195,15 @@ class App {
   async executeSkill(detail) {
     const { skill, option_id, text } = detail;
     try {
+      let clipboard_text = '';
+      try {
+        clipboard_text = await navigator.clipboard.readText();
+      } catch (_) { /* clipboard read may fail without focus */ }
+
       const res = await fetch(`${BACKEND_URL}/skill/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill, option_id, text }),
+        body: JSON.stringify({ skill, option_id, text, clipboard_text }),
       });
       const data = await res.json();
       this.selectionPanel.showSkillResult(data);

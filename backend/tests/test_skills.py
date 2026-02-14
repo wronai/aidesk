@@ -412,3 +412,247 @@ class TestSerialization:
         ctx = SkillContext()
         assert ctx.locale == "pl"
         assert ctx.timestamp > 0
+
+    def test_skill_context_clipboard_fields(self):
+        ctx = SkillContext(clipboard_top="hello", clipboard_items=[{"text": "hello"}])
+        assert ctx.clipboard_top == "hello"
+        assert len(ctx.clipboard_items) == 1
+
+
+# ===== ClipboardRelationSkill =====
+
+from skills.clipboard_relation import ClipboardRelationSkill, _detect_lang, _text_similarity, _extract_domain
+
+
+class TestClipboardRelationDetection:
+    """Test intent detection from selection ↔ clipboard pairs."""
+
+    def setup_method(self):
+        self.skill = ClipboardRelationSkill()
+
+    def test_no_clipboard_returns_zero(self):
+        ctx = _ctx(clipboard_top="")
+        assert self.skill.detect("some text", ctx) == 0.0
+
+    def test_already_copied_exact(self):
+        ctx = _ctx(clipboard_top="hello world")
+        conf = self.skill.detect("hello world", ctx)
+        assert conf > 0.9
+
+    def test_already_copied_near_match(self):
+        ctx = _ctx(clipboard_top="hello world!")
+        conf = self.skill.detect("hello world!", ctx)
+        assert conf > 0.9
+
+    def test_error_file_match(self):
+        traceback = '''Traceback (most recent call last):
+  File "app.py", line 42, in main
+    do_stuff()
+TypeError: bad argument'''
+        ctx = _ctx(clipboard_top=traceback)
+        conf = self.skill.detect("app.py", ctx)
+        assert conf > 0.8
+
+    def test_error_file_no_match(self):
+        ctx = _ctx(clipboard_top="Traceback: File \"other.py\", line 1")
+        conf = self.skill.detect("app.py", ctx)
+        assert conf == 0.0  # file not mentioned in error
+
+    def test_cross_language_en_pl(self):
+        ctx = _ctx(clipboard_top="The quick brown fox jumps over the lazy dog and they have been with this")
+        conf = self.skill.detect("To jest prosty polski tekst ale nie tylko przez przypadek też bardzo", ctx)
+        assert conf > 0.5
+
+    def test_same_language_no_cross(self):
+        ctx = _ctx(clipboard_top="The quick brown fox jumps over the lazy dog")
+        conf = self.skill.detect("Another English sentence with common words here", ctx)
+        # Should not trigger cross_language (both English)
+        match = self.skill._best_intent("Another English sentence with common words here", ctx)
+        if match:
+            assert match.name != "cross_language"
+
+    def test_complement_cmd_package(self):
+        error = "ModuleNotFoundError: No module named 'flask'"
+        ctx = _ctx(clipboard_top=error)
+        conf = self.skill.detect("flask", ctx)
+        assert conf > 0.8
+
+    def test_complement_cmd_no_error(self):
+        ctx = _ctx(clipboard_top="just some normal text")
+        conf = self.skill.detect("flask", ctx)
+        # No error in clipboard → no complement_cmd
+        intent = self.skill._best_intent("flask", ctx)
+        if intent:
+            assert intent.name != "complement_cmd"
+
+    def test_url_pair_same_domain(self):
+        ctx = _ctx(clipboard_top="https://github.com/user/repo1")
+        conf = self.skill.detect("https://github.com/user/repo2", ctx)
+        assert conf > 0.5
+
+    def test_url_pair_different_domain(self):
+        ctx = _ctx(clipboard_top="https://google.com/search")
+        conf = self.skill.detect("https://github.com/user/repo", ctx)
+        assert conf > 0.3
+
+    def test_save_to_path(self):
+        ctx = _ctx(clipboard_top="This is a long content that should be saved to a file somewhere on disk")
+        conf = self.skill.detect("/tmp/output.txt", ctx)
+        assert conf > 0.5
+
+    def test_code_similarity(self):
+        code_a = "def hello():\n    print('hello')\n    return True"
+        code_b = "def hello():\n    print('world')\n    return False"
+        ctx = _ctx(clipboard_top=code_b)
+        conf = self.skill.detect(code_a, ctx)
+        assert conf > 0.5
+
+    def test_diff_fragments(self):
+        text_a = "The quick brown fox jumps over the lazy dog in the park"
+        text_b = "The quick brown cat jumps over the lazy dog in the garden"
+        ctx = _ctx(clipboard_top=text_b)
+        conf = self.skill.detect(text_a, ctx)
+        assert conf > 0.3
+
+
+class TestClipboardRelationOptions:
+    """Test that correct options are returned for each intent."""
+
+    def setup_method(self):
+        self.skill = ClipboardRelationSkill()
+
+    def test_already_copied_options(self):
+        ctx = _ctx(clipboard_top="hello world")
+        options = self.skill.get_options("hello world", ctx)
+        ids = [o.id for o in options]
+        assert "replace_clipboard" in ids
+
+    def test_error_file_options(self):
+        tb = 'Traceback (most recent call last):\n  File "app.py", line 42, in main\n    do_stuff()\nTypeError: bad argument'
+        ctx = _ctx(clipboard_top=tb)
+        options = self.skill.get_options("app.py", ctx)
+        ids = [o.id for o in options]
+        assert "open_error_file" in ids
+
+    def test_cross_language_options(self):
+        ctx = _ctx(clipboard_top="The quick brown fox jumps over the lazy dog and they have been with this")
+        options = self.skill.get_options("To jest prosty polski tekst ale nie tylko przez przypadek też bardzo", ctx)
+        ids = [o.id for o in options]
+        assert "translate_pair" in ids
+
+    def test_install_options(self):
+        ctx = _ctx(clipboard_top="ModuleNotFoundError: No module named 'requests'")
+        options = self.skill.get_options("requests", ctx)
+        ids = [o.id for o in options]
+        assert "install_package" in ids
+
+
+class TestClipboardRelationExecution:
+    """Test skill execution for various option_ids."""
+
+    def setup_method(self):
+        self.skill = ClipboardRelationSkill()
+
+    def test_copy_both(self):
+        ctx = _ctx(clipboard_top="clipboard content")
+        result = asyncio.get_event_loop().run_until_complete(
+            self.skill.execute("selection text", "copy_both", ctx)
+        )
+        assert result.success
+        assert "selection text" in result.clipboard_text
+        assert "clipboard content" in result.clipboard_text
+
+    def test_show_diff(self):
+        ctx = _ctx(clipboard_top="line A\nline B")
+        result = asyncio.get_event_loop().run_until_complete(
+            self.skill.execute("line A\nline C", "show_diff", ctx)
+        )
+        assert result.success
+        assert "---" in result.output
+
+    def test_replace_clipboard(self):
+        ctx = _ctx(clipboard_top="old")
+        result = asyncio.get_event_loop().run_until_complete(
+            self.skill.execute("new text", "replace_clipboard", ctx)
+        )
+        assert result.success
+        assert result.clipboard_text == "new text"
+
+    def test_translate_pair(self):
+        ctx = _ctx(clipboard_top="Hello world")
+        result = asyncio.get_event_loop().run_until_complete(
+            self.skill.execute("Cześć świat", "translate_pair", ctx)
+        )
+        assert result.success
+        assert "Cześć świat" in result.clipboard_text
+        assert "Hello world" in result.clipboard_text
+
+    def test_search_pair(self):
+        ctx = _ctx(clipboard_top="some error")
+        result = asyncio.get_event_loop().run_until_complete(
+            self.skill.execute("flask", "search_pair", ctx)
+        )
+        assert result.success
+        assert result.open_url
+        assert "google" in result.open_url
+
+    def test_unknown_option(self):
+        ctx = _ctx(clipboard_top="x")
+        result = asyncio.get_event_loop().run_until_complete(
+            self.skill.execute("y", "nonexistent", ctx)
+        )
+        assert not result.success
+
+
+class TestClipboardRelationHelpers:
+    """Test helper functions."""
+
+    def test_detect_lang_english(self):
+        assert _detect_lang("The quick brown fox jumps over the lazy dog and they have been with this") == "en"
+
+    def test_detect_lang_polish(self):
+        assert _detect_lang("To jest prosty tekst ale nie tylko przez przypadek") == "pl"
+
+    def test_detect_lang_cyrillic(self):
+        assert _detect_lang("Привет мир") == "ru"
+
+    def test_detect_lang_unknown(self):
+        assert _detect_lang("xyz 123") == "unknown"
+
+    def test_text_similarity_identical(self):
+        assert _text_similarity("hello", "hello") == 1.0
+
+    def test_text_similarity_empty(self):
+        assert _text_similarity("", "hello") == 0.0
+
+    def test_text_similarity_partial(self):
+        sim = _text_similarity("hello world", "hello earth")
+        assert 0.3 < sim < 0.9
+
+    def test_extract_domain(self):
+        assert _extract_domain("Visit https://github.com/user/repo") == "github.com"
+
+    def test_extract_domain_none(self):
+        assert _extract_domain("no url here") == ""
+
+
+class TestClipboardRelationInRouter:
+    """Test that ClipboardRelationSkill integrates with SkillRouter."""
+
+    def test_router_includes_clipboard_relation(self):
+        router = SkillRouter()
+        assert "clipboard_relation" in router.get_skill_names()
+
+    def test_router_detects_already_copied(self):
+        router = SkillRouter()
+        ctx = _ctx(clipboard_top="git status --short")
+        matches = router.analyze("git status --short", ctx)
+        names = [m.skill_name for m in matches]
+        assert "clipboard_relation" in names
+
+    def test_router_no_clipboard_no_match(self):
+        router = SkillRouter()
+        ctx = _ctx(clipboard_top="")
+        matches = router.analyze("some random text", ctx)
+        names = [m.skill_name for m in matches]
+        assert "clipboard_relation" not in names

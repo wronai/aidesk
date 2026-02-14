@@ -56,13 +56,34 @@ run: stop ## Run backend + overlay + open browser windows
 		echo "❌ backend/.env not found. Run 'make setup' first."; exit 1; \
 	fi
 	@echo "🚀 Starting backend on port $(PORT)..."
-	$(PYTHON) $(BACKEND_DIR)/server.py &
-	@sleep 2
-	@echo "🌐 Opening browser windows..."
-	@xdg-open http://127.0.0.1:$(PORT)/config/ui 2>/dev/null || open http://127.0.0.1:$(PORT)/config/ui 2>/dev/null || true
-	@xdg-open http://127.0.0.1:$(PORT)/browser 2>/dev/null || open http://127.0.0.1:$(PORT)/browser 2>/dev/null || true
-	@echo "🖥️  Starting overlay..."
-	$(NPM) start --prefix $(OVERLAY_DIR)
+	@set +e; \
+	$(PYTHON) $(BACKEND_DIR)/server.py & \
+	BACKEND_PID=$$!; \
+	cleanup() { \
+		if kill -0 $$BACKEND_PID 2>/dev/null; then \
+			kill -INT $$BACKEND_PID 2>/dev/null || true; \
+			for _ in 1 2 3 4 5 6 7 8 9 10; do \
+				kill -0 $$BACKEND_PID 2>/dev/null || break; \
+				sleep 0.2; \
+			done; \
+			if kill -0 $$BACKEND_PID 2>/dev/null; then \
+				kill -KILL $$BACKEND_PID 2>/dev/null || true; \
+			fi; \
+			wait $$BACKEND_PID 2>/dev/null || true; \
+		fi; \
+	}; \
+	trap cleanup EXIT; \
+	trap 'cleanup; exit 0' INT TERM; \
+	sleep 2; \
+	echo "🌐 Opening browser windows..."; \
+	xdg-open http://127.0.0.1:$(PORT)/config/ui 2>/dev/null || open http://127.0.0.1:$(PORT)/config/ui 2>/dev/null || true; \
+	xdg-open http://127.0.0.1:$(PORT)/browser 2>/dev/null || open http://127.0.0.1:$(PORT)/browser 2>/dev/null || true; \
+	echo "🖥️  Starting overlay..."; \
+	$(NPM) start --prefix $(OVERLAY_DIR); \
+	STATUS=$$?; \
+	if [ $$STATUS -ne 0 ] && [ $$STATUS -ne 130 ] && [ $$STATUS -ne 143 ]; then \
+		exit $$STATUS; \
+	fi
 
 run-backend: stop ## Run backend only
 	@if [ ! -f $(BACKEND_DIR)/.env ]; then \

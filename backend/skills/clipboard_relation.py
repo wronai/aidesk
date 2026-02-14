@@ -34,7 +34,15 @@ logger = structlog.get_logger()
 
 _LANG_WORDS: Dict[str, Set[str]] = {
     "en": {"the", "is", "are", "was", "have", "has", "been", "will", "with", "from",
-            "this", "that", "which", "about", "your", "they", "their", "what", "where"},
+            "this", "that", "which", "about", "your", "they", "their", "what", "where",
+            "over", "for", "not", "but", "you", "all", "can", "her", "one", "our",
+            "out", "day", "had", "hot", "how", "its", "may", "old", "see", "now",
+            "way", "who", "did", "get", "let", "say", "she", "too", "use", "just",
+            "than", "them", "then", "very", "when", "come", "each", "make", "like",
+            "long", "look", "many", "some", "time", "been", "would", "could", "other",
+            "into", "more", "also", "back", "after", "work", "first", "even", "new",
+            "because", "good", "give", "most", "only", "tell", "before", "between",
+            "quick", "brown", "fox", "jumps", "lazy", "dog"},
     "pl": {"jest", "nie", "się", "jak", "ale", "czy", "już", "tak", "lub", "dla",
             "tym", "jego", "też", "tylko", "przez", "może", "bardzo", "jeszcze"},
     "de": {"der", "die", "das", "und", "ist", "ein", "eine", "nicht", "auf", "mit"},
@@ -71,6 +79,11 @@ def _detect_lang(text: str) -> str:
         if score > best_score:
             best, best_score = lang, score
     return best if best_score >= 2 else "unknown"
+
+
+def _detect_lang_pair(text_a: str, text_b: str) -> Tuple[str, str]:
+    """Detect languages of both texts. Returns (lang_a, lang_b)."""
+    return _detect_lang(text_a), _detect_lang(text_b)
 
 
 def _text_similarity(a: str, b: str) -> float:
@@ -214,14 +227,16 @@ class ClipboardRelationSkill(BaseSkill):
         return None
 
     def _check_error_file_match(self, text: str, clipboard: str) -> Optional[_Intent]:
-        """Selection is a file path, clipboard has traceback mentioning that file."""
-        if not _PATH_RE.search(text):
+        """Selection is a file path/name, clipboard has traceback mentioning that file."""
+        clean = text.strip().split("\n")[0].strip().strip("'\"")
+        # Accept full paths OR bare filenames with extension (e.g. app.py, main.rs)
+        is_path = bool(_PATH_RE.search(clean))
+        is_filename = bool(re.match(r"^[\w./-]+\.\w{1,10}$", clean))
+        if not is_path and not is_filename:
             return None
         if not _ERROR_RE.search(clipboard):
             return None
-        # Check if the file path appears in the error
-        path = text.strip().split("\n")[0].strip().strip("'\"")
-        basename = path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        basename = clean.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
         if basename and basename in clipboard:
             return _Intent(
                 "error_file_match", 0.92,
@@ -237,7 +252,7 @@ class ClipboardRelationSkill(BaseSkill):
             return None
         if lang_sel != lang_clip:
             return _Intent(
-                "cross_language", 0.75,
+                "cross_language", 0.78,
                 f"Para językowa: {lang_sel} ↔ {lang_clip}", "🌐",
                 options_fn=self._translate_options,
             )

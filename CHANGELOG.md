@@ -1,3 +1,18 @@
+## [2.1.11] - 2026-02-14
+
+### Summary
+
+fix(build): CLI interface improvements
+
+### Other
+
+- build: update Makefile
+- update backend/skills/clipboard_relation.py
+- update backend/skills/error_fixer.py
+- update backend/tests/test_skills.py
+- update overlay/app.js
+
+
 ## [2.1.10] - 2026-02-14
 
 ### Summary

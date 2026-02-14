@@ -111,13 +111,26 @@ class ErrorFixerSkill(BaseSkill):
             self._compiled.append((rule, re.compile(rule["pattern"], flags)))
 
     def detect(self, text: str, ctx: SkillContext) -> float:
+        base = 0.0
         for rule, compiled in self._compiled:
             if compiled.search(text):
-                return 0.9
-        # Generic error keywords
-        if re.search(r"\b(error|exception|failed|fatal|traceback)\b", text, re.IGNORECASE):
-            return 0.4
-        return 0.0
+                base = 0.9
+                break
+        if base == 0.0:
+            if re.search(r"\b(error|exception|failed|fatal|traceback)\b", text, re.IGNORECASE):
+                base = 0.4
+
+        # Boost if clipboard has related context (file path in error, or command that caused it)
+        if base > 0 and ctx.clipboard_top:
+            clip = ctx.clipboard_top.strip()
+            # Clipboard is a file path mentioned in the error
+            if re.match(r"^[\w./-]+\.\w{1,10}$", clip) and clip in text:
+                base = min(base + 0.05, 1.0)
+            # Clipboard is a command that might have caused the error
+            elif re.match(r"^[\w][\w\s./-]{2,60}$", clip) and any(w in text for w in clip.split()[:3]):
+                base = min(base + 0.03, 1.0)
+
+        return base
 
     def _find_match(self, text: str):
         for rule, compiled in self._compiled:
