@@ -1,3 +1,20 @@
+## [2.1.5] - 2026-02-14
+
+### Summary
+
+refactor(tests): code analysis engine
+
+### Other
+
+- update backend/action_templates.py
+- update backend/analyzer.py
+- update backend/capture.py
+- update backend/ocr_engines.py
+- update backend/plugins/interface.py
+- update backend/plugins/loader.py
+- update backend/tests/test_wayland_screencast.py
+
+
 ## [2.1.4] - 2026-02-14
 
 ### Summary

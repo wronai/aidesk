@@ -521,14 +521,15 @@ class OCRManager:
         }
 
 
-def create_ocr_manager_from_env() -> OCRManager:
-    """Create OCR manager from environment variables."""
-    from dotenv import load_dotenv
-    load_dotenv()
+def create_ocr_manager_from_env(settings=None) -> OCRManager:
+    """Create OCRManager from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
 
     return OCRManager(
-        default_engine=os.getenv("OCR_ENGINE", "paddleocr"),
-        languages=os.getenv("OCR_LANGUAGES", "pl,en").split(","),
-        use_gpu=os.getenv("OCR_USE_GPU", "false").lower() == "true",
-        enabled=os.getenv("ENABLE_OCR", "true").lower() == "true",
+        default_engine=settings.ocr_engine,
+        languages=settings.ocr_languages_list,
+        use_gpu=settings.ocr_use_gpu,
+        enabled=settings.enable_ocr,
     )

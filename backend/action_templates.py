@@ -618,10 +618,14 @@ class AppActionLibrary:
             self._db = None
 
 
-def create_action_library_from_env() -> AppActionLibrary:
-    """Create AppActionLibrary from environment variables."""
+def create_action_library_from_env(settings=None) -> AppActionLibrary:
+    """Create AppActionLibrary from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
+
     return AppActionLibrary(
-        db_path=os.getenv("ACTION_TEMPLATES_DB", "logs/action_templates.db"),
-        auto_approve_default=int(os.getenv("ACTION_AUTO_APPROVE_AFTER", "3")),
-        enabled=os.getenv("ENABLE_ACTION_TEMPLATES", "true").lower() == "true",
+        db_path=settings.action_templates_db,
+        auto_approve_default=settings.action_auto_approve_after,
+        enabled=settings.enable_action_templates,
     )

@@ -420,19 +420,19 @@ Zwróć odpowiedź jako JSON:
         return stats
 
 
-def create_analyzer_from_env(ocr_manager: Optional[OCRManager] = None) -> ScreenAnalyzer:
-    """Create analyzer from environment variables."""
-    from dotenv import load_dotenv
-
-    load_dotenv()
+def create_analyzer_from_env(ocr_manager: Optional[OCRManager] = None, settings=None) -> ScreenAnalyzer:
+    """Create analyzer from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
 
     return ScreenAnalyzer(
-        model=os.getenv("VISION_MODEL", "ollama/llava"),
-        api_base=os.getenv("LITELLM_API_BASE") or None,
-        api_key=os.getenv("LITELLM_API_KEY") or None,
-        max_tokens=int(os.getenv("VISION_MAX_TOKENS", "400")),
-        temperature=float(os.getenv("VISION_TEMPERATURE", "0.3")),
-        image_detail=os.getenv("VISION_IMAGE_DETAIL", "low"),
+        model=settings.vision_model,
+        api_base=settings.litellm_api_base or None,
+        api_key=settings.litellm_api_key or None,
+        max_tokens=settings.vision_max_tokens,
+        temperature=settings.vision_temperature,
+        image_detail=settings.vision_image_detail,
         ocr_manager=ocr_manager,
-        analysis_mode=os.getenv("ANALYSIS_MODE", "hybrid"),
+        analysis_mode=settings.analysis_mode,
     )

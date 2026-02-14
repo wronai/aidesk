@@ -521,19 +521,19 @@ class SmartScreenCapture:
 
 
 # Configuration from environment
-def create_capture_from_env() -> SmartScreenCapture:
-    """Create capture instance from environment variables."""
-    from dotenv import load_dotenv
-
-    load_dotenv()
+def create_capture_from_env(settings=None) -> SmartScreenCapture:
+    """Create SmartScreenCapture from settings."""
+    if settings is None:
+        from settings import get_settings
+        settings = get_settings()
 
     return SmartScreenCapture(
-        change_threshold=int(os.getenv("CHANGE_THRESHOLD", "8")),
-        min_interval=float(os.getenv("MIN_CAPTURE_INTERVAL", "1.0")),
-        idle_threshold=int(os.getenv("IDLE_THRESHOLD", "30")),
-        idle_interval=float(os.getenv("IDLE_INTERVAL", "10.0")),
-        max_dimension=int(os.getenv("MAX_DIMENSION", "1280")),
-        jpeg_quality=int(os.getenv("JPEG_QUALITY", "60")),
-        captures_dir=os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures"),
-        save_to_disk=os.getenv("SAVE_CAPTURES", "true").lower() == "true",
+        change_threshold=settings.change_threshold,
+        min_interval=settings.min_capture_interval,
+        idle_threshold=30,  # Default, add to Settings if needed
+        idle_interval=10.0,  # Default, add to Settings if needed
+        max_dimension=settings.max_dimension,
+        jpeg_quality=settings.jpeg_quality,
+        captures_dir=settings.captures_dir,
+        save_to_disk=settings.save_captures,
     )
