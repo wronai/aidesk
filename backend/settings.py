@@ -46,12 +46,22 @@ class Settings(BaseSettings):
     analysis_mode: str = Field("hybrid", description="vision_only|ocr_only|hybrid|ocr_plus_vision")
 
     # ===== OCR =====
-    ocr_engine: str = Field("paddleocr", description="paddleocr|easyocr|tesseract")
+    ocr_engine: str = Field("paddleocr", description="paddleocr|easyocr|tesseract|vlm_ocr")
     ocr_languages: str = Field("pl,en")
     ocr_use_gpu: bool = False
     enable_ocr: bool = True
 
+    # ===== VLM OCR (Cloud-based OCR via OpenRouter/LiteLLM) =====
+    vlm_ocr_model: str = Field(
+        "openrouter/qwen/qwen2.5-vl-32b-instruct:free",
+        description="LiteLLM model string for VLM OCR engine",
+    )
+    vlm_ocr_max_tokens: int = Field(1500, ge=100, le=4096)
+    vlm_ocr_timeout: float = Field(15.0, ge=1.0)
+    vlm_ocr_image_detail: str = Field("low", pattern="^(low|high|auto)$")
+
     # ===== API Keys =====
+    openrouter_api_key: str = ""
     gemini_api_key: str = ""
     openai_api_key: str = ""
     anthropic_api_key: str = ""
@@ -200,7 +210,7 @@ class Settings(BaseSettings):
     @field_validator("ocr_engine")
     @classmethod
     def validate_ocr_engine(cls, v):
-        valid = {"paddleocr", "easyocr", "tesseract"}
+        valid = {"paddleocr", "easyocr", "tesseract", "vlm_ocr"}
         if v not in valid:
             raise ValueError(f"ocr_engine must be one of {valid}, got '{v}'")
         return v

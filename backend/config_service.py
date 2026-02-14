@@ -338,16 +338,18 @@ CONFIG_SCHEMA = [
         "group": "🔤 OCR",
         "icon": "ocr",
         "fields": [
-            {"key": "OCR_ENGINE", "label": "Silnik OCR", "type": "select", "options": ["paddleocr", "easyocr", "tesseract"], "help": "PaddleOCR = najszybszy, EasyOCR = najdokładniejszy."},
+            {"key": "OCR_ENGINE", "label": "Silnik OCR", "type": "select", "options": ["paddleocr", "easyocr", "tesseract", "vlm_ocr"], "help": "PaddleOCR = najszybszy, EasyOCR = najdokładniejszy, VLM OCR = cloud (OpenRouter)."},
             {"key": "OCR_LANGUAGES", "label": "Języki OCR", "type": "text", "help": "Oddzielone przecinkami (np. pl,en)."},
             {"key": "OCR_USE_GPU", "label": "GPU dla OCR", "type": "bool", "help": "Wymaga CUDA."},
             {"key": "ENABLE_OCR", "label": "Włącz OCR", "type": "bool", "help": "Pre-processing tekstu z ekranu."},
+            {"key": "VLM_OCR_MODEL", "label": "VLM OCR Model", "type": "text", "help": "Model vision do cloud OCR (format LiteLLM: provider/model). Wymaga OCR_ENGINE=vlm_ocr."},
         ],
     },
     {
         "group": "🔑 Klucze API",
         "icon": "keys",
         "fields": [
+            {"key": "OPENROUTER_API_KEY", "label": "OpenRouter", "type": "password", "help": "openrouter.ai/keys (darmowe modele vision + LLM)."},
             {"key": "GEMINI_API_KEY", "label": "Google Gemini", "type": "password", "help": "makersuite.google.com/app/apikey"},
             {"key": "OPENAI_API_KEY", "label": "OpenAI", "type": "password", "help": "platform.openai.com/api-keys"},
             {"key": "ANTHROPIC_API_KEY", "label": "Anthropic Claude", "type": "password", "help": "console.anthropic.com"},

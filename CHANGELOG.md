@@ -1,3 +1,17 @@
+## [2.1.26] - 2026-02-14
+
+### Summary
+
+feat(examples): configuration management system
+
+### Other
+
+- update backend/.env.example
+- update backend/config_service.py
+- update backend/settings.py
+- update overlay/components/ocr-controls.js
+
+
 ## [2.1.25] - 2026-02-14
 
 ### Summary

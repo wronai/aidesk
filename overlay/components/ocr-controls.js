@@ -24,6 +24,7 @@ export class OCRControls extends BaseComponent {
               <option value="paddleocr">PaddleOCR</option>
               <option value="easyocr">EasyOCR</option>
               <option value="tesseract">Tesseract</option>
+              <option value="vlm_ocr">VLM OCR (Cloud)</option>
             </select>
           </div>
         </div>
