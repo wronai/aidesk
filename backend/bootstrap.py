@@ -38,6 +38,7 @@ from semantic_memory import create_semantic_memory_from_env
 from action_templates import create_action_library_from_env
 from ocr_post_process import create_ocr_enhancer_from_env
 from predictive_engine import create_predictive_engine_from_env
+from clipboard_intel import create_clipboard_manager_from_env
 
 logger = structlog.get_logger()
 
@@ -146,6 +147,7 @@ class AppBootstrap:
             ("action_library", create_action_library_from_env, {}),
             ("ocr_enhancer", create_ocr_enhancer_from_env, {}),
             ("predictive_engine", create_predictive_engine_from_env, {}),
+            ("clipboard_manager", create_clipboard_manager_from_env, {}),
         ]
         for key, factory, kwargs in tier1_components:
             ok = _init_optional(self.state, key, factory, **kwargs)
@@ -180,13 +182,15 @@ class AppBootstrap:
             action_library=self.state.get("action_library"),
             ocr_enhancer=self.state.get("ocr_enhancer"),
             predictive_engine=self.state.get("predictive_engine"),
+            clipboard_manager=self.state.get("clipboard_manager"),
         )
 
         # Profile Selector
         self.state["profile_selector"] = create_profile_selector()
 
-        # CQRS Read Model
+        # CQRS Read Model (restore from snapshot if available)
         read_model = ReadModel()
+        read_model.load_snapshot()
         self.state["read_model"] = read_model
 
         # Command handlers (write side)
@@ -279,6 +283,11 @@ class AppBootstrap:
     async def shutdown(self):
         """Cancel all tasks and emit shutdown event."""
         logger.info("Shutting down backend")
+
+        # Save ReadModel snapshot before shutdown
+        rm = self.state.get("read_model")
+        if rm:
+            rm.save_snapshot()
 
         bus = self.state.get("event_bus")
         if bus:

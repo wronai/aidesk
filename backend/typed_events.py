@@ -158,6 +158,22 @@ class TranscriptPayload(EventPayload):
     language: str = "pl"
 
 
+# ===== Clipboard Payloads =====
+
+class ClipboardUpdatedPayload(EventPayload):
+    """Payload for pipeline.clipboard_updated."""
+    auto_copied: int = 0
+    queue_size: int = 0
+    sources: List[str] = Field(default_factory=list)
+
+
+class PasteSuggestedPayload(EventPayload):
+    """Payload for pipeline.paste_suggested."""
+    count: int = 0
+    top_score: float = 0.0
+    top_label: str = ""
+
+
 # ===== Circuit Breaker Payloads =====
 
 class CircuitBreakerPayload(EventPayload):
@@ -190,6 +206,8 @@ PAYLOAD_REGISTRY: Dict[str, type] = {
     EventType.TRANSCRIPT_RECEIVED.value: TranscriptPayload,
     EventType.SPEECH_FINAL.value: TranscriptPayload,
     EventType.PIPELINE_COMPLETED.value: PipelineCompletedPayload,
+    EventType.CLIPBOARD_UPDATED.value: ClipboardUpdatedPayload,
+    EventType.PASTE_SUGGESTED.value: PasteSuggestedPayload,
 }
 
 

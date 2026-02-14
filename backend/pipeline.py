@@ -35,6 +35,7 @@ from typed_events import (
     WindowsScannedPayload, ActiveWindowPayload, ScreenCapturedPayload,
     ScreenOrganizedPayload, ContextBuiltPayload, AnalysisCompletedPayload,
     AgentSuggestedPayload, BroadcastSentPayload, PipelineCompletedPayload,
+    ClipboardUpdatedPayload, PasteSuggestedPayload,
 )
 
 logger = structlog.get_logger()
@@ -196,6 +197,10 @@ class PipelineContext:
     # Tier 1: Predictive pre-fetch
     prediction: Optional[Any] = None  # PredictionResult
     used_prefetch: bool = False
+
+    # Clipboard intelligence
+    clipboard_auto_copies: List[Dict] = field(default_factory=list)
+    clipboard_suggestions: List[Dict] = field(default_factory=list)
 
     # Pipeline profile for this run
     profile: str = "normal"  # PipelineProfile value
@@ -528,6 +533,88 @@ class SuggestActionsStep:
         return ctx
 
 
+class ClipboardStep:
+    """Phase 7b: Clipboard intelligence — auto-copy + paste suggestions.
+
+    Scans analysis/OCR text for actionable content (errors, URLs, commands)
+    and suggests best clipboard item for current context. Zero LLM.
+
+    Skipped on FAST profile (clipboard analysis is lower priority).
+    """
+    name = "clipboard_intel"
+
+    def __init__(self, clipboard_manager):
+        self._clipboard = clipboard_manager
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if self._clipboard is None:
+            return False
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False
+        return ctx.analysis_result is not None or ctx.active_window is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        category = ctx.active_window.category if ctx.active_window else None
+        if not category:
+            return ctx
+
+        # Build screen text from analysis + OCR
+        screen_text = ""
+        if ctx.analysis_result:
+            screen_text = ctx.analysis_result.get("text", "")
+            ocr_data = ctx.analysis_result.get("ocr")
+            if ocr_data and hasattr(ocr_data, "full_text"):
+                screen_text = f"{ocr_data.full_text}\n{screen_text}"
+
+        # Also add agent actions to clipboard queue
+        if ctx.agent_actions:
+            for action in ctx.agent_actions:
+                cmd = action.get("command", "")
+                if cmd:
+                    self._clipboard.push(
+                        cmd,
+                        source="agent",
+                        category=category.value,
+                        label=action.get("description", cmd[:40]),
+                    )
+
+        # Scan screen text for auto-copyable items
+        from clipboard_intel import ClipSource
+        auto_results = self._clipboard.scan_and_copy(screen_text, category)
+        ctx.clipboard_auto_copies = [r.to_dict() for r in auto_results]
+
+        # Generate paste suggestions
+        suggestions = self._clipboard.suggest_paste(category, screen_text)
+        ctx.clipboard_suggestions = [s.to_dict() for s in suggestions]
+
+        if auto_results:
+            await bus.publish(typed_event(
+                EventType.CLIPBOARD_UPDATED,
+                ClipboardUpdatedPayload(
+                    auto_copied=len(auto_results),
+                    queue_size=len(self._clipboard.queue),
+                    sources=[r.source.value for r in auto_results],
+                ),
+                source=self.name,
+                correlation_id=ctx.correlation_id,
+            ))
+
+        if suggestions:
+            top = suggestions[0]
+            await bus.publish(typed_event(
+                EventType.PASTE_SUGGESTED,
+                PasteSuggestedPayload(
+                    count=len(suggestions),
+                    top_score=top.score,
+                    top_label=top.label,
+                ),
+                source=self.name,
+                correlation_id=ctx.correlation_id,
+            ))
+
+        return ctx
+
+
 class BuildBroadcastStep:
     """Final: assemble broadcast payload from pipeline context."""
     name = "build_broadcast"
@@ -773,6 +860,79 @@ class PredictiveStep:
         return ctx
 
 
+class ClipboardStep:
+    """Tier 1: Context-aware clipboard intelligence — auto-copy + paste suggestions."""
+    name = "clipboard"
+
+    def __init__(self, clipboard_manager):
+        self._mgr = clipboard_manager
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False  # skip clipboard on idle ticks
+        return (
+            self._mgr is not None
+            and ctx.analysis_result is not None
+            and ctx.active_window is not None
+        )
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        from clipboard_intel import ClipSource
+        from typed_events import typed_event, ClipboardUpdatedPayload, PasteSuggestedPayload
+
+        # Extract screen text from analysis + OCR
+        screen_text = ctx.analysis_result.get("text", "")
+        ocr_data = ctx.analysis_result.get("ocr")
+        if ocr_data and ocr_data.get("text"):
+            screen_text = f"{screen_text}\n{ocr_data['text']}"
+
+        category = ctx.active_window.category
+
+        # Auto-copy actionable items from screen
+        auto_copied = self._mgr.scan_and_copy(screen_text, category)
+
+        # Also push any agent-suggested actions to clipboard queue
+        if ctx.agent_actions:
+            for action in ctx.agent_actions:
+                cmd = action.get("command", "") or action.get("cmd", "")
+                if cmd:
+                    self._mgr.push(
+                        cmd,
+                        source=ClipSource.AGENT,
+                        category=category.value,
+                        label=action.get("description", cmd[:60]),
+                    )
+
+        if auto_copied:
+            await bus.publish(typed_event(
+                EventType.CLIPBOARD_UPDATED,
+                ClipboardUpdatedPayload(
+                    auto_copied=len(auto_copied),
+                    queue_size=len(self._mgr.queue),
+                    sources=[r.source.value for r in auto_copied],
+                ),
+                source=self.name,
+                correlation_id=ctx.correlation_id,
+            ))
+
+        # Generate paste suggestions for current context
+        suggestions = self._mgr.suggest_paste(category, screen_text)
+        if suggestions:
+            ctx.clipboard_suggestions = [s.to_dict() for s in suggestions]
+            await bus.publish(typed_event(
+                EventType.PASTE_SUGGESTED,
+                PasteSuggestedPayload(
+                    count=len(suggestions),
+                    top_score=suggestions[0].score,
+                    top_label=suggestions[0].label,
+                ),
+                source=self.name,
+                correlation_id=ctx.correlation_id,
+            ))
+
+        return ctx
+
+
 # ===== Pipeline Orchestrator =====
 
 class ParallelGroup:
@@ -960,6 +1120,7 @@ def create_pipeline(
     action_library=None,
     ocr_enhancer=None,
     predictive_engine=None,
+    clipboard_manager=None,
 ) -> PipelineOrchestrator:
     """
     Factory: create the standard analysis pipeline from components.
@@ -977,10 +1138,11 @@ def create_pipeline(
       7. Analyze
       8* OCRPostProcess         — enhance OCR text after analysis
       9. SuggestActions
-     10* ActionTemplates        — learned action templates with confidence
-     11* SemanticMemory         — store + recall relevant past context
-     12* Predictive             — learn transitions + trigger pre-fetch
-     13. BuildBroadcast
+     10* ClipboardIntel         — auto-copy + paste suggestions (zero LLM)
+     11* ActionTemplates        — learned action templates with confidence
+     12* SemanticMemory         — store + recall relevant past context
+     13* Predictive             — learn transitions + trigger pre-fetch
+     14. BuildBroadcast
     """
     use_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
     scan_cache_ttl = float(os.getenv("SCAN_CACHE_TTL", "3.0"))
@@ -1027,7 +1189,11 @@ def create_pipeline(
     if shell_agent:
         pipeline.add_step(SuggestActionsStep(shell_agent))
 
-    # Phase 10-12*: Independent post-analysis steps (run in parallel)
+    # Phase 10*: Clipboard intelligence (after agent suggests, before parallel group)
+    if clipboard_manager:
+        pipeline.add_step(ClipboardStep(clipboard_manager))
+
+    # Phase 11-13*: Independent post-analysis steps (run in parallel)
     parallel_steps = []
     if action_library:
         parallel_steps.append(ActionTemplateStep(action_library))

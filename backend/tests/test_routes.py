@@ -618,12 +618,98 @@ class TestConfigRoutes:
         assert r.status_code == 200
 
 
+# ===== Clipboard Routes =====
+
+class TestClipboardRoutes:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from routes import clipboard
+        from clipboard_intel import ClipboardManager, ClipSource
+        mgr = ClipboardManager(max_items=10)
+        mgr.push("git pull --rebase", source=ClipSource.AGENT, category="terminal", label="Git fix")
+        mgr.push("pip install flask", source=ClipSource.USER, category="terminal")
+        state = _make_app_state()
+        state["clipboard_manager"] = mgr
+        app = FastAPI()
+        broadcast = AsyncMock()
+        clipboard.init(state, broadcast)
+        app.include_router(clipboard.router)
+        self.client = TestClient(app)
+        self.state = state
+        self.broadcast = broadcast
+        self.mgr = mgr
+
+    def test_get_queue(self):
+        r = self.client.get("/clipboard/queue?n=10")
+        assert r.status_code == 200
+        assert r.json()["total"] == 2
+        assert len(r.json()["items"]) == 2
+
+    def test_get_queue_not_initialized(self):
+        self.state["clipboard_manager"] = None
+        r = self.client.get("/clipboard/queue")
+        assert r.status_code == 503
+
+    def test_push(self):
+        r = self.client.post("/clipboard/push", json={"text": "new item"})
+        assert r.status_code == 200
+        assert r.json()["text"] == "new item"
+        assert len(self.mgr.queue) == 3
+
+    def test_push_empty(self):
+        r = self.client.post("/clipboard/push", json={"text": ""})
+        assert r.status_code == 400
+
+    def test_push_not_initialized(self):
+        self.state["clipboard_manager"] = None
+        r = self.client.post("/clipboard/push", json={"text": "x"})
+        assert r.status_code == 503
+
+    def test_paste(self):
+        r = self.client.post("/clipboard/paste/0")
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+    def test_paste_out_of_range(self):
+        r = self.client.post("/clipboard/paste/100")
+        assert r.status_code == 404
+
+    def test_pin(self):
+        r = self.client.post("/clipboard/pin", json={"text": "git pull --rebase", "pinned": True})
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+    def test_suggestions(self):
+        r = self.client.get("/clipboard/suggestions")
+        assert r.status_code == 200
+        assert "suggestions" in r.json()
+
+    def test_snippets_empty(self):
+        r = self.client.get("/clipboard/snippets")
+        assert r.status_code == 200
+        assert r.json()["snippets"] == []
+
+    def test_add_snippet(self):
+        r = self.client.post("/clipboard/snippets", json={"trigger": ";;email", "expansion": "a@b.com"})
+        assert r.status_code == 200
+        assert r.json()["trigger"] == ";;email"
+
+    def test_add_snippet_missing_fields(self):
+        r = self.client.post("/clipboard/snippets", json={"trigger": ";;x"})
+        assert r.status_code == 400
+
+    def test_stats(self):
+        r = self.client.get("/clipboard/stats")
+        assert r.status_code == 200
+        assert "queue_size" in r.json()
+
+
 # ===== Init function tests =====
 
 class TestRouteInit:
     def test_all_modules_have_init(self):
-        from routes import core, ocr, windows, agent, events, screen, memory, templates, config
-        for mod in (core, ocr, windows, agent, events, screen, memory, templates, config):
+        from routes import core, ocr, windows, agent, events, screen, memory, templates, config, clipboard
+        for mod in (core, ocr, windows, agent, events, screen, memory, templates, config, clipboard):
             assert hasattr(mod, "init"), f"{mod.__name__} missing init()"
             assert hasattr(mod, "router"), f"{mod.__name__} missing router"
 

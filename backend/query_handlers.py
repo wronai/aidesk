@@ -8,7 +8,10 @@ Single Responsibility: each handler projects one view of the state.
 Interface Segregation: callers only see the query interface they need.
 Liskov Substitution: all handlers follow the same (Event) -> None contract.
 """
+import json
 import time
+from pathlib import Path
+
 import structlog
 from typing import Any, Callable, Dict, Optional
 
@@ -106,6 +109,68 @@ class ReadModel:
     def get_event_counts(self) -> Dict:
         """Event type frequency counts."""
         return dict(sorted(self.event_counts.items(), key=lambda x: -x[1]))
+
+    # ── Snapshot persistence ──
+
+    def _state_dict(self) -> Dict:
+        """Serialize all mutable state to a plain dict."""
+        return {
+            "last_pipeline_run_id": self.last_pipeline_run_id,
+            "last_pipeline_steps": self.last_pipeline_steps,
+            "last_pipeline_timings": self.last_pipeline_timings,
+            "last_pipeline_errors": self.last_pipeline_errors,
+            "total_pipeline_runs": self.total_pipeline_runs,
+            "total_pipeline_errors": self.total_pipeline_errors,
+            "event_counts": self.event_counts,
+            "last_window_count": self.last_window_count,
+            "last_analysis_tokens": self.last_analysis_tokens,
+            "last_analysis_cost": self.last_analysis_cost,
+            "last_analysis_provider": self.last_analysis_provider,
+            "last_capture_size_kb": self.last_capture_size_kb,
+            "last_agent_action_count": self.last_agent_action_count,
+            "total_agent_suggestions": self.total_agent_suggestions,
+        }
+
+    def _restore(self, data: Dict):
+        """Restore mutable state from a dict (ignores unknown keys)."""
+        for key in (
+            "last_pipeline_run_id", "last_pipeline_steps",
+            "last_pipeline_timings", "last_pipeline_errors",
+            "total_pipeline_runs", "total_pipeline_errors",
+            "event_counts", "last_window_count",
+            "last_analysis_tokens", "last_analysis_cost",
+            "last_analysis_provider", "last_capture_size_kb",
+            "last_agent_action_count", "total_agent_suggestions",
+        ):
+            if key in data:
+                setattr(self, key, data[key])
+
+    def save_snapshot(self, path: str = "logs/readmodel_snapshot.json"):
+        """Persist current state to JSON file."""
+        try:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(self._state_dict(), indent=2))
+            logger.info("ReadModel snapshot saved", path=path)
+        except Exception as e:
+            logger.warning("ReadModel snapshot save failed", error=str(e))
+
+    def load_snapshot(self, path: str = "logs/readmodel_snapshot.json"):
+        """Restore state from JSON file (if it exists)."""
+        try:
+            p = Path(path)
+            if not p.exists():
+                return
+            data = json.loads(p.read_text())
+            self._restore(data)
+            logger.info(
+                "ReadModel snapshot restored",
+                path=path,
+                pipeline_runs=self.total_pipeline_runs,
+                event_types=len(self.event_counts),
+            )
+        except Exception as e:
+            logger.warning("ReadModel snapshot load failed", error=str(e))
 
 
 class QueryHandlers:

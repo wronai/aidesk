@@ -55,6 +55,8 @@ class EventType(str, Enum):
     AGENT_SUGGESTED = "pipeline.agent_suggested"
     BROADCAST_SENT = "pipeline.broadcast_sent"
     PIPELINE_COMPLETED = "pipeline.completed"
+    CLIPBOARD_UPDATED = "pipeline.clipboard_updated"
+    PASTE_SUGGESTED = "pipeline.paste_suggested"
 
     # Commands (CQRS write side)
     CMD_SWITCH_OCR_ENGINE = "cmd.switch_ocr_engine"

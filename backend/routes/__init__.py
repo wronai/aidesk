@@ -15,6 +15,7 @@ from routes.screen import router as screen_router
 from routes.memory import router as memory_router
 from routes.templates import router as templates_router
 from routes.config import router as config_router
+from routes.clipboard import router as clipboard_router
 
 
 def register_all_routes(app, app_state: dict, broadcast_fn):
@@ -25,9 +26,9 @@ def register_all_routes(app, app_state: dict, broadcast_fn):
     `init(state, broadcast)` function, then is included on the app.
     """
     # Initialize each router module with shared state
-    from routes import core, ocr, windows, agent, events, screen, memory, templates, config
+    from routes import core, ocr, windows, agent, events, screen, memory, templates, config, clipboard
 
-    for mod in (core, ocr, windows, agent, events, screen, memory, templates, config):
+    for mod in (core, ocr, windows, agent, events, screen, memory, templates, config, clipboard):
         mod.init(app_state, broadcast_fn)
 
     # Include routers
@@ -40,3 +41,4 @@ def register_all_routes(app, app_state: dict, broadcast_fn):
     app.include_router(memory_router)
     app.include_router(templates_router)
     app.include_router(config_router)
+    app.include_router(clipboard_router)

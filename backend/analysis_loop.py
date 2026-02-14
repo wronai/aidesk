@@ -137,6 +137,13 @@ class AnalysisLoop:
             if ctx.broadcast_data:
                 await self.broadcast("analysis", ctx.broadcast_data)
 
+        # Clipboard intelligence
+        if ctx.clipboard_suggestions:
+            await self.broadcast("clipboard_suggestions", {
+                "suggestions": ctx.clipboard_suggestions,
+                "auto_copies": ctx.clipboard_auto_copies,
+            })
+
     def _store_analysis(self, ctx: PipelineContext):
         """Persist analysis result to shared state and context history."""
         if not ctx.analysis_result:
