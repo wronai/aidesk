@@ -1,4 +1,4 @@
-# 🚀 Quick Start Guide
+# 🚀 Quick Start Guide (v2.0.9)
 
 Kompletny przewodnik uruchomienia AI Desktop Assistant w 5 minut.
 
@@ -7,9 +7,8 @@ Kompletny przewodnik uruchomienia AI Desktop Assistant w 5 minut.
 ### 1. Pobierz projekt
 
 ```bash
-# Rozpakuj pobraną paczkę
-unzip ai-desktop-assistant.zip
-cd ai-desktop-assistant
+git clone https://github.com/wronai/aidesk.git
+cd aidesk
 ```
 
 ### 2. Zainstaluj wymagania
@@ -28,7 +27,8 @@ brew install python@3.11 node
 
 # Ubuntu/Debian:
 sudo apt update
-sudo apt install python3.11 python3-pip nodejs npm
+sudo apt install python3.11 python3-pip python3-venv nodejs npm
+sudo apt install xdotool xprop xrandr tesseract-ocr tesseract-ocr-pol
 ```
 
 **Windows:**
@@ -51,57 +51,47 @@ sudo apt install python3.11 python3-pip nodejs npm
 - OpenAI: https://platform.openai.com/api-keys
 - Anthropic Claude: https://console.anthropic.com/
 
-### 4. Edytuj konfigurację
+### 4. Setup + Uruchom
+
+```bash
+make setup    # Tworzy venv, instaluje deps, kopiuje .env
+make run      # Uruchamia backend + overlay + otwiera config UI
+```
+
+Po starcie automatycznie otwiera się **Config UI** w przeglądarce — skonfiguruj klucze API i urządzenia audio.
+
+**Lub ręcznie:**
 
 ```bash
 cd backend
 cp .env.example .env
-nano .env  # lub notepad .env na Windows
+nano .env  # ustaw klucze API
 ```
 
-**Minimum configuration:**
 ```env
 DEEPGRAM_API_KEY=your_key_here
 GEMINI_API_KEY=your_key_here
-VISION_PROVIDER=gemini
+VISION_MODEL=gemini/gemini-2.0-flash
 STT_LANGUAGE=pl
+ANALYSIS_MODE=hybrid
 ```
 
-### 5. Uruchom!
-
-**Linux/macOS:**
 ```bash
-./start.sh
-```
+# Terminal 1 - Backend:
+make run-backend
 
-**Windows:**
-```bash
-start.bat
-```
-
-**Lub ręcznie (2 terminale):**
-
-Terminal 1 - Backend:
-```bash
-cd backend
-pip install -r requirements.txt
-python server.py
-```
-
-Terminal 2 - Overlay:
-```bash
-cd overlay
-npm install
-npm start
+# Terminal 2 - Overlay:
+make run-overlay
 ```
 
 ## ✅ Weryfikacja
 
 Po uruchomieniu powinieneś zobaczyć:
 
-1. **Backend**: `INFO: Application startup complete` w terminalu
-2. **Overlay**: Przeźroczyste okno w prawym dolnym rogu ekranu
-3. **Status**: Zielona kropka = połączono
+1. **Backend**: `INFO: Backend fully initialized and running` w terminalu
+2. **Przeglądarka**: Config UI + Screenshot Browser
+3. **Overlay**: Przeźroczyste okno w prawym dolnym rogu ekranu
+4. **Status**: Zielona kropka = połączono
 
 ## ⌨️ Używanie
 
@@ -117,39 +107,34 @@ Overlay automatycznie:
 
 ### Backend nie startuje
 ```bash
-# Sprawdź logi
-cd backend
-python server.py
-# Sprawdź czy port 8000 jest wolny
-lsof -i :8000  # macOS/Linux
-netstat -ano | findstr :8000  # Windows
+make status                        # Sprawdź status
+make stop                          # Zabij stare procesy
+curl http://localhost:8001/health  # Health check
 ```
 
 ### Overlay nie łączy się
 ```bash
-# Sprawdź czy backend działa
-curl http://localhost:8000/health
-
-# Otwórz DevTools w overlay (odkomentuj w main.js):
-# overlay.webContents.openDevTools({ mode: 'detach' });
+curl http://localhost:8001/status
+# Otwórz DevTools w overlay: Ctrl+Shift+I
 ```
 
 ### STT nie działa
 ```bash
-# Test mikrofonu
-python -c "import sounddevice as sd; print(sd.query_devices())"
+# Sprawdź urządzenia audio
+curl http://localhost:8001/audio/devices
 
-# Test Deepgram key
-curl -H "Authorization: Token YOUR_KEY" https://api.deepgram.com/v1/projects
+# Lub skonfiguruj w przeglądarce
+xdg-open http://localhost:8001/config/ui
 ```
+
+### Wayland — czarny ekran
+AIDesk automatycznie używa PipeWire ScreenCast Portal na GNOME Wayland.
+Przy pierwszym uruchomieniu pojawi się dialog z prośbą o zgodę.
 
 ### Wysokie koszty API
-Sprawdź logi kosztów:
-```bash
-tail -f backend/logs/usage.log
-```
-
-Zwiększ `CHANGE_THRESHOLD` w `.env` (np. do 15) aby zmniejszyć ilość API calls.
+- Użyj trybu `hybrid` (5-10x tańszy niż `vision_only`)
+- Zwiększ `CHANGE_THRESHOLD` do 12-15
+- Skonfiguruj w `/config/ui`
 
 ## 📊 Monitorowanie
 

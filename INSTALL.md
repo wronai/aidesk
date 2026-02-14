@@ -147,87 +147,92 @@ sudo pacman -S nodejs npm
 
 ### 5. Konfiguracja
 
+**Opcja A — Makefile (zalecane):**
 ```bash
-cd ai-desktop-assistant/backend
+make setup    # Tworzy venv, instaluje deps, kopiuje .env
+make run      # Uruchamia backend + overlay + otwiera config UI
+# Otwórz http://localhost:PORT/config/ui w przeglądarce
+```
+
+**Opcja B — ręcznie:**
+```bash
+cd aidesk/backend
 cp .env.example .env
+nano .env     # Linux/macOS
+notepad .env  # Windows
 ```
 
-**Edytuj .env:**
-
-**Linux/macOS:**
-```bash
-nano .env
-```
-
-**Windows:**
-```bash
-notepad .env
-```
-
-**Minimalna konfiguracja:**
+**Minimalna konfiguracja (.env):**
 ```env
-# WYMAGANE
+# WYMAGANE (lub skonfiguruj w /config/ui)
 DEEPGRAM_API_KEY=twoj_klucz_deepgram_tutaj
 GEMINI_API_KEY=twoj_klucz_gemini_tutaj
 
 # Ustawienia
-VISION_PROVIDER=gemini
+VISION_MODEL=gemini/gemini-2.0-flash
 STT_LANGUAGE=pl
+ANALYSIS_MODE=hybrid
 CHANGE_THRESHOLD=8
-MIN_CAPTURE_INTERVAL=1.0
 ```
 
 **Zaawansowana konfiguracja:**
 ```env
-# Vision provider (gemini = najtańszy, claude = najlepszy)
-VISION_PROVIDER=gemini
+# Vision model (format LiteLLM: provider/model)
+VISION_MODEL=gemini/gemini-2.0-flash
 
-# Modele
-GEMINI_MODEL=gemini-2.0-flash-exp
-OPENAI_MODEL=gpt-4o-mini
-CLAUDE_MODEL=claude-sonnet-4-20250514
+# Tryb analizy: hybrid (5-10x tańszy), vision_only, ocr_only, ocr_plus_vision
+ANALYSIS_MODE=hybrid
+
+# OCR: tesseract, easyocr, paddleocr
+OCR_ENGINE=tesseract
 
 # STT
 STT_LANGUAGE=pl
 DEEPGRAM_MODEL=nova-3
 
+# Urządzenia audio (lub wybierz w /config/ui)
+STT_INPUT_DEVICE=
+STT_MONITOR_DEVICE=
+AUDIO_OUTPUT_DEVICE=
+
 # Performance tuning
 CHANGE_THRESHOLD=8          # 5=czuły, 15=mało czuły
 MIN_CAPTURE_INTERVAL=1.0    # sekundy między zrzutami
-SCREEN_WIDTH=1280           # rozdzielczość
-SCREEN_HEIGHT=720
+MAX_DIMENSION=1280           # max wymiar screenshota
 JPEG_QUALITY=60             # jakość JPEG (1-100)
+
+# Event Sourcing
+ENABLE_EVENT_STORE=true
+EVENT_STORE_DB=logs/events.db
 
 # Feature flags
 ENABLE_STT=true
-ENABLE_VISION=true
+ENABLE_WINDOW_AWARENESS=true
+ENABLE_SHELL_AGENT=true
 DEBUG=false
 ```
 
 ### 6. Instalacja zależności
 
-#### Backend (Python)
+**Automatycznie (Makefile — zalecane):**
+```bash
+make setup    # Tworzy venv, instaluje Python deps, instaluje Node deps, kopiuje .env
+```
 
-**Automatycznie (zalecane):**
+**Ręcznie:**
+
+#### Backend (Python)
 ```bash
 cd backend
-python3 -m venv venv          # Stwórz wirtualne środowisko
-source venv/bin/activate      # Linux/macOS
+python3 -m venv ../venv       # Stwórz wirtualne środowisko
+source ../venv/bin/activate   # Linux/macOS
 # LUB
-venv\Scripts\activate.bat     # Windows
+..\venv\Scripts\activate.bat  # Windows
 
 pip install -r requirements.txt
 ```
 
-**Ręcznie (jeśli automatyczna zawiedzie):**
-```bash
-pip install fastapi uvicorn mss imagehash Pillow opencv-python-headless \
-            google-generativeai openai anthropic deepgram-sdk \
-            sounddevice structlog python-dotenv
-```
-
 #### Frontend (Electron)
-
 ```bash
 cd overlay
 npm install
@@ -236,11 +241,11 @@ npm install
 ### 7. Weryfikacja instalacji
 
 ```bash
-cd backend
-python test_setup.py
+make test-setup
+# lub: cd backend && python test_setup.py
 ```
 
-Powinno pokazać:
+Powinno pokazać 12 checków:
 ```
 ✓ Python version (3.11+)
 ✓ All packages installed
@@ -248,37 +253,40 @@ Powinno pokazać:
 ✓ API keys configured
 ✓ Screen capture working
 ✓ Audio devices detected
+✓ System tools (xdotool, xprop, xrandr)
+✓ New modules (event_bus, pipeline, window_aware, process_scanner...)
 ✓ APIs connected
+```
+
+Testy automatyczne:
+```bash
+make test    # 75 testów (68 unit + 7 e2e)
 ```
 
 ### 8. Pierwsze uruchomienie
 
-**Automatyczny start:**
-
-Linux/macOS:
+**Makefile (zalecane):**
 ```bash
-./start.sh
+make run
 ```
 
-Windows:
-```bash
-start.bat
-```
+Automatycznie: uruchamia backend, otwiera Config UI i Screenshot Browser w przeglądarce, startuje overlay.
 
 **Ręczny start (2 terminale):**
 
 Terminal 1 - Backend:
 ```bash
-cd backend
-source venv/bin/activate  # Linux/macOS
-# LUB venv\Scripts\activate  # Windows
-python server.py
+make run-backend
 ```
 
 Terminal 2 - Overlay:
 ```bash
-cd overlay
-npm start
+make run-overlay
+```
+
+**Zatrzymanie:**
+```bash
+make stop    # Zabija backend, overlay, wayland screencast
 ```
 
 ### 9. Weryfikacja działania
@@ -287,15 +295,19 @@ Po uruchomieniu powinno się pojawić:
 
 1. **Terminal (backend):**
 ```
-INFO: Screen capture initialized
-INFO: Gemini initialized
-INFO: Deepgram STT initialized
-INFO: Application startup complete
-INFO: Uvicorn running on http://127.0.0.1:8000
+INFO: Backend fully initialized and running
+INFO: Uvicorn running on http://127.0.0.1:PORT
 ```
 
-2. **Overlay:** Przeźroczyste okno w prawym dolnym rogu
-3. **Status:** Zielona kropka = połączono ✅
+2. **Przeglądarka:** Config UI i Screenshot Browser
+3. **Overlay:** Przeźroczyste okno w prawym dolnym rogu
+4. **Status:** Zielona kropka = połączono ✅
+
+**Przydatne adresy:**
+- `http://localhost:PORT/config/ui` — konfiguracja
+- `http://localhost:PORT/browser` — screenshot browser
+- `http://localhost:PORT/health` — health check
+- `http://localhost:PORT/stats` — statystyki
 
 ### 10. Test funkcji
 
@@ -388,7 +400,14 @@ print(model.generate_content("test"))
 
 1. Zwiększ `MIN_CAPTURE_INTERVAL` do 2.0
 2. Zwiększ `CHANGE_THRESHOLD` do 12-15
-3. Zmniejsz rozdzielczość: `SCREEN_WIDTH=960`, `SCREEN_HEIGHT=540`
+3. Użyj trybu `hybrid` zamiast `vision_only`
+4. Zmniejsz `MAX_DIMENSION` do 960
+
+### Wayland — czarny ekran
+
+Na GNOME Wayland (Shell 49+) standardowe narzędzia (`mss`, `scrot`, `grim`) nie działają.
+AIDesk automatycznie używa **PipeWire ScreenCast Portal** — przy pierwszym uruchomieniu
+pojawi się dialog GNOME z prośbą o zgodę na udostępnienie ekranu.
 
 ### Overlay niewidoczny
 
@@ -397,14 +416,16 @@ print(model.generate_content("test"))
 - Dodaj Electron do listy dozwolonych
 
 **Linux (Wayland):**
-- Może nie działać poprawnie, użyj X11
+- Działa z PipeWire ScreenCast Portal (GNOME 49+)
 
 ## Następne kroki
 
-1. ✅ Monitoruj koszty: http://localhost:8000/stats
-2. ✅ Dostosuj czułość w `.env`
-3. ✅ Przeczytaj README.md dla zaawansowanych opcji
-4. ✅ Dołącz do społeczności (GitHub Issues)
+1. ✅ Skonfiguruj przez przeglądarkę: `http://localhost:PORT/config/ui`
+2. ✅ Monitoruj koszty: `http://localhost:PORT/stats`
+3. ✅ Dostosuj czułość w Config UI lub `.env`
+4. ✅ Sprawdź event store: `http://localhost:PORT/events`
+5. ✅ Przeczytaj ARCHITECTURE.md dla szczegółów pipeline
+6. ✅ Uruchom testy: `make test`
 
 ## Pomoc
 
