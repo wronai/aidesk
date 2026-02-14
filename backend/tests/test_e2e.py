@@ -158,14 +158,15 @@ class TestEventSourcingEndpoints:
         assert "steps" in data
         assert "stats" in data
         assert isinstance(data["steps"], list)
-        assert len(data["steps"]) == 8  # 8 pipeline steps
+        assert len(data["steps"]) == 13  # 8 original + 5 Tier 1 steps
 
     def test_pipeline_step_names(self, client):
         steps = client.get("/pipeline").json()["steps"]
         expected = [
             "scan_windows", "detect_active_window", "capture_screen",
-            "crop_windows", "build_context", "analyze",
-            "suggest_actions", "build_broadcast",
+            "crop_windows", "multi_monitor", "build_context", "analyze",
+            "ocr_post_process", "suggest_actions", "action_templates",
+            "semantic_memory", "predictive", "build_broadcast",
         ]
         assert steps == expected
 
@@ -174,7 +175,7 @@ class TestEventSourcingEndpoints:
         assert "total_runs" in stats
         assert "total_errors" in stats
         assert "step_count" in stats
-        assert stats["step_count"] == 8
+        assert stats["step_count"] == 13
 
     def test_read_model_root(self, client):
         r = client.get("/read-model")

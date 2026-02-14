@@ -1,0 +1,378 @@
+# aidesk | 45f 15921L | python:42/javascript:3
+# Keys: M=modules, D=details, i=imports, c=classes, f=functions, m=methods
+M[45]:
+  backend/process_scanner.py,317
+  backend/stt.py,210
+  backend/query_handlers.py,192
+  backend/protocols.py,141
+  backend/multi_monitor.py,365
+  backend/window_cropper.py,383
+  backend/circuit_breaker.py,219
+  backend/analyzer.py,352
+  backend/capture.py,439
+  backend/shell_agent.py,393
+  backend/diagnostics.py,375
+  backend/server.py,465
+  backend/app_profiles.py,268
+  backend/ocr_engines.py,427
+  backend/context.py,115
+  backend/action_templates.py,529
+  backend/window_aware.py,419
+  backend/async_subprocess.py,130
+  backend/test_setup.py,189
+  backend/wayland_screencast.py,328
+  backend/event_bus.py,341
+  backend/pipeline.py,735
+  backend/command_handlers.py,124
+  backend/predictive_engine.py,341
+  backend/ocr_post_process.py,427
+  backend/semantic_memory.py,465
+  backend/config_service.py,319
+  overlay/preload.js,20
+  overlay/main.js,75
+  overlay/app.js,599
+  backend/tests/test_units.py,744
+  backend/tests/conftest.py,4
+  backend/tests/test_circuit_breaker.py,187
+  backend/tests/test_tier1.py,681
+  backend/tests/test_e2e.py,513
+  backend/routes/screen.py,82
+  backend/routes/config.py,37
+  backend/routes/memory.py,41
+  backend/routes/events.py,85
+  backend/routes/__init__.py,33
+  backend/routes/agent.py,70
+  backend/routes/templates.py,38
+  backend/routes/core.py,140
+  backend/routes/ocr.py,128
+  backend/routes/windows.py,81
+D:
+  backend/process_scanner.py:
+    i: os,re,subprocess,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Tuple}
+    e: ProcessInfo,VisibleWindow,ProcessScanner,create_process_scanner
+    ProcessInfo: to_dict(0)  # Information about a running process w...
+    VisibleWindow: to_dict(0),roi(0)  # A visible window on screen with its p...
+    ProcessScanner: __init__(1),_check_tool(1),_run(2),scan_all_windows(0),_scan_via_wmctrl(1)  # Scans running processes and visible w...
+    create_process_scanner(window_manager:Optional[WindowManager]=None)->ProcessScanner
+  backend/stt.py:
+    i: os,asyncio,structlog,sounddevice,deepgram.{DeepgramClient,DeepgramClientOptions,LiveOptions,LiveTranscriptionEvents},typing.{Callable,Optional}
+    e: RealtimeSTT,create_stt_from_env
+    RealtimeSTT: __init__(5),start(1),_resolve_device(1),_capture_audio(0),stop(0)  # Real-time speech-to-text using Deepgr...
+    create_stt_from_env()->Optional[RealtimeSTT]
+  backend/query_handlers.py:
+    i: time,structlog,event_bus.{Event,EventBus,EventType},typing.{Any,Callable,Dict,Optional}
+    e: ReadModel,QueryHandlers
+    ReadModel: __init__(0),on_event(1),on_windows_scanned(1),on_screen_captured(1),on_analysis_completed(1)  # CQRS Read Model — materialized view o...
+    QueryHandlers: __init__(3),register_all(0),_project_windows(1),_project_capture(1),_project_analysis(1)  # Registry of CQRS query handlers.
+  backend/protocols.py:
+    i: typing
+    e: ScreenCapture,OCRExtractor,ScreenAnalyzer,WindowDetector,ProcessScanning,WindowCropping,ProfileProvider,CommandAgent
+    ScreenCapture: capture(2),adaptive_interval(0),get_stats(0),get_monitors(0)  # Contract for screen capture modules.
+    OCRExtractor: extract(1),set_engine(1),benchmark(1),get_available_engines(0),get_stats(0)  # Contract for OCR text extraction.
+    ScreenAnalyzer: analyze(2),set_mode(1),get_stats(0)  # Contract for screen analysis (VLM / h...
+    WindowDetector: get_active_window(0),get_monitors(0),get_window_roi(1),get_stats(0)  # Contract for active window detection.
+    ProcessScanning: scan_all_windows(0),get_window_layout(0),get_stats(0)  # Contract for scanning visible windows...
+  backend/multi_monitor.py:
+    i: os,re,subprocess,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Tuple}
+    e: MonitorActivity,MultiMonitorSnapshot,MonitorAwareCapture,create_multi_monitor_from_env
+    MonitorActivity: to_dict(0)  # Tracks activity level for a single mo...
+    MultiMonitorSnapshot: to_dict(0)  # Complete multi-monitor state for one...
+    MonitorAwareCapture: __init__(2),detect_active_monitor(2),build_snapshot(4),get_capture_roi_for_monitor(1),get_monitors_to_analyze(1)  # Multi-monitor intelligence layer.
+    create_multi_monitor_from_env()->MonitorAwareCapture
+  backend/window_cropper.py:
+    i: base64,os,time,dataclasses.{dataclass,field},io.BytesIO,typing.{Dict,List,Optional,Tuple}
+    e: CroppedWindow,OrganizedScreenData,WindowCropper,create_window_cropper
+    CroppedWindow: to_dict(0)  # A cropped screenshot region associate...
+    OrganizedScreenData: to_dict(0),get_summary_for_tts(0)  # Organized collection of all visible a...
+    WindowCropper: __init__(7),_select_top_k(2),crop_all_windows(2),organize_screen(2),crop_single_window(2)  # Crops individual application windows...
+    create_window_cropper(process_scanner:ProcessScanner;crops_dir:Optional[str]=None)->WindowCropper
+  backend/circuit_breaker.py:
+    i: asyncio,time,dataclasses.{dataclass,field},enum.Enum,typing.{Callable,Dict,List,Optional,Set}
+    e: CircuitState,CircuitBreaker,_TRANSIENT_ERROR_SUBSTRINGS,is_transient_error,retry_with_backoff,StepGuard,wrap_step_with_guard
+    CircuitState: 
+    CircuitBreaker: __post_init__(0),can_execute(0),record_success(0),record_failure(0),_transition(1)  # Circuit breaker that disables a compo...
+    StepGuard: __init__(5),name(0),can_run(1),execute(2),get_breaker_stats(0)  # Wraps a PipelineStep with circuit bre...
+    is_transient_error(error:Exception)->bool
+    retry_with_backoff(fn;max_retries:int=3;base_delay:float=1.0;max_delay:float=30.0;backoff_factor:float=2.0;retry_on:Optional[Callable]=None)
+    wrap_step_with_guard(step;failure_threshold:int=5;reset_timeout:float=60.0;max_retries:int=2)->StepGuard
+  backend/analyzer.py:
+    i: os,time,asyncio,structlog,litellm,litellm.acompletion,ocr_engines.OCRManager,typing.{Dict,Literal,Optional}
+    e: AnalysisStrategy,VisionOnlyStrategy,OCROnlyStrategy,HybridStrategy,OCRPlusVisionStrategy,_STRATEGIES,TokenBucketLimiter,ScreenAnalyzer
+    AnalysisStrategy: build_messages(3),needs_ocr(0),needs_llm(0)  # Strategy interface for analysis modes...
+    VisionOnlyStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # Pure VLM: send image to vision model,...
+    OCROnlyStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # Pure OCR: extract text only, no LLM c...
+    HybridStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # OCR text → LLM text prompt (no image...
+    OCRPlusVisionStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # OCR text + image → VLM (most accurate...
+    create_analyzer_from_env(ocr_manager:Optional[OCRManager]=None)->ScreenAnalyzer
+  backend/capture.py:
+    i: mss,imagehash,numpy,base64,json,time,subprocess,shutil,PIL.Image,io.BytesIO
+    e: WAYLAND_FRAME_PATH,WAYLAND_STATUS_PATH,SYSTEM_PYTHON3,SmartScreenCapture,create_capture_from_env
+    SmartScreenCapture: __init__(7),capture(2),adaptive_interval(0),_start_screencast_daemon(0),_stop_screencast_daemon(0)  # Captures screen with intelligent chan...
+    _detect_backend()->str
+    _resize_preserve_aspect(img:Any;max_dim:int)->Image.Image
+    create_capture_from_env()->SmartScreenCapture
+  backend/shell_agent.py:
+    i: os,re,shlex,subprocess,time,dataclasses.{dataclass,field},enum.Enum,typing.{Dict,List}
+    e: ActionRisk,AgentAction,SAFE_COMMANDS,APPROVAL_COMMANDS,BLOCKED_PATTERNS,ACTION_RULES,ShellAgent,create_shell_agent_from_env
+    ActionRisk:   # Risk level for agent actions.
+    AgentAction: to_dict(0)  # A suggested or executed agent action.
+    ShellAgent: __init__(5),suggest_actions(3),execute_action(3),execute_safe(2),approve_action(1)  # Safe shell command execution engine.
+    create_shell_agent_from_env()->ShellAgent
+  backend/diagnostics.py:
+    i: asyncio,os,time,glob,sqlite3,structlog,typing.{Callable,Dict,List,Optional}
+    e: AutoDiagnostics
+    AutoDiagnostics: __init__(2),run_loop(1),_run_checks(0),_check_capture(0),_check_captures_dir(0)  # Periodic self-diagnostics that verify:
+  backend/server.py:
+    i: asyncio,json,os,time,sqlite3,structlog,contextlib.asynccontextmanager,typing.{Dict,List,Optional}
+    e: APP_VERSION,setup_logging,broadcast,screen_analysis_loop,on_transcript,lifespan
+    _import_stt()
+    _read_version()->str
+    setup_logging()
+    broadcast(event_type:str;data:Dict)
+    screen_analysis_loop()
+    on_transcript(text:str;is_final:bool)
+    _nfo_validate_startup(state:Dict)
+    lifespan(app:FastAPI)
+  backend/app_profiles.py:
+    i: structlog,dataclasses.{dataclass,field},typing.{Dict,List,Optional},window_aware.AppCategory
+    e: AppProfile,PROFILES,DEFAULT_PROFILE,ProfileManager,create_profile_manager
+    AppProfile:   # Analysis profile for a specific appli...
+    ProfileManager: __init__(0),get_profile(1),get_prompt_addon(1),get_focus_keywords(1),get_priority_boost(1)  # Manages per-app analysis profiles and...
+    create_profile_manager()->ProfileManager
+  backend/ocr_engines.py:
+    i: os,time,base64,abc.{ABC,abstractmethod},io.BytesIO,typing.{Dict,List,Optional,Tuple}
+    e: OCRResult,BaseOCREngine,PaddleOCREngine,EasyOCREngine,TesseractEngine,ENGINES,OCRManager,create_ocr_manager_from_env
+    OCRResult: __init__(6),to_dict(0),to_llm_context(0),_cluster_regions(0)  # Standardized OCR result across all en...
+    BaseOCREngine: __init__(1),_initialize(0),_extract(1),extract_from_b64(1),get_stats(0)  # Abstract base class for OCR engines.
+    PaddleOCREngine: __init__(2),_initialize(0),_extract(1)  # PaddleOCR engine - fastest, best for...
+    EasyOCREngine: __init__(2),_initialize(0),_extract(1)  # EasyOCR engine - high accuracy (CER 0...
+    TesseractEngine: __init__(1),_initialize(0),_extract(1)  # Tesseract 5+ engine - lightweight (~1...
+    create_ocr_manager_from_env()->OCRManager
+  backend/context.py:
+    i: time,structlog,collections.deque,typing.{Dict,List,Literal}
+    e: ContextManager
+    ContextManager: __init__(1),add(3),get_recent(2),get_context_string(2),clear(0)  # Manages conversation context with sli...
+  backend/action_templates.py:
+    i: json,os,re,sqlite3,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional}
+    e: ActionTemplate,ScoredAction,AppActionLibrary,create_action_library_from_env
+    ActionTemplate: confidence(0),should_auto_execute(0),to_dict(0)  # A learned action template with confid...
+    ScoredAction: to_dict(0)  # An action suggestion with confidence...
+    AppActionLibrary: __init__(3),_init_db(0),_load_templates(0),_seed_defaults(0),_persist_template(1)  # Per-app action template library that...
+    create_action_library_from_env()->AppActionLibrary
+  backend/window_aware.py:
+    i: os,re,subprocess,time,dataclasses.{dataclass,field},enum.Enum,typing.{Dict,List,Optional}
+    e: AppCategory,APP_RULES,WindowInfo,MonitorInfo,WindowManager,create_window_manager_from_env
+    AppCategory:   # Application categories for per-app an...
+    WindowInfo: to_dict(0),to_context_string(0)  # Information about the currently activ...
+    MonitorInfo: to_dict(0)  # Information about a connected monitor.
+    WindowManager: __init__(3),_check_tool(1),_detect_display_server(0),_run(2),get_active_window(0)  # Linux window manager integration via...
+    create_window_manager_from_env()->WindowManager
+  backend/async_subprocess.py:
+    i: asyncio,subprocess,structlog,typing.{List,Optional}
+    e: run_async,run_async_shell,run_in_thread_sync,run_in_thread
+    run_async(cmd:List[str];timeout:float=3.0;cwd:Optional[str]=None)->Optional[str]
+    run_async_shell(command:str;timeout:float=10.0;cwd:Optional[str]=None;max_output:int=2000)->dict
+    run_in_thread_sync(cmd:List[str];timeout:float=3.0;cwd:Optional[str]=None)->Optional[str]
+    run_in_thread(cmd:List[str];timeout:float=3.0;cwd:Optional[str]=None)->Optional[str]
+  backend/test_setup.py:
+    i: sys,os
+    e: GREEN,RED,YELLOW,BLUE,RESET,check,main
+    check(name;passed;details='')
+    main()
+  backend/wayland_screencast.py:
+    i: os,sys,signal,time,json,gi,gi.repository.{GLib,Gio,Gst}
+    e: OUTPUT_PATH,QUALITY,MAX_FPS,STATUS_PATH,TOKEN_PATH,SCREENCAST_IFACE,REQUEST_IFACE,PORTAL_BUS
+    ScreenCastCapture: __init__(0),_next_token(0),_subscribe_response(2),_portal_call(3),start(0)  # Captures Wayland screen via ScreenCas...
+    main()
+  backend/event_bus.py:
+    i: asyncio,json,os,sqlite3,time,uuid,dataclasses.{asdict,dataclass,field},enum.Enum
+    e: EventCategory,EventType,Event,EventStore,EventBus,create_event_bus
+    EventCategory:   # Top-level event categories for CQRS s...
+    EventType:   # All known event types in the system.
+    Event: __post_init__(0),to_dict(0),to_json(0)  # Immutable domain event.
+    EventStore: __init__(2),_ensure_db(0),append(1),query(5),get_stats(0)  # Persistent event store using SQLite.
+    EventBus: __init__(2),subscribe(2),unsubscribe(2),add_middleware(1),publish(1)  # Async event bus with typed pub/sub an...
+    create_event_bus(enable_store:bool=True;db_path:str='logs/events.db')->EventBus
+  backend/pipeline.py:
+    i: asyncio,base64,os,time,uuid,abc.{ABC,abstractmethod},dataclasses.{dataclass,field},enum.Enum
+    e: PipelineProfile,ProfileSelector,PipelineContext,PipelineStep,ScanWindowsStep,DetectActiveWindowStep,CaptureScreenStep,CropWindowsStep
+    PipelineProfile:   # Pipeline execution profiles for speci...
+    ProfileSelector: __init__(2),select(2),notify_active_window_changed(1),get_stats(0)  # Adaptively selects pipeline profile p...
+    PipelineContext: __post_init__(0)  # Immutable-ish accumulator passed thro...
+    PipelineStep: can_run(1),execute(2)  # Protocol for pipeline steps (Interfac...
+    ScanWindowsStep: __init__(2),can_run(1),execute(2)  # Phase 1a: Scan all visible windows wi...
+    create_pipeline(bus:EventBus;capture=None;analyzer=None;context_mgr=None;window_mgr=None;profile_mgr=None;...+1)->PipelineOrchestrator
+    create_profile_selector()->ProfileSelector
+  backend/command_handlers.py:
+    i: structlog,event_bus.{Event,EventBus,EventCategory,EventType},typing.{Any,Callable,Dict,Optional}
+    e: CommandHandlers
+    CommandHandlers: __init__(2),set_broadcast(1),register_all(0),handle_switch_ocr(1),handle_switch_mode(1)  # Registry of CQRS command handlers.
+  backend/predictive_engine.py:
+    i: asyncio,os,time,collections.defaultdict,dataclasses.{dataclass,field},typing.{Any,Callable,Coroutine,Dict}
+    e: TransitionStats,PredictionResult,PrefetchCache,PredictiveAnalyzer,create_predictive_engine_from_env
+    TransitionStats: key(0)  # Statistics for a single app transitio...
+    PredictionResult: to_dict(0)  # A predicted next window/app with conf...
+    PrefetchCache: is_valid(0),to_dict(0)  # Cached pre-fetched data for a predict...
+    PredictiveAnalyzer: __init__(5),observe_window_change(2),predict_next_action(1),set_prefetch_callback(1),maybe_prefetch(1)  # Learns window switching patterns and...
+    create_predictive_engine_from_env()->PredictiveAnalyzer
+  backend/ocr_post_process.py:
+    i: os,re,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Set,Tuple}
+    e: _HAS_SYMSPELL,TextType,CHAR_CONFUSIONS,CODE_OCR_FIXES,TERMINAL_OCR_FIXES,PROGRAMMING_KEYWORDS,CODE_INDICATORS,TERMINAL_INDICATORS
+    TextType:   # Detected type of OCR text region.
+    PostProcessResult: to_dict(0)  # Result of OCR post-processing.
+    OCREnhancer: __init__(4),_init_spell_checker(1),enhance(2),_detect_text_type(1),_fix_code_ocr(1)  # Post-processes OCR results to improve...
+    create_ocr_enhancer_from_env()->OCREnhancer
+  backend/semantic_memory.py:
+    i: hashlib,json,os,sqlite3,time,collections.defaultdict,dataclasses.{dataclass,field},typing.{Dict,List}
+    e: _HAS_EMBEDDER,MemoryItem,SemanticMemory,create_semantic_memory_from_env
+    MemoryItem: to_dict(0)  # A single memory entry with embedding...
+    SemanticMemory: __init__(7),_init_embedder(0),_embed(1),_embed_batch(1),_init_db(0)  # Embedding-based semantic memory with...
+    create_semantic_memory_from_env()->SemanticMemory
+  backend/config_service.py:
+    i: os,re,subprocess,structlog,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Tuple}
+    e: ENV_PATH,read_env,read_env_with_alternatives,update_env,AudioDevice,discover_audio_devices,CONFIG_SCHEMA,get_config_with_schema
+    AudioDevice: to_dict(0)  # Single audio device (source or sink).
+    _parse_env_file(path:str)->Tuple[List[str], Dict[str, str], Dict[str, List[dict]]]
+    read_env()->Dict[str, str]
+    read_env_with_alternatives()->Tuple[Dict[str, str], Dict[str, List[dict]]]
+    update_env(updates:Dict[str;str])->Dict[str, str]
+    _run_pactl(args:List[str])->Optional[str]
+    _parse_pactl_list(output:str;device_type:str)->List[AudioDevice]
+    _build_device(d:Dict[str;str];device_type:str)->AudioDevice
+    _discover_pactl()->Tuple[List[AudioDevice], List[AudioDevice]]
+  overlay/main.js:
+    e: createOverlay
+    createOverlay()
+  overlay/app.js:
+    e: handleTranscript,formatAnalysisText,handleBenchmarkResult,runBenchmark,handleAgentActions,handleWindowsLayout,copyCommand,handleError
+    connect()
+    updateConnectionStatus(status)
+    handleAnalysis(data)
+    handleTranscript(data)
+    handleError(data)
+    formatAnalysisText(text)
+    updateTimestamp(unixTimestamp)
+    escapeHtml(text)
+  backend/tests/test_units.py:
+    i: sys,os,time,pytest,PIL.Image,app_profiles.ProfileManager,window_aware.{AppCategory,MonitorInfo,WindowInfo,WindowManager}
+    e: TestAppClassification,TestWindowInfo,TestProfileManager,TestShellAgent,TestProcessInfo,TestVisibleWindow,TestProcessScanner,TestWindowCropper
+    TestAppClassification: test_ide_detection(0),test_terminal_detection(0),test_browser_detection(0),test_email_detection(0),test_chat_detection(0)  # Test application classification by WM...
+    TestWindowInfo: _make_info(0),test_to_dict(0),test_to_context_string(0),test_to_dict_no_git(0)  # Test WindowInfo dataclass serialization.
+    TestProfileManager: test_init_loads_profiles(0),test_get_prompt_addon_ide(0),test_get_prompt_addon_terminal(0),test_switch_tracking(0),test_get_stats(0)
+    TestShellAgent: test_init(0),test_suggest_module_not_found(0),test_suggest_git_push_rejected(0),test_suggest_npm_module_missing(0),test_blocked_commands(0)
+    TestProcessInfo: test_to_dict(0)
+  backend/tests/test_circuit_breaker.py:
+    i: asyncio,os,sys,time,pytest,circuit_breaker.{CircuitBreaker,CircuitState,StepGuard,is_transient_error,retry_with_backoff}
+    e: TestCircuitBreaker,TestTransientErrorDetection,TestRetryWithBackoff,TestStepGuard
+    TestCircuitBreaker: test_initial_state_closed(0),test_stays_closed_below_threshold(0),test_opens_at_threshold(0),test_open_blocks_execution(0),test_open_to_half_open_after_timeout(0)
+    TestTransientErrorDetection: test_429_is_transient(0),test_timeout_is_transient(0),test_503_is_transient(0),test_rate_limit_is_transient(0),test_syntax_error_not_transient(0)
+    TestRetryWithBackoff: test_succeeds_first_try(0),test_retries_transient_then_succeeds(0),test_raises_after_max_retries(0),test_no_retry_for_non_transient(0)
+    _MockStep: can_run(1),execute(2)  # Mock pipeline step for testing.
+    TestStepGuard: test_delegates_name(0),test_delegates_can_run(0),test_success_passes_through(0),test_circuit_opens_after_threshold(0),test_breaker_stats(0)
+  backend/tests/test_tier1.py:
+    i: asyncio,os,sys,tempfile,time,pytest,multi_monitor.MonitorAwareCapture,window_aware.{AppCategory,MonitorInfo,WindowInfo}
+    e: TestMonitorAwareCapture,TestSemanticMemory,TestAppActionLibrary,TestOCREnhancer,TestPredictiveAnalyzer,TestTier1PipelineSteps,TestPipelineContextTier1Fields
+    TestMonitorAwareCapture: _make_monitors(0),_make_window(6),test_create_from_env(0),test_detect_active_monitor_from_window(0),test_detect_active_monitor_primary_fallback(0)  # Test multi-monitor intelligence.
+    TestSemanticMemory: _make_memory(0),test_create_from_env(0),test_add_memory(0),test_add_empty_memory(0),test_recall_recent(0)  # Test semantic memory with keyword fal...
+    TestAppActionLibrary: _make_lib(0),test_create_from_env(0),test_seed_templates_loaded(0),test_suggest_python_module_error(0),test_suggest_node_module_error(0)  # Test action template learning and sug...
+    TestOCREnhancer: test_create_from_env(0),test_detect_code_type(0),test_detect_terminal_type(0),test_fix_code_ocr_errors(0),test_fix_terminal_ocr_errors(0)  # Test OCR post-processing pipeline.
+    TestPredictiveAnalyzer: test_create_from_env(0),test_observe_transitions(0),test_predict_next_action(0),test_no_prediction_below_threshold(0),test_no_prediction_insufficient_data(0)  # Test predictive pre-fetching engine.
+  backend/tests/test_e2e.py:
+    i: json,time,pytest,fastapi.testclient.TestClient,server.app
+    e: client,TestCoreEndpoints,TestEventSourcingEndpoints,TestConfigServiceEndpoints,TestWindowAwarenessEndpoints,TestOCREndpoints,TestShellAgentEndpoints,TestProfilesEndpoints
+    TestCoreEndpoints: test_root_returns_200(1),test_root_lists_all_endpoint_groups(1),test_health_structure(1),test_health_components_are_bool(1),test_status_endpoint(1)  # Root, health, status, stats.
+    TestEventSourcingEndpoints: test_events_returns_list(1),test_events_limit(1),test_events_filter_by_type(1),test_events_filter_by_source(1),test_events_have_required_fields(1)  # Event store queries, event bus stats,...
+    TestConfigServiceEndpoints: test_config_get(1),test_config_schema_groups(1),test_config_schema_field_structure(1),test_config_values_has_known_keys(1),test_audio_devices(1)  # Configuration read/write + audio devi...
+    TestWindowAwarenessEndpoints: test_window_active(1),test_window_latest(1),test_monitors(1),test_window_stats(1),test_processes(1)  # Active window, monitors, processes, s...
+    TestOCREndpoints: test_ocr_engines_list(1),test_ocr_stats(1),test_ocr_switch_invalid_engine(1),test_analysis_mode_get(1),test_analysis_mode_valid_switch(1)  # OCR engine management, analysis mode...
+    client()
+  backend/routes/screen.py:
+    i: os,fastapi.{APIRouter,HTTPException},fastapi.responses.{FileResponse,JSONResponse},typing.Dict
+    e: init,get_organized_screen,get_screen_stats,list_screenshots,get_screenshot,list_crops,get_crop,screenshot_browser
+    init(app_state:dict;broadcast_fn)
+    get_organized_screen()
+    get_screen_stats()
+    list_screenshots()
+    get_screenshot(filename:str)
+    list_crops()
+    get_crop(filename:str)
+    screenshot_browser()
+  backend/routes/config.py:
+    i: os,config_service.{discover_audio_devices,get_config_with_schema,update_env},fastapi.{APIRouter,Request},fastapi.responses.{FileResponse,JSONResponse},typing.Dict
+    e: init,get_config,post_config,get_audio_devices,config_ui
+    init(app_state:dict;broadcast_fn)
+    get_config()
+    post_config(request:Request)
+    get_audio_devices()
+    config_ui()
+  backend/routes/memory.py:
+    i: fastapi.APIRouter,fastapi.responses.JSONResponse,typing.{Dict,Optional}
+    e: init,search_memory,memory_stats,compress_memory
+    init(app_state:dict;broadcast_fn)
+    search_memory(q:str='';k:int=5;type:Optional[str]=None)
+    memory_stats()
+    compress_memory()
+  backend/routes/events.py:
+    i: fastapi.APIRouter,fastapi.responses.JSONResponse,typing.{Dict,Optional}
+    e: init,query_events,event_bus_stats,pipeline_info,get_read_model,get_read_model_pipeline,get_read_model_stats,get_predictive_stats
+    init(app_state:dict;broadcast_fn)
+    query_events(type:Optional[str]=None;source:Optional[str]=None;correlation_id:Optional[str]=None;since:Optional[float]=None;limit:int=50)
+    event_bus_stats()
+    pipeline_info()
+    get_read_model()
+    get_read_model_pipeline()
+    get_read_model_stats()
+    get_predictive_stats()
+  backend/routes/__init__.py:
+    i: fastapi.APIRouter,routes.agent.agent_router,routes.config.config_router,routes.core.core_router,routes.events.events_router,routes.memory.memory_router,routes.ocr.ocr_router,routes.screen.screen_router,routes.templates.templates_router,routes.windows.windows_router
+    e: register_all_routes
+    register_all_routes(app;app_state:dict;broadcast_fn)
+  backend/routes/agent.py:
+    i: fastapi.{APIRouter,Request},fastapi.responses.JSONResponse,typing.Dict
+    e: init,get_pending_actions,approve_action,execute_action,agent_history,agent_run_safe
+    init(app_state:dict;broadcast_fn)
+    get_pending_actions()
+    approve_action(action_id:str)
+    execute_action(action_id:str)
+    agent_history()
+    agent_run_safe(request:Request)
+  backend/routes/templates.py:
+    i: json,fastapi.{APIRouter,Request},fastapi.responses.JSONResponse,typing.Dict
+    e: init,get_action_templates,import_templates,export_templates
+    init(app_state:dict;broadcast_fn)
+    get_action_templates()
+    import_templates(request:Request)
+    export_templates(include_stats:bool=False)
+  backend/routes/core.py:
+    i: asyncio,json,time,fastapi.{APIRouter,Request},fastapi.responses.{JSONResponse,StreamingResponse},typing.{Dict,Optional}
+    e: init,root,sse_stream,status,stats,health,diagnostics,diagnostics_history
+    init(app_state:dict;broadcast_fn)
+    root()
+    sse_stream(request:Request)
+    status()
+    stats()
+    health()
+    diagnostics()
+    diagnostics_history()
+  backend/routes/ocr.py:
+    i: base64,fastapi.APIRouter,fastapi.responses.JSONResponse,io.BytesIO,typing.Dict
+    e: init,ocr_engines,set_ocr_engine,ocr_benchmark,ocr_stats,ocr_post_process_stats,get_analysis_mode,set_analysis_mode
+    init(app_state:dict;broadcast_fn)
+    ocr_engines()
+    set_ocr_engine(engine_name:str)
+    ocr_benchmark()
+    ocr_stats()
+    ocr_post_process_stats()
+    get_analysis_mode()
+    set_analysis_mode(mode_name:str)
+  backend/routes/windows.py:
+    i: fastapi.APIRouter,fastapi.responses.JSONResponse,typing.Dict
+    e: init,get_active_window,get_latest_window,get_monitors,window_stats,get_all_processes,get_all_windows,get_multi_monitor
+    init(app_state:dict;broadcast_fn)
+    get_active_window()
+    get_latest_window()
+    get_monitors()
+    window_stats()
+    get_all_processes()
+    get_all_windows()
+    get_multi_monitor()

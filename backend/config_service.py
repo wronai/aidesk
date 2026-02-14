@@ -138,7 +138,7 @@ def update_env(updates: Dict[str, str]) -> Dict[str, str]:
         f.writelines(new_lines)
 
     # Re-read to return accurate state
-    _, final = _parse_env_file(ENV_PATH)
+    _, final, _ = _parse_env_file(ENV_PATH)
 
     # Also update os.environ so changes take effect immediately
     for key, value in updates.items():

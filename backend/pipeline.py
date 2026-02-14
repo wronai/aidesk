@@ -173,6 +173,24 @@ class PipelineContext:
     # Broadcast payload
     broadcast_data: Optional[Dict] = None
 
+    # Tier 1: Multi-monitor
+    multi_monitor_snapshot: Optional[Any] = None  # MultiMonitorSnapshot
+    monitor_description: str = ""
+
+    # Tier 1: Semantic memory
+    recalled_memories: List[Any] = field(default_factory=list)
+
+    # Tier 1: Action templates (learned)
+    template_actions: List[Dict] = field(default_factory=list)
+
+    # Tier 1: OCR post-processing
+    ocr_enhanced: bool = False
+    ocr_corrections: int = 0
+
+    # Tier 1: Predictive pre-fetch
+    prediction: Optional[Any] = None  # PredictionResult
+    used_prefetch: bool = False
+
     # Pipeline profile for this run
     profile: str = "normal"  # PipelineProfile value
 
@@ -243,7 +261,7 @@ class ScanWindowsStep:
             ctx.all_windows = self._cached_windows
             logger.debug("scan_windows: using cache", age=round(cache_age, 1), total=len(self._cached_windows))
         else:
-            ctx.all_windows = self._scanner.scan_all_windows()
+            ctx.all_windows = await asyncio.to_thread(self._scanner.scan_all_windows)
             self._cached_windows = ctx.all_windows
             self._cache_time = now
 
@@ -268,7 +286,7 @@ class DetectActiveWindowStep:
         return self._wm is not None
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        info = self._wm.get_active_window()
+        info = await asyncio.to_thread(self._wm.get_active_window)
         ctx.active_window = info
         ctx.window_context_str = info.to_context_string()
 
@@ -564,6 +582,182 @@ class BuildBroadcastStep:
         return ctx
 
 
+# ===== Tier 1 Pipeline Steps =====
+
+class MultiMonitorStep:
+    """Tier 1: Build multi-monitor snapshot and inject monitor description into context."""
+    name = "multi_monitor"
+
+    def __init__(self, multi_monitor, window_mgr=None):
+        self._mm = multi_monitor
+        self._wm = window_mgr
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return self._mm is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        monitors = self._wm.get_monitors() if self._wm else []
+        if not monitors or len(monitors) <= 1:
+            return ctx  # Single monitor — skip
+
+        snapshot = self._mm.build_snapshot(
+            monitors=monitors,
+            all_windows=ctx.all_windows,
+            active_window=ctx.active_window,
+            organized_screen=ctx.organized_screen,
+        )
+        ctx.multi_monitor_snapshot = snapshot
+        ctx.monitor_description = snapshot.description
+        return ctx
+
+
+class SemanticMemoryStep:
+    """Tier 1: Store context to semantic memory and recall relevant past memories."""
+    name = "semantic_memory"
+
+    def __init__(self, semantic_memory):
+        self._mem = semantic_memory
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return self._mem is not None and ctx.analysis_result is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        analysis_text = ctx.analysis_result.get("text", "")
+        if not analysis_text:
+            return ctx
+
+        # Store current analysis as memory
+        metadata = {
+            "window": ctx.active_window.title if ctx.active_window else None,
+            "category": ctx.active_window.category.value if ctx.active_window else None,
+            "run_id": ctx.run_id,
+        }
+        self._mem.add_memory(
+            content=analysis_text[:500],
+            context_type="screen",
+            metadata=metadata,
+        )
+
+        # Recall relevant past memories for enriching next pipeline runs
+        recalled = self._mem.recall_relevant(analysis_text[:200], k=3)
+        ctx.recalled_memories = recalled
+        return ctx
+
+
+class ActionTemplateStep:
+    """Tier 1: Suggest learned action templates with confidence scoring."""
+    name = "action_templates"
+
+    def __init__(self, action_library):
+        self._lib = action_library
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return (
+            self._lib is not None
+            and self._lib.enabled
+            and ctx.analysis_result is not None
+            and ctx.active_window is not None
+        )
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        analysis_text = ctx.analysis_result.get("text", "")
+        ocr_text = ""
+        if ctx.analysis_result.get("ocr") and ctx.analysis_result["ocr"].get("text"):
+            ocr_text = ctx.analysis_result["ocr"]["text"]
+        combined = f"{analysis_text}\n{ocr_text}"
+
+        scored = self._lib.suggest_with_confidence(
+            text=combined,
+            app_category=ctx.active_window.category.value,
+            cwd=getattr(ctx.active_window, "cwd", None),
+        )
+        if scored:
+            ctx.template_actions = [a.to_dict() for a in scored]
+        return ctx
+
+
+class OCRPostProcessStep:
+    """Tier 1: Enhance OCR output with post-processing corrections."""
+    name = "ocr_post_process"
+
+    def __init__(self, ocr_enhancer):
+        self._enhancer = ocr_enhancer
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return (
+            self._enhancer is not None
+            and self._enhancer.enabled
+            and ctx.analysis_result is not None
+            and ctx.analysis_result.get("ocr")
+            and ctx.analysis_result["ocr"].get("text")
+        )
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        ocr_data = ctx.analysis_result["ocr"]
+        raw_text = ocr_data.get("text", "")
+        if not raw_text:
+            return ctx
+
+        result = self._enhancer.enhance(raw_text)
+        if result.corrections_count > 0:
+            # Update OCR text in analysis result with enhanced version
+            ctx.analysis_result["ocr"]["text"] = result.enhanced_text
+            ctx.analysis_result["ocr"]["post_process"] = result.to_dict()
+            ctx.ocr_enhanced = True
+            ctx.ocr_corrections = result.corrections_count
+
+            logger.debug(
+                "OCR post-processed",
+                corrections=result.corrections_count,
+                text_type=result.text_type,
+                time_ms=round(result.processing_time_ms, 1),
+            )
+        return ctx
+
+
+class PredictiveStep:
+    """Tier 1: Observe window transitions and trigger pre-fetch for predicted next window."""
+    name = "predictive"
+
+    def __init__(self, predictive_engine):
+        self._engine = predictive_engine
+        self._prev_category = ""
+        self._prev_window_id = 0
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        return self._engine is not None and self._engine.enabled and ctx.active_window is not None
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        win = ctx.active_window
+        category = win.category.value if hasattr(win.category, 'value') else str(win.category)
+        wid = win.window_id
+
+        # Record transition if window changed
+        if category != self._prev_category or wid != self._prev_window_id:
+            self._engine.observe_window_change(category, wid)
+            self._prev_category = category
+            self._prev_window_id = wid
+
+        # Check if pre-fetched data is available for current window
+        cached = self._engine.get_prefetched(wid)
+        if not cached:
+            cached = self._engine.get_prefetched_for_category(category)
+        if cached:
+            ctx.used_prefetch = True
+
+        # Make prediction and store it
+        prediction = self._engine.predict_next_action(category)
+        ctx.prediction = prediction
+
+        # Trigger background pre-fetch (non-blocking)
+        if prediction:
+            await self._engine.maybe_prefetch(prediction)
+
+        # Cleanup expired cache entries
+        self._engine.cleanup_cache()
+        return ctx
+
+
 # ===== Pipeline Orchestrator =====
 
 class PipelineOrchestrator:
@@ -690,12 +884,32 @@ def create_pipeline(
     process_scanner=None,
     window_cropper=None,
     app_state_ref=None,
+    multi_monitor=None,
+    semantic_memory=None,
+    action_library=None,
+    ocr_enhancer=None,
+    predictive_engine=None,
 ) -> PipelineOrchestrator:
     """
     Factory: create the standard analysis pipeline from components.
 
     Dependency Inversion: components are injected, not imported.
     Open/Closed: caller can add_step() / remove_step() after creation.
+
+    Pipeline order (with Tier 1 additions marked with *):
+      1. ScanWindows
+      2. DetectActiveWindow
+      3. CaptureScreen
+      4. CropWindows
+      5* MultiMonitor          — multi-monitor snapshot + description
+      6. BuildContext
+      7. Analyze
+      8* OCRPostProcess         — enhance OCR text after analysis
+      9. SuggestActions
+     10* ActionTemplates        — learned action templates with confidence
+     11* SemanticMemory         — store + recall relevant past context
+     12* Predictive             — learn transitions + trigger pre-fetch
+     13. BuildBroadcast
     """
     use_roi = os.getenv("CAPTURE_MODE", "fullscreen") == "window"
     scan_cache_ttl = float(os.getenv("SCAN_CACHE_TTL", "3.0"))
@@ -716,17 +930,43 @@ def create_pipeline(
     if window_cropper:
         pipeline.add_step(CropWindowsStep(window_cropper))
 
-    # Phase 5: Build context
+    # Phase 5*: Multi-monitor intelligence (after cropping, before context)
+    if multi_monitor:
+        pipeline.add_step(MultiMonitorStep(multi_monitor, window_mgr))
+
+    # Phase 6: Build context
     if context_mgr:
         pipeline.add_step(BuildContextStep(context_mgr, profile_mgr, app_state_ref))
 
-    # Phase 6: Analyze
+    # Phase 7: Analyze (wrapped with circuit breaker + retry for API resilience)
     if analyzer:
-        pipeline.add_step(AnalyzeStep(analyzer))
+        from circuit_breaker import wrap_step_with_guard
+        pipeline.add_step(wrap_step_with_guard(
+            AnalyzeStep(analyzer),
+            failure_threshold=int(os.getenv("ANALYZE_CIRCUIT_THRESHOLD", "5")),
+            reset_timeout=float(os.getenv("ANALYZE_CIRCUIT_RESET", "60.0")),
+            max_retries=int(os.getenv("ANALYZE_MAX_RETRIES", "2")),
+        ))
 
-    # Phase 7: Suggest actions
+    # Phase 8*: OCR post-processing (after analysis produces OCR text)
+    if ocr_enhancer:
+        pipeline.add_step(OCRPostProcessStep(ocr_enhancer))
+
+    # Phase 9: Suggest actions (shell agent)
     if shell_agent:
         pipeline.add_step(SuggestActionsStep(shell_agent))
+
+    # Phase 10*: Action templates (learned patterns with confidence)
+    if action_library:
+        pipeline.add_step(ActionTemplateStep(action_library))
+
+    # Phase 11*: Semantic memory (store analysis + recall relevant past)
+    if semantic_memory:
+        pipeline.add_step(SemanticMemoryStep(semantic_memory))
+
+    # Phase 12*: Predictive pre-fetch (learn transitions, trigger background pre-fetch)
+    if predictive_engine:
+        pipeline.add_step(PredictiveStep(predictive_engine))
 
     # Final: build broadcast payload
     pipeline.add_step(BuildBroadcastStep())

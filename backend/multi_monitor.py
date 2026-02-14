@@ -139,12 +139,14 @@ class MonitorAwareCapture:
             return 0
 
         # 1. Active window monitor
-        if active_window and active_window.monitor_index >= 0:
-            for mon in monitors:
-                if mon.index == active_window.monitor_index:
-                    return mon.index
+        if active_window:
+            # Try stored monitor_index first
+            if active_window.monitor_index >= 0:
+                for mon in monitors:
+                    if mon.index == active_window.monitor_index:
+                        return mon.index
 
-            # Window center → monitor lookup
+            # Fallback: window center → monitor lookup
             if active_window.width > 0:
                 cx = active_window.x + active_window.width // 2
                 cy = active_window.y + active_window.height // 2

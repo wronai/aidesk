@@ -144,30 +144,47 @@ All steps emit typed events to the `EventBus`, persisted to an SQLite event stor
 ```
 PipelineOrchestrator.run(PipelineContext)
   │
-  ├─ ScanWindowsStep        → scan all visible windows (wmctrl/xdotool)
+  ├─ ScanWindowsStep         → scan all visible windows (wmctrl/xdotool)
   │   └─ emits: pipeline.windows_scanned {total: N}
   │
-  ├─ DetectActiveWindowStep → detect active window, ROI, git context
+  ├─ DetectActiveWindowStep  → detect active window, ROI, git context
   │   └─ emits: pipeline.windows_scanned {active: WindowInfo}
   │
-  ├─ CaptureScreenStep      → capture fullscreen or ROI (mss/grim)
+  ├─ CaptureScreenStep       → capture fullscreen or ROI (mss/grim)
   │   └─ emits: pipeline.screen_captured {size_kb, has_change}
   │   └─ GATE: skips rest if no change detected
   │
-  ├─ CropWindowsStep        → crop each visible app from fullscreen
+  ├─ CropWindowsStep         → crop each visible app from fullscreen
   │   └─ emits: pipeline.screen_organized {total, summary, categories}
   │
-  ├─ BuildContextStep       → window info + profiles + TTS transcript → rich prompt
+  ├─ MultiMonitorStep *      → per-monitor activity scoring + LLM description
+  │   └─ GATE: skips if single monitor
+  │
+  ├─ BuildContextStep        → window info + profiles + TTS transcript → rich prompt
   │   └─ emits: pipeline.context_built {context_length}
   │
-  ├─ AnalyzeStep             → OCR + LLM (hybrid/vision modes)
+  ├─ AnalyzeStep              → OCR + LLM (hybrid/vision modes)
   │   └─ emits: pipeline.analysis_completed {tokens, cost, provider, mode}
   │
-  ├─ SuggestActionsStep      → pattern-match text → safe commands
+  ├─ OCRPostProcessStep *    → enhance OCR text (char fixes, spell check, word merge)
+  │   └─ GATE: skips if no OCR text in analysis result
+  │
+  ├─ SuggestActionsStep       → pattern-match text → safe commands
   │   └─ emits: pipeline.agent_suggested {count}
   │
-  └─ BuildBroadcastStep     → assemble SSE payload from context
+  ├─ ActionTemplateStep *    → learned action patterns with confidence scoring
+  │   └─ GATE: skips if no analysis result or active window
+  │
+  ├─ SemanticMemoryStep *    → store context + recall relevant past memories
+  │   └─ GATE: skips if no analysis result
+  │
+  ├─ PredictiveStep *        → learn window transitions + trigger pre-fetch
+  │   └─ GATE: skips if no active window
+  │
+  └─ BuildBroadcastStep      → assemble SSE payload from context
       └─ emits: pipeline.broadcast_sent {keys}
+
+  (* = Tier 1 steps added in v2.1)
 ```
 
 **SOLID compliance:**
@@ -446,6 +463,107 @@ ActionRisk (Enum)
 - 30+ safe commands whitelist (git status, ls, df, ps...)
 - 10+ approval-required commands (git push, pip install, make...)
 
+#### multi_monitor.py - Multi-Monitor Intelligence (Tier 1)
+```python
+MonitorAwareCapture
+├── detect_active_monitor(monitors, active_window) → int
+│   ├── 1. Active window monitor_index
+│   ├── 2. Window center → monitor lookup
+│   ├── 3. Mouse cursor monitor (xdotool)
+│   └── 4. Primary monitor fallback
+├── build_snapshot(monitors, windows, active_window) → MultiMonitorSnapshot
+│   ├── Per-monitor activity scoring (window count, change score)
+│   ├── Priority ranking (active > primary > most windows)
+│   └── Human-readable description ("left: ide | right: terminal")
+├── get_monitors_to_analyze(snapshot) → List[int]
+│   └── active_only=true → only active monitor (60-80% cost savings)
+├── get_capture_roi_for_monitor(monitor) → Dict
+└── get_stats() → Dict
+```
+
+#### semantic_memory.py - Semantic Memory with Embeddings (Tier 1)
+```python
+SemanticMemory
+├── __init__(model, db_path, max_memories, recall_top_k, threshold)
+│   ├── Optional sentence-transformers (all-MiniLM-L6-v2, 384 dim)
+│   ├── SQLite vector store with in-memory cache
+│   └── Graceful fallback to keyword search if no model
+├── add_memory(content, type, metadata) → memory_id
+│   ├── Embed text → normalize → store to SQLite + cache
+│   ├── Content-hash deduplication (5s window)
+│   └── Auto-prune oldest when over max_memories
+├── recall_relevant(query, k, type, since) → List[MemoryItem]
+│   ├── Semantic: cosine similarity on normalized embeddings
+│   └── Keyword fallback: Jaccard word overlap scoring
+├── recall_recent(n, type) → List[MemoryItem]
+├── compress_old_context(before_timestamp) → int
+│   └── Group by hour → summarize → replace originals
+├── get_context_string(query, n, max_length) → str
+└── get_stats() → Dict
+```
+
+#### action_templates.py - App-Specific Action Templates (Tier 1)
+```python
+AppActionLibrary
+├── __init__(db_path, auto_approve_default) → loads seed + DB templates
+├── suggest_with_confidence(text, app_category) → List[ScoredAction]
+│   ├── Regex pattern matching per app category
+│   └── Confidence from approval/rejection history
+├── learn_from_approval(template_id) → may promote to auto-execute
+├── learn_from_rejection(template_id) → may revoke auto-execute
+├── learn_from_execution(template_id)
+├── add_template() / remove_template()
+├── export_templates() → JSON (community sharing)
+├── import_templates(json) → int
+└── get_stats() → Dict
+
+ActionTemplate (dataclass)
+├── trigger_pattern: str (regex)
+├── command_template: str (with {1}, {2} placeholders)
+├── confidence: float (0.0-1.0 from approval history)
+├── should_auto_execute: bool (promoted after N approvals, 0 rejections)
+└── 10 seed templates: Python, Node, Git, Docker, Rust, disk, ports
+```
+
+#### ocr_post_process.py - OCR Post-Processing Pipeline (Tier 1)
+```python
+OCREnhancer
+├── enhance(text, hint_type) → PostProcessResult
+│   ├── 1. Detect text type (code | terminal | prose | mixed)
+│   ├── 2. Apply type-specific fixes (CODE_OCR_FIXES, TERMINAL_OCR_FIXES)
+│   ├── 3. Fix character confusions (O↔0, l↔1 context-aware)
+│   ├── 4. Merge broken words across line breaks
+│   └── 5. Optional spell check (symspellpy, preserves code keywords)
+└── get_stats() → Dict
+
+Text type detection heuristics:
+├── CODE: def/class/import/function patterns (13 indicators)
+├── TERMINAL: $prompt, ERROR/WARNING, Traceback (9 indicators)
+└── PROSE: long sentences with punctuation
+
+90+ programming keywords preserved from spell correction
+```
+
+#### predictive_engine.py - Predictive Pre-fetching (Tier 1)
+```python
+PredictiveAnalyzer
+├── observe_window_change(category, window_id)
+│   └── Update first-order Markov chain on app transitions
+├── predict_next_action(current_category) → PredictionResult
+│   └── Most likely next category if P > confidence_threshold
+├── maybe_prefetch(prediction) → trigger background OCR/capture
+├── get_prefetched(window_id) → PrefetchCache (if valid TTL)
+├── get_transition_matrix() → Dict[str, Dict[str, float]]
+├── get_top_patterns(n) → List[Dict]
+└── get_stats() → Dict (accuracy, hit rate, latency saved)
+
+PrefetchCache
+├── window_id, app_category
+├── ocr_text, image_b64 (pre-computed)
+├── ttl: float (default 10s)
+└── is_valid: bool
+```
+
 #### context.py - Context Manager
 ```python
 ContextManager
@@ -516,9 +634,19 @@ FastAPI App
 │   ├── GET  /audio/devices - PulseAudio/PipeWire device discovery
 │   ├── GET  /crops - List per-app crop files
 │   └── GET  /crops/{filename} - Serve crop file
+├── Tier 1 Feature Endpoints
+│   ├── GET  /multi-monitor - Multi-monitor snapshot + activity
+│   ├── GET  /memory/search - Semantic memory search (q, k, type)
+│   ├── GET  /memory/stats - Semantic memory statistics
+│   ├── POST /memory/compress - Trigger memory compression
+│   ├── GET  /templates - Action templates with learning stats
+│   ├── POST /templates/import - Import templates from JSON
+│   ├── GET  /templates/export - Export templates as JSON
+│   ├── GET  /ocr/post-process/stats - OCR enhancer stats
+│   └── GET  /predictive - Transition matrix + patterns
 └── Background Tasks
     └── screen_analysis_loop() → PipelineOrchestrator
-        └── 8 composable steps (see Pipeline section above)
+        └── 13 composable steps (see Pipeline section above)
 ```
 
 #### event_bus.py - Event Bus (Event Sourcing + CQRS)
@@ -557,9 +685,14 @@ PipelineContext (shared accumulator)
 ├── all_windows, active_window, roi - Phase 1 output
 ├── image_b64, capture_result - Phase 2 output
 ├── organized_screen, screen_summary - Phase 3+4 output
+├── multi_monitor_snapshot, monitor_description - Tier 1: Multi-monitor
 ├── full_context, prompt_addon - Phase 5 output
 ├── analysis_result - Phase 6 output
+├── ocr_enhanced, ocr_corrections - Tier 1: OCR post-processing
 ├── agent_actions - Phase 7 output
+├── template_actions - Tier 1: Learned action templates
+├── recalled_memories - Tier 1: Semantic memory recall
+├── prediction, used_prefetch - Tier 1: Predictive pre-fetch
 ├── broadcast_data - Phase 8 output
 └── steps_executed, step_timings, errors - Metrics
 

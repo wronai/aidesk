@@ -199,7 +199,7 @@ ai-desktop-assistant/
 ├── start.sh              # Startup script (Linux/macOS)
 ├── start.bat             # Startup script (Windows)
 ├── README.md             # Ten plik
-└── LICENSE               # MIT License
+└── LICENSE               # Apache License
 ```
 
 ## 🔧 Konfiguracja zaawansowana

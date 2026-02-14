@@ -34,6 +34,11 @@ from pipeline import PipelineOrchestrator, PipelineContext, PipelineProfile, Pro
 from command_handlers import CommandHandlers
 from query_handlers import QueryHandlers, ReadModel
 from config_service import get_config_with_schema, read_env, update_env, discover_audio_devices
+from multi_monitor import MonitorAwareCapture, create_multi_monitor_from_env
+from semantic_memory import SemanticMemory, create_semantic_memory_from_env
+from action_templates import AppActionLibrary, create_action_library_from_env
+from ocr_post_process import OCREnhancer, create_ocr_enhancer_from_env
+from predictive_engine import PredictiveAnalyzer, create_predictive_engine_from_env
 
 # Lazy STT import - sounddevice may not be available
 def _import_stt():
@@ -145,6 +150,11 @@ app_state = {
     "read_model": None,
     "command_handlers": None,
     "query_handlers": None,
+    "multi_monitor": None,
+    "semantic_memory": None,
+    "action_library": None,
+    "ocr_enhancer": None,
+    "predictive_engine": None,
     "latest_window": None,
     "latest_organized_screen": None,
     "stats": {
@@ -354,6 +364,11 @@ def _nfo_validate_startup(state: Dict):
         "event_bus": state.get("event_bus") is not None,
         "pipeline": state.get("pipeline") is not None,
         "read_model": state.get("read_model") is not None,
+        "multi_monitor": state.get("multi_monitor") is not None,
+        "semantic_memory": state.get("semantic_memory") is not None,
+        "action_library": state.get("action_library") is not None,
+        "ocr_enhancer": state.get("ocr_enhancer") is not None,
+        "predictive_engine": state.get("predictive_engine") is not None,
     }
     ok = [k for k, v in components.items() if v]
     failed = [k for k, v in components.items() if not v]
@@ -417,6 +432,37 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Process scanner/cropper initialization failed", error=str(e))
 
+    # Initialize Tier 1 modules: Multi-Monitor, Semantic Memory, Action Templates, OCR Post-Processing, Predictive Engine
+    try:
+        app_state["multi_monitor"] = create_multi_monitor_from_env()
+        logger.info("Multi-monitor intelligence enabled")
+    except Exception as e:
+        logger.warning("Multi-monitor initialization failed", error=str(e))
+
+    try:
+        app_state["semantic_memory"] = create_semantic_memory_from_env()
+        logger.info("Semantic memory enabled", model=app_state["semantic_memory"].model_name if app_state["semantic_memory"].enabled else "disabled")
+    except Exception as e:
+        logger.warning("Semantic memory initialization failed", error=str(e))
+
+    try:
+        app_state["action_library"] = create_action_library_from_env()
+        logger.info("Action templates enabled", templates=len(app_state["action_library"]._templates))
+    except Exception as e:
+        logger.warning("Action templates initialization failed", error=str(e))
+
+    try:
+        app_state["ocr_enhancer"] = create_ocr_enhancer_from_env()
+        logger.info("OCR post-processing enabled")
+    except Exception as e:
+        logger.warning("OCR post-processing initialization failed", error=str(e))
+
+    try:
+        app_state["predictive_engine"] = create_predictive_engine_from_env()
+        logger.info("Predictive pre-fetching enabled")
+    except Exception as e:
+        logger.warning("Predictive engine initialization failed", error=str(e))
+
     # nfo startup validation — log all initialized components
     _nfo_validate_startup(app_state)
 
@@ -438,6 +484,11 @@ async def lifespan(app: FastAPI):
         process_scanner=app_state.get("process_scanner"),
         window_cropper=app_state.get("window_cropper"),
         app_state_ref=app_state,
+        multi_monitor=app_state.get("multi_monitor"),
+        semantic_memory=app_state.get("semantic_memory"),
+        action_library=app_state.get("action_library"),
+        ocr_enhancer=app_state.get("ocr_enhancer"),
+        predictive_engine=app_state.get("predictive_engine"),
     )
 
     # Pipeline Profile Selector (adaptive FAST/NORMAL/FULL routing)
@@ -537,755 +588,9 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-async def root():
-    """Root endpoint."""
-    return {
-        "name": "AI Desktop Assistant API",
-        "version": APP_VERSION,
-        "status": "running",
-        "endpoints": {
-            "stream": "/stream - SSE endpoint for real-time updates",
-            "status": "/status - Current status and latest data",
-            "stats": "/stats - Detailed statistics",
-            "health": "/health - Health check",
-            "window": "/window - Active window info (GET)",
-            "window_latest": "/window/latest - Cached window info (GET)",
-            "monitors": "/monitors - Connected monitors (GET)",
-            "profiles": "/profiles - Per-app analysis profiles (GET)",
-            "agent_actions": "/agent/actions - Pending agent actions (GET)",
-            "agent_approve": "/agent/approve/{id} - Approve action (POST)",
-            "agent_execute": "/agent/execute/{id} - Execute action (POST)",
-            "agent_run": "/agent/run - Run safe command (POST)",
-            "agent_history": "/agent/history - Action history (GET)",
-            "processes": "/processes - All visible windows with process info (GET)",
-            "windows_all": "/windows/all - All visible windows with geometry (GET)",
-            "screen_organized": "/screen/organized - Latest organized screen data (GET)",
-            "screen_stats": "/screen/stats - Process scanner & cropper stats (GET)",
-            "nfo_validation": "/nfo/validation - nfo startup validation (GET)",
-            "events": "/events - Query event store (GET, ?type=&source=&correlation_id=&limit=)",
-            "events_stats": "/events/stats - Event bus statistics (GET)",
-            "pipeline_info": "/pipeline - Pipeline steps and stats (GET)",
-            "read_model": "/read-model - CQRS materialized views (GET)",
-            "read_model_pipeline": "/read-model/pipeline - Pipeline execution view (GET)",
-            "read_model_stats": "/read-model/stats - Enriched stats with event metrics (GET)",
-            "config": "/config - Get/update .env configuration (GET/POST)",
-            "config_ui": "/config/ui - Browser-based configuration UI (GET)",
-            "audio_devices": "/audio/devices - List audio devices (GET)",
-        },
-    }
-
-
-@app.get("/stream")
-async def sse_stream(request: Request):
-    """
-    Server-Sent Events endpoint for real-time updates.
-
-    This is the main connection point for the overlay UI.
-    """
-    queue = asyncio.Queue(maxsize=100)
-    app_state["subscribers"].append(queue)
-
-    async def event_generator():
-        try:
-            # Send initial state
-            yield f"event: connected\ndata: {json.dumps({'status': 'connected'})}\n\n"
-
-            while True:
-                # Check if client disconnected
-                if await request.is_disconnected():
-                    break
-
-                # Wait for message or timeout
-                try:
-                    message = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    yield message
-                except asyncio.TimeoutError:
-                    # Send heartbeat
-                    yield "event: heartbeat\ndata: {}\n\n"
-
-        except Exception as e:
-            logger.error("SSE stream error", error=str(e))
-        finally:
-            # Clean up subscriber
-            if queue in app_state["subscribers"]:
-                app_state["subscribers"].remove(queue)
-            logger.info(
-                "SSE client disconnected",
-                active_subscribers=len(app_state["subscribers"]),
-            )
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@app.get("/status")
-async def status():
-    """Get current status and latest data."""
-    return {
-        "latest_analysis": app_state["latest_analysis"],
-        "latest_transcript": app_state["latest_transcript"],
-        "active_subscribers": len(app_state["subscribers"]),
-        "context_items": len(app_state["context"].history),
-    }
-
-
-@app.get("/stats")
-async def stats():
-    """Get detailed statistics."""
-    uptime = time.time() - app_state["stats"]["start_time"]
-
-    stats_data = {
-        "uptime_seconds": round(uptime),
-        "uptime_formatted": f"{int(uptime // 3600)}h {int((uptime % 3600) // 60)}m",
-        "total_screen_analyses": app_state["stats"]["total_screen_analyses"],
-        "total_transcripts": app_state["stats"]["total_transcripts"],
-        "total_errors": app_state["stats"]["total_errors"],
-        "active_subscribers": len(app_state["subscribers"]),
-    }
-
-    # Add component stats
-    if app_state["capture"]:
-        stats_data["capture"] = app_state["capture"].get_stats()
-
-    if app_state["analyzer"]:
-        stats_data["analyzer"] = app_state["analyzer"].get_stats()
-
-    if app_state["ocr_manager"]:
-        stats_data["ocr"] = app_state["ocr_manager"].get_stats()
-
-    if app_state["stt"]:
-        stats_data["stt"] = app_state["stt"].get_stats()
-
-    if app_state["window_manager"]:
-        stats_data["window_manager"] = app_state["window_manager"].get_stats()
-
-    if app_state["profile_manager"]:
-        stats_data["profile_manager"] = app_state["profile_manager"].get_stats()
-
-    if app_state["shell_agent"]:
-        stats_data["shell_agent"] = app_state["shell_agent"].get_stats()
-
-    if app_state.get("process_scanner"):
-        stats_data["process_scanner"] = app_state["process_scanner"].get_stats()
-
-    if app_state.get("window_cropper"):
-        stats_data["window_cropper"] = app_state["window_cropper"].get_stats()
-
-    if app_state.get("profile_selector"):
-        stats_data["profile_selector"] = app_state["profile_selector"].get_stats()
-
-    stats_data["context"] = app_state["context"].get_stats()
-
-    return stats_data
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint."""
-    is_healthy = (
-        app_state["capture"] is not None and app_state["analyzer"] is not None
-    )
-
-    return JSONResponse(
-        status_code=200 if is_healthy else 503,
-        content={
-            "status": "healthy" if is_healthy else "unhealthy",
-            "components": {
-                "capture": app_state["capture"] is not None,
-                "analyzer": app_state["analyzer"] is not None,
-                "ocr": app_state["ocr_manager"] is not None,
-                "stt": app_state["stt"] is not None,
-                "window_manager": app_state["window_manager"] is not None,
-                "profile_manager": app_state["profile_manager"] is not None,
-                "shell_agent": app_state["shell_agent"] is not None,
-                "process_scanner": app_state["process_scanner"] is not None,
-                "window_cropper": app_state["window_cropper"] is not None,
-                "event_bus": app_state.get("event_bus") is not None,
-                "pipeline": app_state.get("pipeline") is not None,
-                "read_model": app_state.get("read_model") is not None,
-            },
-        },
-    )
-
-
-# ===== OCR Management Endpoints =====
-
-@app.get("/ocr/engines")
-async def ocr_engines():
-    """List available OCR engines and their status."""
-    if not app_state["ocr_manager"]:
-        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
-    return {
-        "engines": app_state["ocr_manager"].get_available_engines(),
-        "active": app_state["ocr_manager"].active_engine_name,
-    }
-
-
-@app.post("/ocr/engine/{engine_name}")
-async def set_ocr_engine(engine_name: str):
-    """Switch active OCR engine at runtime."""
-    if not app_state["ocr_manager"]:
-        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
-
-    success = app_state["ocr_manager"].set_engine(engine_name)
-    if not success:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": f"Engine '{engine_name}' not available",
-                "available": list(app_state["ocr_manager"].engines.keys()),
-            },
-        )
-
-    await broadcast("ocr_engine_changed", {
-        "engine": engine_name,
-        "available": list(app_state["ocr_manager"].engines.keys()),
-    })
-
-    return {"engine": engine_name, "status": "active"}
-
-
-@app.post("/ocr/benchmark")
-async def ocr_benchmark():
-    """
-    Run benchmark: all OCR engines on current screen capture.
-    Returns comparative results for A/B testing.
-    """
-    if not app_state["ocr_manager"]:
-        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
-    if not app_state["capture"]:
-        return JSONResponse(status_code=503, content={"error": "Capture not initialized"})
-
-    from PIL import Image
-    from io import BytesIO
-    import base64
-
-    image_b64 = None
-    capture = app_state["capture"]
-
-    # Try to grab a fresh screenshot
-    try:
-        sct = capture.sct
-        monitor = sct.monitors[1]
-        raw = sct.grab(monitor)
-        img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
-        img_resized = img.resize(
-            (capture.screen_width, capture.screen_height), Image.Resampling.LANCZOS
-        )
-        buffer = BytesIO()
-        img_resized.save(buffer, format="JPEG", quality=capture.jpeg_quality, optimize=True)
-        image_b64 = base64.b64encode(buffer.getvalue()).decode()
-    except Exception as e:
-        logger.warning("Benchmark: screen capture failed, using test image", error=str(e))
-        # Fallback: generate a test image with sample text for benchmarking
-        img = Image.new("RGB", (capture.screen_width, capture.screen_height), color=(30, 30, 35))
-        from PIL import ImageDraw
-        draw = ImageDraw.Draw(img)
-        sample_texts = [
-            (50, 30, "AI Desktop Assistant - Benchmark Test"),
-            (50, 80, "Analiza zrzutu ekranu w trybie testowym"),
-            (50, 130, "def analyze(image): return ocr.extract(image)"),
-            (50, 180, "Status: Connected | Mode: hybrid | OCR: active"),
-            (50, 230, "Polskie znaki: ąćęłńóśźż ĄĆĘŁŃÓŚŹŻ"),
-        ]
-        for x, y, text in sample_texts:
-            draw.text((x, y), text, fill=(220, 220, 220))
-        buffer = BytesIO()
-        img.save(buffer, format="JPEG", quality=capture.jpeg_quality, optimize=True)
-        image_b64 = base64.b64encode(buffer.getvalue()).decode()
-
-    # Run benchmark
-    result = app_state["ocr_manager"].benchmark(image_b64)
-
-    await broadcast("ocr_benchmark", result)
-
-    return result
-
-
-@app.get("/ocr/stats")
-async def ocr_stats():
-    """Get OCR engine statistics."""
-    if not app_state["ocr_manager"]:
-        return JSONResponse(status_code=404, content={"error": "OCR not initialized"})
-    return app_state["ocr_manager"].get_stats()
-
-
-# ===== Analysis Mode Endpoints =====
-
-@app.get("/mode")
-async def get_analysis_mode():
-    """Get current analysis mode."""
-    analyzer = app_state["analyzer"]
-    if not analyzer:
-        return JSONResponse(status_code=503, content={"error": "Analyzer not initialized"})
-    return {
-        "mode": analyzer.analysis_mode,
-        "available_modes": [
-            {"id": "vision_only", "name": "Vision Only", "desc": "Pure VLM – obraz → LLM"},
-            {"id": "ocr_only", "name": "OCR Only", "desc": "Tylko OCR – najszybszy, bez LLM"},
-            {"id": "hybrid", "name": "Hybrid (OCR→LLM)", "desc": "OCR tekst → LLM (rekomendowany)"},
-            {"id": "ocr_plus_vision", "name": "OCR + Vision", "desc": "OCR tekst + obraz → VLM (najdokładniejszy)"},
-        ],
-    }
-
-
-@app.post("/mode/{mode_name}")
-async def set_analysis_mode(mode_name: str):
-    """Switch analysis mode at runtime."""
-    analyzer = app_state["analyzer"]
-    if not analyzer:
-        return JSONResponse(status_code=503, content={"error": "Analyzer not initialized"})
-
-    success = analyzer.set_mode(mode_name)
-    if not success:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": f"Invalid mode '{mode_name}'",
-                "valid_modes": ["vision_only", "ocr_only", "hybrid", "ocr_plus_vision"],
-            },
-        )
-
-    await broadcast("mode_changed", {"mode": mode_name})
-
-    return {"mode": mode_name, "status": "active"}
-
-
-# ===== Diagnostics Endpoints =====
-
-@app.get("/diagnostics")
-async def diagnostics():
-    """Get latest autodiagnostics result."""
-    diag = app_state.get("diagnostics")
-    if not diag or not diag.get_latest():
-        return JSONResponse(status_code=503, content={"error": "Diagnostics not yet available", "detail": "First check runs after configured interval"})
-    return diag.get_latest()
-
-
-@app.get("/diagnostics/history")
-async def diagnostics_history():
-    """Get diagnostics history."""
-    diag = app_state.get("diagnostics")
-    if not diag:
-        return []
-    return diag.get_history()
-
-
-# ===== Window Awareness Endpoints =====
-
-@app.get("/window")
-async def get_active_window():
-    """Get current active window information."""
-    wm = app_state.get("window_manager")
-    if not wm:
-        return JSONResponse(status_code=503, content={"error": "Window awareness not enabled"})
-    info = wm.get_active_window()
-    return info.to_dict()
-
-
-@app.get("/window/latest")
-async def get_latest_window():
-    """Get latest cached window info (no subprocess call)."""
-    latest = app_state.get("latest_window")
-    if not latest:
-        return JSONResponse(status_code=404, content={"error": "No window data yet"})
-    return latest
-
-
-@app.get("/monitors")
-async def get_monitors():
-    """Get list of connected monitors."""
-    wm = app_state.get("window_manager")
-    capture = app_state.get("capture")
-
-    result = {"monitors": []}
-
-    if wm:
-        result["monitors"] = [m.to_dict() for m in wm.get_monitors()]
-        result["source"] = "xrandr"
-    elif capture:
-        result["monitors"] = capture.get_monitors()
-        result["source"] = "mss"
-
-    return result
-
-
-@app.get("/window/stats")
-async def window_stats():
-    """Get window manager statistics."""
-    wm = app_state.get("window_manager")
-    if not wm:
-        return JSONResponse(status_code=503, content={"error": "Window awareness not enabled"})
-    return wm.get_stats()
-
-
-# ===== Process Scanner & Window Cropper Endpoints =====
-
-@app.get("/processes")
-async def get_all_processes():
-    """
-    Scan all visible windows with process info.
-    Returns organized layout grouped by category.
-    """
-    scanner = app_state.get("process_scanner")
-    if not scanner:
-        return JSONResponse(status_code=503, content={"error": "Process scanner not initialized"})
-    return scanner.get_window_layout()
-
-
-@app.get("/windows/all")
-async def get_all_windows():
-    """Get all visible windows with geometry and process details."""
-    scanner = app_state.get("process_scanner")
-    if not scanner:
-        return JSONResponse(status_code=503, content={"error": "Process scanner not initialized"})
-    windows = scanner.scan_all_windows()
-    return {
-        "total": len(windows),
-        "windows": [w.to_dict() for w in windows],
-    }
-
-
-@app.get("/screen/organized")
-async def get_organized_screen():
-    """Get latest organized screen data (per-app crops + categories)."""
-    data = app_state.get("latest_organized_screen")
-    if not data:
-        return JSONResponse(status_code=404, content={"error": "No organized screen data yet"})
-    return data
-
-
-@app.get("/screen/stats")
-async def get_screen_stats():
-    """Get process scanner and window cropper statistics."""
-    result = {}
-    scanner = app_state.get("process_scanner")
-    if scanner:
-        result["process_scanner"] = scanner.get_stats()
-    cropper = app_state.get("window_cropper")
-    if cropper:
-        result["window_cropper"] = cropper.get_stats()
-    return result
-
-
-@app.get("/nfo/validation")
-async def get_nfo_validation():
-    """Get latest nfo startup validation result."""
-    return _nfo_validate_startup(app_state)
-
-
-# ===== Event Bus & Pipeline Endpoints (CQRS/Event Sourcing) =====
-
-@app.get("/events")
-async def query_events(
-    type: Optional[str] = None,
-    source: Optional[str] = None,
-    correlation_id: Optional[str] = None,
-    since: Optional[float] = None,
-    limit: int = 50,
-):
-    """
-    Query the event store (Event Sourcing read side).
-    Supports filtering by type, source, correlation_id, and time range.
-    """
-    bus = app_state.get("event_bus")
-    if not bus or not bus.store:
-        return JSONResponse(status_code=503, content={"error": "Event store not enabled"})
-    events = bus.store.query(
-        event_type=type,
-        source=source,
-        correlation_id=correlation_id,
-        since=since,
-        limit=limit,
-    )
-    return {"total": len(events), "events": events}
-
-
-@app.get("/events/stats")
-async def event_bus_stats():
-    """Get event bus and event store statistics."""
-    bus = app_state.get("event_bus")
-    if not bus:
-        return JSONResponse(status_code=503, content={"error": "Event bus not initialized"})
-    return bus.get_stats()
-
-
-@app.get("/pipeline")
-async def pipeline_info():
-    """Get pipeline configuration, steps, and execution statistics."""
-    pipeline = app_state.get("pipeline")
-    if not pipeline:
-        return JSONResponse(status_code=503, content={"error": "Pipeline not initialized"})
-    result = {
-        "steps": pipeline.get_step_names(),
-        "stats": pipeline.get_stats(),
-    }
-    ps = app_state.get("profile_selector")
-    if ps:
-        result["profile_selector"] = ps.get_stats()
-    return result
-
-
-@app.get("/read-model")
-async def get_read_model():
-    """Get CQRS read model — materialized views of pipeline and analysis state."""
-    qry = app_state.get("query_handlers")
-    if not qry:
-        return JSONResponse(status_code=503, content={"error": "Query handlers not initialized"})
-    return {
-        "pipeline": qry.read_model.get_pipeline_view(),
-        "analysis": qry.read_model.get_analysis_view(),
-        "event_counts": qry.read_model.get_event_counts(),
-    }
-
-
-@app.get("/read-model/pipeline")
-async def get_read_model_pipeline():
-    """Get pipeline execution view from CQRS read model."""
-    qry = app_state.get("query_handlers")
-    if not qry:
-        return JSONResponse(status_code=503, content={"error": "Query handlers not initialized"})
-    return qry.query_pipeline()
-
-
-@app.get("/read-model/stats")
-async def get_read_model_stats():
-    """Get enriched stats from CQRS read model (includes event bus + pipeline metrics)."""
-    qry = app_state.get("query_handlers")
-    if not qry:
-        return JSONResponse(status_code=503, content={"error": "Query handlers not initialized"})
-    return qry.query_stats()
-
-
-# ===== App Profiles Endpoints =====
-
-@app.get("/profiles")
-async def get_profiles():
-    """Get all available per-app analysis profiles."""
-    pm = app_state.get("profile_manager")
-    if not pm:
-        return JSONResponse(status_code=503, content={"error": "Profile manager not initialized"})
-    return {
-        "profiles": pm.get_all_profiles(),
-        "active": pm.active_category.value if pm.active_category else None,
-        "stats": pm.get_stats(),
-    }
-
-
-# ===== Shell Agent Endpoints =====
-
-@app.get("/agent/actions")
-async def get_pending_actions():
-    """Get pending agent actions awaiting approval."""
-    agent = app_state.get("shell_agent")
-    if not agent:
-        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
-    return {
-        "pending": agent.get_pending_actions(),
-        "stats": agent.get_stats(),
-    }
-
-
-@app.post("/agent/approve/{action_id}")
-async def approve_action(action_id: str):
-    """Approve a pending agent action."""
-    agent = app_state.get("shell_agent")
-    if not agent:
-        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
-
-    success = agent.approve_action(action_id)
-    if not success:
-        return JSONResponse(status_code=404, content={"error": f"Action not found: {action_id}"})
-
-    return {"action_id": action_id, "status": "approved"}
-
-
-@app.post("/agent/execute/{action_id}")
-async def execute_action(action_id: str):
-    """Execute an approved agent action."""
-    agent = app_state.get("shell_agent")
-    if not agent:
-        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
-
-    try:
-        # Get CWD from latest window if available
-        cwd = None
-        latest_window = app_state.get("latest_window")
-        if latest_window and latest_window.get("cwd"):
-            cwd = latest_window["cwd"]
-
-        result = agent.execute_action(action_id, cwd=cwd)
-        await broadcast("agent_result", result.to_dict())
-        return result.to_dict()
-    except ValueError as e:
-        return JSONResponse(status_code=404, content={"error": str(e)})
-
-
-@app.get("/agent/history")
-async def agent_history():
-    """Get agent action execution history."""
-    agent = app_state.get("shell_agent")
-    if not agent:
-        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
-    return {
-        "history": agent.get_history(n=50),
-        "stats": agent.get_stats(),
-    }
-
-
-@app.post("/agent/run")
-async def agent_run_safe(request: Request):
-    """
-    Run a safe (read-only) command directly.
-    Body: {"command": "git status", "cwd": "/optional/path"}
-    """
-    agent = app_state.get("shell_agent")
-    if not agent:
-        return JSONResponse(status_code=503, content={"error": "Shell agent not enabled"})
-
-    body = await request.json()
-    command = body.get("command", "").strip()
-    cwd = body.get("cwd")
-
-    if not command:
-        return JSONResponse(status_code=400, content={"error": "Missing 'command' field"})
-
-    result = agent.execute_safe(command, cwd=cwd)
-    return result.to_dict()
-
-
-# ===== Screenshot Browser Endpoints =====
-
-@app.get("/screenshots")
-async def list_screenshots():
-    """List all saved screenshots."""
-    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures")
-    if not os.path.exists(captures_dir):
-        return []
-    
-    files = []
-    for f in os.listdir(captures_dir):
-        if f.endswith(".jpg"):
-            path = os.path.join(captures_dir, f)
-            stats = os.stat(path)
-            files.append({
-                "name": f,
-                "timestamp": stats.st_mtime,
-                "size": stats.st_size,
-                "url": f"/screenshots/{f}"
-            })
-    
-    # Sort by timestamp descending
-    files.sort(key=lambda x: x["timestamp"], reverse=True)
-    return files
-
-
-@app.get("/screenshots/{filename}")
-async def get_screenshot(filename: str):
-    """Serve a specific screenshot file."""
-    captures_dir = os.getenv("CAPTURES_DIR", "/tmp/aidesk_captures")
-    file_path = os.path.join(captures_dir, filename)
-    
-    # Security check: prevent directory traversal
-    if not os.path.abspath(file_path).startswith(os.path.abspath(captures_dir)):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-        
-    return FileResponse(file_path)
-
-
-@app.get("/crops")
-async def list_crops():
-    """List all saved per-app crop files."""
-    crops_dir = "/tmp/aidesk_crops"
-    if not os.path.exists(crops_dir):
-        return []
-
-    files = []
-    for f in os.listdir(crops_dir):
-        if f.endswith(".jpg"):
-            path = os.path.join(crops_dir, f)
-            st = os.stat(path)
-            files.append({
-                "name": f,
-                "timestamp": st.st_mtime,
-                "size": st.st_size,
-                "url": f"/crops/{f}",
-            })
-
-    files.sort(key=lambda x: x["timestamp"], reverse=True)
-    return files
-
-
-@app.get("/crops/{filename}")
-async def get_crop(filename: str):
-    """Serve a specific crop file."""
-    crops_dir = "/tmp/aidesk_crops"
-    file_path = os.path.join(crops_dir, filename)
-    if not os.path.abspath(file_path).startswith(os.path.abspath(crops_dir)):
-        raise HTTPException(status_code=403, detail="Access denied")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
-
-
-@app.get("/browser", response_class=FileResponse)
-async def screenshot_browser():
-    """Serve the screenshot browser UI."""
-    return FileResponse(os.path.join(os.path.dirname(__file__), "screenshots.html"))
-
-
-# ===== Configuration Service Endpoints =====
-
-@app.get("/config")
-async def get_config():
-    """Get full configuration: current .env values + schema + audio devices."""
-    return get_config_with_schema()
-
-
-@app.post("/config")
-async def post_config(request: Request):
-    """
-    Update .env configuration.
-    Body: {"KEY": "value", ...}
-    Returns updated values.
-    """
-    body = await request.json()
-    if not isinstance(body, dict) or not body:
-        return JSONResponse(status_code=400, content={"error": "Expected JSON object with key-value pairs"})
-
-    # Validate: only string values
-    for k, v in body.items():
-        if not isinstance(k, str) or not isinstance(v, str):
-            return JSONResponse(status_code=400, content={"error": f"Invalid key/value type for '{k}'"})
-
-    updated = update_env(body)
-
-    await broadcast("config_changed", {"keys": list(body.keys())})
-
-    return {"values": updated, "updated_keys": list(body.keys())}
-
-
-@app.get("/audio/devices")
-async def get_audio_devices():
-    """List all available audio devices (PulseAudio/PipeWire + sounddevice)."""
-    return discover_audio_devices()
-
-
-@app.get("/config/ui", response_class=FileResponse)
-async def config_ui():
-    """Serve the configuration UI."""
-    return FileResponse(os.path.join(os.path.dirname(__file__), "config.html"))
+# ===== Register all route modules =====
+from routes import register_all_routes
+register_all_routes(app, app_state, broadcast)
 
 
 if __name__ == "__main__":
