@@ -471,15 +471,31 @@ class AnalyzeStep:
     """Phase 6: Run OCR + LLM analysis."""
     name = "analyze"
 
-    def __init__(self, analyzer):
+    def __init__(self, analyzer, cost_budget=None):
         self._analyzer = analyzer
+        self._budget = cost_budget
 
     def can_run(self, ctx: PipelineContext) -> bool:
         return self._analyzer is not None and ctx.image_b64 is not None
 
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        # Check budget and potentially downgrade mode
+        if self._budget:
+            current_mode = self._analyzer.analysis_mode
+            safe_mode = self._budget.get_suggested_mode(current_mode)
+            if safe_mode != current_mode:
+                self._analyzer.set_mode(safe_mode)
+                # Revert mode after analysis? Ideally yes, or stick to safe mode.
+                # For now, we switch globally. Alternatively, we could pass mode to analyze()
+                # but set_mode affects global state. Let's switch and potentially switch back?
+                # Actually, simpler to just switch.
+
         analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
         ctx.analysis_result = analysis
+
+        # Record spend
+        if self._budget and analysis.get("cost"):
+            self._budget.record_spend(analysis["cost"])
 
         await bus.publish(typed_event(
             EventType.ANALYSIS_COMPLETED,
@@ -1121,6 +1137,7 @@ def create_pipeline(
     ocr_enhancer=None,
     predictive_engine=None,
     clipboard_manager=None,
+    cost_budget=None,
 ) -> PipelineOrchestrator:
     """
     Factory: create the standard analysis pipeline from components.
@@ -1175,7 +1192,7 @@ def create_pipeline(
     if analyzer:
         from circuit_breaker import wrap_step_with_guard
         pipeline.add_step(wrap_step_with_guard(
-            AnalyzeStep(analyzer),
+            AnalyzeStep(analyzer, cost_budget=cost_budget),
             failure_threshold=int(os.getenv("ANALYZE_CIRCUIT_THRESHOLD", "5")),
             reset_timeout=float(os.getenv("ANALYZE_CIRCUIT_RESET", "60.0")),
             max_retries=int(os.getenv("ANALYZE_MAX_RETRIES", "2")),

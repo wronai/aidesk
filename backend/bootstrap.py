@@ -39,6 +39,8 @@ from action_templates import create_action_library_from_env
 from ocr_post_process import create_ocr_enhancer_from_env
 from predictive_engine import create_predictive_engine_from_env
 from clipboard_intel import create_clipboard_manager_from_env
+from cost_budget import create_cost_budget_from_env
+from plugins.loader import PluginLoader
 
 logger = structlog.get_logger()
 
@@ -148,6 +150,7 @@ class AppBootstrap:
             ("ocr_enhancer", create_ocr_enhancer_from_env, {"settings": self.settings}),
             ("predictive_engine", create_predictive_engine_from_env, {"settings": self.settings}),
             ("clipboard_manager", create_clipboard_manager_from_env, {"settings": self.settings}),
+            ("cost_budget", create_cost_budget_from_env, {"settings": self.settings}),
         ]
         for key, factory, kwargs in tier1_components:
             ok = _init_optional(self.state, key, factory, **kwargs)
@@ -183,6 +186,7 @@ class AppBootstrap:
             ocr_enhancer=self.state.get("ocr_enhancer"),
             predictive_engine=self.state.get("predictive_engine"),
             clipboard_manager=self.state.get("clipboard_manager"),
+            cost_budget=self.state.get("cost_budget"),
         )
 
         # Profile Selector
@@ -209,7 +213,23 @@ class AppBootstrap:
         self._init_results["read_model"] = True
         logger.info("Pipeline + CQRS initialized")
 
-    # ── Phase 6: Start async tasks ──
+    # ── Phase 6: Plugins (optional) ──
+
+    def init_plugins(self):
+        """Discover and load plugins."""
+        # Use plugins_dir from settings if available, else default to 'plugins' relative to backend
+        plugin_dir = getattr(self.settings, "plugins_dir", os.path.join(os.path.dirname(__file__), "plugins"))
+        
+        loader = PluginLoader(
+            plugin_dir=plugin_dir,
+            bus=self.state.get("event_bus"),
+            app_state=self.state,
+        )
+        loader.discover_and_load()
+        self.state["plugin_loader"] = loader
+        self._init_results["plugins"] = True
+
+    # ── Phase 7: Start async tasks ──
 
     async def start_tasks(self, screen_loop_coro, on_transcript_cb):
         """Start screen analysis loop, STT, and diagnostics as async tasks."""
@@ -276,6 +296,7 @@ class AppBootstrap:
         self.init_scanners()
         self.init_tier1()
         self.init_pipeline()
+        self.init_plugins()
         await self.start_tasks(screen_loop_coro, on_transcript_cb)
 
     # ── Shutdown ──
@@ -288,6 +309,11 @@ class AppBootstrap:
         rm = self.state.get("read_model")
         if rm:
             rm.save_snapshot()
+
+        # Shutdown plugins
+        loader = self.state.get("plugin_loader")
+        if loader:
+            await loader.shutdown()
 
         bus = self.state.get("event_bus")
         if bus:

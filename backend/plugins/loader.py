@@ -1,12 +1,13 @@
 """
 Plugin Loader — Discovers and initializes plugins.
 """
+import asyncio
 import importlib
 import os
 import pkgutil
 import sys
 from types import ModuleType
-from typing import Dict, List, Type, Any
+from typing import Dict, List, Type, Any, Optional
 
 import structlog
 

@@ -1,3 +1,24 @@
+## [2.1.6] - 2026-02-14
+
+### Summary
+
+fix(tests): configuration management system
+
+### Other
+
+- update backend/bootstrap.py
+- update backend/cost_budget.py
+- update backend/pipeline.py
+- update backend/plugins/loader.py
+- update backend/skills/base.py
+- update backend/skills/error_fixer.py
+- update backend/skills/shell_command.py
+- update backend/skills/translation.py
+- update backend/skills/tts.py
+- update backend/skills/voice_command.py
+- ... and 2 more
+
+
 ## [2.1.5] - 2026-02-14
 
 ### Summary
