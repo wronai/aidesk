@@ -97,68 +97,83 @@ class VoiceCommandSkill(BaseSkill):
 
         return options
 
+    _OPTION_DISPATCH = {
+        "cancel": "_execute_cancel",
+        "copy": "_execute_copy",
+        "search": "_execute_search",
+        "save": "_execute_save",
+        "translate": "_execute_translate",
+        "run": "_execute_run",
+        "speak": "_execute_speak",
+        "open": "_execute_open",
+        "explain": "_execute_explain",
+    }
+
     async def execute(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
-        if option_id == "cancel":
-            return SkillResult(success=True, message="✕ Komenda anulowana")
+        handler_name = self._OPTION_DISPATCH.get(option_id)
+        if not handler_name:
+            return SkillResult(success=False, error=f"Unknown option: {option_id}")
+        handler = getattr(self, handler_name)
+        return await handler(text, ctx)
 
-        if option_id == "copy":
-            return SkillResult(success=True, message="📋 Skopiowano", clipboard_text=text)
+    async def _execute_cancel(self, text: str, ctx: SkillContext) -> SkillResult:
+        return SkillResult(success=True, message="✕ Komenda anulowana")
 
-        if option_id == "search":
-            query = text[:80].replace(" ", "+")
-            url = f"https://www.google.com/search?q={query}"
-            return SkillResult(success=True, message=f"🔍 Szukam...", open_url=url, clipboard_text=text)
+    async def _execute_copy(self, text: str, ctx: SkillContext) -> SkillResult:
+        return SkillResult(success=True, message="📋 Skopiowano", clipboard_text=text)
 
-        if option_id == "save":
-            import tempfile, os
-            path = os.path.join(tempfile.gettempdir(), "proxeen_saved.txt")
-            with open(path, "w") as f:
-                f.write(text)
-            return SkillResult(success=True, message=f"💾 Zapisano: {path}", clipboard_text=path)
+    async def _execute_search(self, text: str, ctx: SkillContext) -> SkillResult:
+        query = text[:80].replace(" ", "+")
+        url = f"https://www.google.com/search?q={query}"
+        return SkillResult(success=True, message=f"🔍 Szukam...", open_url=url, clipboard_text=text)
 
-        # Delegate to other skills
-        if option_id == "translate":
-            try:
-                from skills.translation import TranslationSkill
-                skill = TranslationSkill()
-                return await skill.execute(text, f"translate_{ctx.locale}", ctx)
-            except Exception as e:
-                return SkillResult(success=False, error=str(e))
+    async def _execute_save(self, text: str, ctx: SkillContext) -> SkillResult:
+        import tempfile, os
+        path = os.path.join(tempfile.gettempdir(), "proxeen_saved.txt")
+        with open(path, "w") as f:
+            f.write(text)
+        return SkillResult(success=True, message=f"💾 Zapisano: {path}", clipboard_text=path)
 
-        if option_id == "run":
-            try:
-                from skills.shell_command import ShellCommandSkill
-                skill = ShellCommandSkill()
-                return await skill.execute(text, "run_cwd", ctx)
-            except Exception as e:
-                return SkillResult(success=False, error=str(e))
+    async def _execute_translate(self, text: str, ctx: SkillContext) -> SkillResult:
+        try:
+            from skills.translation import TranslationSkill
+            skill = TranslationSkill()
+            return await skill.execute(text, f"translate_{ctx.locale}", ctx)
+        except Exception as e:
+            return SkillResult(success=False, error=str(e))
 
-        if option_id == "speak":
-            try:
-                from skills.tts import TTSSkill
-                skill = TTSSkill()
-                return await skill.execute(text, "speak", ctx)
-            except Exception as e:
-                return SkillResult(success=False, error=str(e))
+    async def _execute_run(self, text: str, ctx: SkillContext) -> SkillResult:
+        try:
+            from skills.shell_command import ShellCommandSkill
+            skill = ShellCommandSkill()
+            return await skill.execute(text, "run_cwd", ctx)
+        except Exception as e:
+            return SkillResult(success=False, error=str(e))
 
-        if option_id == "open":
-            import re as _re
-            url_match = _re.search(r"https?://[^\s]+", text)
-            if url_match:
-                return SkillResult(success=True, message="📂 Otwieram...", open_url=url_match.group(0))
-            path_match = _re.search(r"/[\w/.@+-]+", text)
-            if path_match:
-                return SkillResult(success=True, message=f"📂 Ścieżka: {path_match.group(0)}", clipboard_text=path_match.group(0))
-            return SkillResult(success=False, message="❌ Nie znaleziono URL ani ścieżki")
+    async def _execute_speak(self, text: str, ctx: SkillContext) -> SkillResult:
+        try:
+            from skills.tts import TTSSkill
+            skill = TTSSkill()
+            return await skill.execute(text, "speak", ctx)
+        except Exception as e:
+            return SkillResult(success=False, error=str(e))
 
-        if option_id == "explain":
-            return SkillResult(
-                success=True,
-                message=f"💡 Zaznaczony tekst ({len(text.split())} słów, {text.count(chr(10))+1} linii)",
-                clipboard_text=text,
-            )
+    async def _execute_open(self, text: str, ctx: SkillContext) -> SkillResult:
+        import re as _re
+        url_match = _re.search(r"https?://[^\s]+", text)
+        if url_match:
+            return SkillResult(success=True, message="📂 Otwieram...", open_url=url_match.group(0))
+        path_match = _re.search(r"/[\w/.@+-]+", text)
+        if path_match:
+            return SkillResult(success=True, message=f"📂 Ścieżka: {path_match.group(0)}", clipboard_text=path_match.group(0))
+        return SkillResult(success=False, message="❌ Nie znaleziono URL ani ścieżki")
 
-        return SkillResult(success=False, error=f"Unknown option: {option_id}")
+    async def _execute_explain(self, text: str, ctx: SkillContext) -> SkillResult:
+        return SkillResult(
+            success=True,
+            message=f"💡 Zaznaczony tekst ({len(text.split())} słów, {text.count(chr(10))+1} linii)",
+            clipboard_text=text,
+        )
 
     def _label(self, text: str, ctx: SkillContext) -> str:
         match = self._match_command(ctx.latest_transcript)

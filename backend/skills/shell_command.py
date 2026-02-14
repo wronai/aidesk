@@ -181,63 +181,72 @@ class ShellCommandSkill(BaseSkill):
 
         return options
 
+    _OPTION_DISPATCH = {
+        "copy": "_execute_copy",
+        "copy_with_error": "_execute_copy_with_error",
+        "save_script": "_execute_save_script",
+        "run_cwd": "_execute_run",
+        "run_home": "_execute_run",
+    }
+
     async def execute(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
+        handler_name = self._OPTION_DISPATCH.get(option_id)
+        if not handler_name:
+            return SkillResult(success=False, error=f"Unknown option: {option_id}")
+        return await getattr(self, handler_name)(text, option_id, ctx)
+
+    async def _execute_copy(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
         cmd = self._extract_command(text)
+        return SkillResult(
+            success=True,
+            message=f"📋 Skopiowano: `{cmd[:60]}`",
+            clipboard_text=cmd,
+        )
 
-        if option_id == "copy":
-            return SkillResult(
-                success=True,
-                message=f"📋 Skopiowano: `{cmd[:60]}`",
-                clipboard_text=cmd,
+    async def _execute_copy_with_error(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
+        cmd = self._extract_command(text)
+        error_ctx = ctx.clipboard_top or ""
+        combined = f"Komenda:\n{cmd}\n\nBłąd:\n{error_ctx[:1000]}"
+        return SkillResult(
+            success=True,
+            message="📋 Skopiowano komendę + kontekst błędu",
+            clipboard_text=combined,
+        )
+
+    async def _execute_save_script(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
+        import tempfile, os
+        path = os.path.join(tempfile.gettempdir(), "proxeen_script.sh")
+        with open(path, "w") as f:
+            f.write("#!/bin/bash\n" + text.strip() + "\n")
+        os.chmod(path, 0o755)
+        return SkillResult(
+            success=True,
+            message=f"💾 Skrypt zapisany: `{path}`",
+            clipboard_text=path,
+        )
+
+    async def _execute_run(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
+        import subprocess, os
+        cmd = self._extract_command(text)
+        cwd = ctx.cwd or None if option_id == "run_cwd" else os.path.expanduser("~")
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True,
+                timeout=15, cwd=cwd,
             )
-
-        if option_id == "copy_with_error":
-            error_ctx = ctx.clipboard_top or ""
-            combined = f"Komenda:\n{cmd}\n\nBłąd:\n{error_ctx[:1000]}"
+            output = (result.stdout + result.stderr)[:2000]
+            success = result.returncode == 0
+            emoji = "✅" if success else "❌"
             return SkillResult(
-                success=True,
-                message="📋 Skopiowano komendę + kontekst błędu",
-                clipboard_text=combined,
+                success=success,
+                message=f"{emoji} Exit code: {result.returncode}",
+                output=output,
+                clipboard_text=output.strip() if output.strip() else cmd,
             )
-
-        if option_id == "save_script":
-            import tempfile, os
-            path = os.path.join(tempfile.gettempdir(), "proxeen_script.sh")
-            with open(path, "w") as f:
-                f.write("#!/bin/bash\n" + text.strip() + "\n")
-            os.chmod(path, 0o755)
-            return SkillResult(
-                success=True,
-                message=f"💾 Skrypt zapisany: `{path}`",
-                clipboard_text=path,
-            )
-
-        if option_id in ("run_cwd", "run_home"):
-            import subprocess
-            cwd_map = {"run_cwd": ctx.cwd or None, "run_home": os.path.expanduser("~")}
-            cwd = cwd_map.get(option_id)
-
-            try:
-                import os
-                result = subprocess.run(
-                    cmd, shell=True, capture_output=True, text=True,
-                    timeout=15, cwd=cwd,
-                )
-                output = (result.stdout + result.stderr)[:2000]
-                success = result.returncode == 0
-                emoji = "✅" if success else "❌"
-                return SkillResult(
-                    success=success,
-                    message=f"{emoji} Exit code: {result.returncode}",
-                    output=output,
-                    clipboard_text=output.strip() if output.strip() else cmd,
-                )
-            except subprocess.TimeoutExpired:
-                return SkillResult(success=False, message="⏱️ Timeout (15s)", error="timeout")
-            except Exception as e:
-                return SkillResult(success=False, message=f"❌ {e}", error=str(e))
-
-        return SkillResult(success=False, error=f"Unknown option: {option_id}")
+        except subprocess.TimeoutExpired:
+            return SkillResult(success=False, message="⏱️ Timeout (15s)", error="timeout")
+        except Exception as e:
+            return SkillResult(success=False, message=f"❌ {e}", error=str(e))
 
     def _label(self, text: str, ctx: SkillContext) -> str:
         cmd = self._extract_command(text)

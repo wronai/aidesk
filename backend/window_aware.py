@@ -158,6 +158,30 @@ PROCESS_RULES: List[Tuple[str, AppCategory]] = [
     (r"python|python3", AppCategory.UNKNOWN),
 ]
 
+# Command-line rules: for Java/Electron apps with generic WM_CLASS
+CMDLINE_RULES: List[Tuple[str, AppCategory]] = [
+    (r"jetbrains|idea|pycharm|webstorm|clion|goland|rider|datagrip|rubymine|phpstorm", AppCategory.IDE),
+    (r"minecraft", AppCategory.GAME),
+    (r"discord", AppCategory.CHAT),
+    (r"slack", AppCategory.CHAT),
+    (r"obsidian", AppCategory.OFFICE),
+    (r"cursor", AppCategory.IDE),
+    (r"windsurf", AppCategory.IDE),
+]
+
+# Title fallback rules: last resort when WM_CLASS/process/cmdline don't match
+TITLE_FALLBACK_RULES: List[Tuple[str, AppCategory]] = [
+    (r"vim|nvim|nano|helix|windsurf|cursor", AppCategory.IDE),
+    (r"bash|zsh|fish|sh -", AppCategory.TERMINAL),
+    (r"mozilla firefox|google chrome", AppCategory.BROWSER),
+]
+
+# Pre-compile all rule patterns for performance
+_COMPILED_APP_RULES = [(re.compile(p), c) for p, c in APP_RULES]
+_COMPILED_PROCESS_RULES = [(re.compile(p), c) for p, c in PROCESS_RULES]
+_COMPILED_CMDLINE_RULES = [(re.compile(p), c) for p, c in CMDLINE_RULES]
+_COMPILED_TITLE_RULES = [(re.compile(p), c) for p, c in TITLE_FALLBACK_RULES]
+
 
 @dataclass
 class WindowInfo:
@@ -534,7 +558,6 @@ class WindowManager:
         cmdline: str = ""
     ) -> AppCategory:
         """Classify application based on WM_CLASS, title, and process info."""
-        # Combine class fields for matching
         combined = f"{wm_class or ''} {wm_class_name or ''}".lower()
         title_lower = (title or "").lower()
         process_lower = (process_name or "").lower()
@@ -543,46 +566,28 @@ class WindowManager:
         if title_lower in SERVICE_WINDOW_TITLES:
             return AppCategory.SYSTEM
 
-        # 1. Check WM_CLASS rules (most reliable for native apps)
-        for pattern, category in APP_RULES:
-            if re.search(pattern, combined):
+        # 1. WM_CLASS rules (most reliable for native apps)
+        for pattern, category in _COMPILED_APP_RULES:
+            if pattern.search(combined):
                 return category
 
-        # 2. Check Process Name rules (reliable for known binaries)
+        # 2. Process name rules (reliable for known binaries)
         if process_lower:
-            for pattern, category in PROCESS_RULES:
-                if re.search(pattern, process_lower):
-                    if category != AppCategory.UNKNOWN:
-                        return category
-                    # If UNKNOWN (e.g. generic electron), we might find more info in cmdline
-        
-        # 3. Check Command Line (useful for java -jar, python scripts, electron apps)
+            for pattern, category in _COMPILED_PROCESS_RULES:
+                if pattern.search(process_lower) and category != AppCategory.UNKNOWN:
+                    return category
+
+        # 3. Command line rules (Java/Electron apps with generic WM_CLASS)
         if cmdline:
             cmd_lower = cmdline.lower()
-            # Detect specific java apps
-            if any(kw in cmd_lower for kw in ["jetbrains", "idea", "pycharm", "webstorm", "clion", "goland", "rider", "datagrip", "rubymine", "phpstorm"]):
-                return AppCategory.IDE
-            if "minecraft" in cmd_lower:
-                return AppCategory.GAME
-            # Detect electron apps via path
-            if "discord" in cmd_lower:
-                return AppCategory.CHAT
-            if "slack" in cmd_lower:
-                return AppCategory.CHAT
-            if "obsidian" in cmd_lower:
-                return AppCategory.OFFICE
-            if "cursor" in cmd_lower:
-                return AppCategory.IDE
-            if "windsurf" in cmd_lower:
-                return AppCategory.IDE
+            for pattern, category in _COMPILED_CMDLINE_RULES:
+                if pattern.search(cmd_lower):
+                    return category
 
-        # 4. Fallback: check title for clues
-        if any(kw in title_lower for kw in ["vim", "nvim", "nano", "helix", "windsurf", "cursor"]):
-            return AppCategory.IDE
-        if any(kw in title_lower for kw in ["bash", "zsh", "fish", "sh -"]):
-            return AppCategory.TERMINAL
-        if "mozilla firefox" in title_lower or "google chrome" in title_lower:
-            return AppCategory.BROWSER
+        # 4. Title fallback (last resort)
+        for pattern, category in _COMPILED_TITLE_RULES:
+            if pattern.search(title_lower):
+                return category
 
         return AppCategory.UNKNOWN
 

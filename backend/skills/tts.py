@@ -310,9 +310,34 @@ class TTSSkill(BaseSkill):
         return options
 
     async def execute(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
-        engine = self._engine
-        if not engine:
-            return SkillResult(
+        engine, err = self._resolve_engine(option_id)
+        if err:
+            return err
+
+        lang = _map_lang(engine["name"], ctx.locale)
+        slow = option_id == "speak_slow"
+        speed = _build_speed_flag(engine["name"], slow)
+        escaped = shlex.quote(text[:2000])
+        cmd_data = {
+            "text": escaped,
+            "lang": lang,
+            "speed": speed,
+            "piper_model": shlex.quote(engine.get("piper_model", "")),
+        }
+
+        try:
+            if "speak_direct" in engine:
+                return await self._speak_direct(engine, cmd_data)
+            return await self._speak_file_based(engine, cmd_data)
+        except asyncio.TimeoutError:
+            return SkillResult(success=False, message="⏱️ TTS timeout", error="timeout")
+        except Exception as e:
+            return SkillResult(success=False, message=f"❌ TTS error: {e}", error=str(e))
+
+    def _resolve_engine(self, option_id: str):
+        """Resolve TTS engine for the given option_id. Returns (engine, None) or (None, SkillResult)."""
+        if not self._engine:
+            return None, SkillResult(
                 success=False,
                 message=(
                     "❌ Brak wysokiej jakości silnika TTS. "
@@ -321,87 +346,64 @@ class TTSSkill(BaseSkill):
                 error="No TTS engine",
             )
 
-        # Select specific engine if requested
         if option_id.startswith("speak_") and option_id != "speak_slow":
             engine_name = option_id.replace("speak_", "")
-            engine = None
             for eng in detect_tts_engines():
                 if eng["name"] == engine_name:
-                    engine = eng
-                    break
-            if not engine:
-                return SkillResult(
-                    success=False,
-                    message=f"❌ Silnik TTS '{engine_name}' nie jest dostępny",
-                    error="Engine unavailable",
-                )
+                    return eng, None
+            return None, SkillResult(
+                success=False,
+                message=f"❌ Silnik TTS '{engine_name}' nie jest dostępny",
+                error="Engine unavailable",
+            )
 
-        lang = _map_lang(engine["name"], ctx.locale)
-        slow = option_id == "speak_slow"
-        speed = _build_speed_flag(engine["name"], slow)
+        return self._engine, None
 
-        try:
-            escaped = shlex.quote(text[:2000])
-            cmd_data = {
-                "text": escaped,
-                "lang": lang,
-                "speed": speed,
-                "piper_model": shlex.quote(engine.get("piper_model", "")),
-            }
+    async def _speak_direct(self, engine: dict, cmd_data: dict) -> SkillResult:
+        """Execute TTS engine that speaks directly (no file output)."""
+        cmd = _format_engine_command(engine["speak_direct"], cmd_data)
+        rc, _out, err = await _run_shell(cmd)
+        if rc != 0:
+            return SkillResult(success=False, message="❌ TTS execution failed", error=err[:500])
+        return SkillResult(success=True, message=f"🔊 Odczytano ({engine['name']})")
 
-            if "speak_direct" in engine:
-                # Engine speaks directly (no file)
-                cmd = _format_engine_command(engine["speak_direct"], cmd_data)
-                rc, _out, err = await _run_shell(cmd)
-                if rc != 0:
-                    return SkillResult(success=False, message="❌ TTS execution failed", error=err[:500])
-                return SkillResult(
-                    success=True,
-                    message=f"🔊 Odczytano ({engine['name']})",
-                )
-            else:
-                # Engine writes to file, then play
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-                    wav_path = f.name
+    async def _speak_file_based(self, engine: dict, cmd_data: dict) -> SkillResult:
+        """Execute TTS engine that writes to wav file, then play."""
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            wav_path = f.name
 
-                cmd_data["file"] = shlex.quote(wav_path)
-                cmd = _format_engine_command(engine["speak"], cmd_data)
+        cmd_data["file"] = shlex.quote(wav_path)
+        cmd = _format_engine_command(engine["speak"], cmd_data)
 
-                rc, _out, err = await _run_shell(cmd)
-                if rc != 0:
-                    return SkillResult(success=False, message="❌ TTS execution failed", error=err[:500])
+        rc, _out, err = await _run_shell(cmd)
+        if rc != 0:
+            return SkillResult(success=False, message="❌ TTS execution failed", error=err[:500])
 
-                if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
-                    # Play the audio
-                    play_cmd = _pick_play_command(wav_path)
-                    if not play_cmd:
-                        return SkillResult(
-                            success=True,
-                            message=f"🔊 Wygenerowano audio ({engine['name']}); brak odtwarzacza systemowego",
-                            audio_file=wav_path,
-                        )
+        if not (os.path.exists(wav_path) and os.path.getsize(wav_path) > 0):
+            return SkillResult(success=False, message="❌ TTS nie wygenerował dźwięku", error="Empty wav")
 
-                    play_rc, _play_out, play_err = await _run_shell(play_cmd, timeout=30.0)
-                    if play_rc != 0:
-                        return SkillResult(
-                            success=True,
-                            message=f"⚠️ Wygenerowano audio ({engine['name']}), ale odtwarzanie nie powiodło się",
-                            audio_file=wav_path,
-                            error=play_err[:500],
-                        )
+        play_cmd = _pick_play_command(wav_path)
+        if not play_cmd:
+            return SkillResult(
+                success=True,
+                message=f"🔊 Wygenerowano audio ({engine['name']}); brak odtwarzacza systemowego",
+                audio_file=wav_path,
+            )
 
-                    return SkillResult(
-                        success=True,
-                        message=f"🔊 Odczytano ({engine['name']})",
-                        audio_file=wav_path,
-                    )
-                else:
-                    return SkillResult(success=False, message="❌ TTS nie wygenerował dźwięku", error="Empty wav")
+        play_rc, _play_out, play_err = await _run_shell(play_cmd, timeout=30.0)
+        if play_rc != 0:
+            return SkillResult(
+                success=True,
+                message=f"⚠️ Wygenerowano audio ({engine['name']}), ale odtwarzanie nie powiodło się",
+                audio_file=wav_path,
+                error=play_err[:500],
+            )
 
-        except asyncio.TimeoutError:
-            return SkillResult(success=False, message="⏱️ TTS timeout", error="timeout")
-        except Exception as e:
-            return SkillResult(success=False, message=f"❌ TTS error: {e}", error=str(e))
+        return SkillResult(
+            success=True,
+            message=f"🔊 Odczytano ({engine['name']})",
+            audio_file=wav_path,
+        )
 
     def _label(self, text: str, ctx: SkillContext) -> str:
         word_count = len(text.split())

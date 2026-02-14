@@ -200,48 +200,61 @@ class ErrorFixerSkill(BaseSkill):
 
         return options
 
+    _OPTION_DISPATCH = {
+        "copy_fix": "_execute_copy_fix",
+        "fix": "_execute_fix",
+        "search": "_execute_search",
+    }
+
     async def execute(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
+        handler_name = self._OPTION_DISPATCH.get(option_id)
+        if not handler_name:
+            return SkillResult(success=False, error=f"Unknown option: {option_id}")
+        return await getattr(self, handler_name)(text, ctx)
+
+    async def _execute_copy_fix(self, text: str, ctx: SkillContext) -> SkillResult:
         rule, match = self._find_match(text)
+        if not rule or not match:
+            return SkillResult(success=False, message="Brak dopasowanej regu\u0142y")
+        fix_cmd = self._expand_template(rule.get("fix", ""), match, text)
+        return SkillResult(success=True, message=f"📋 Skopiowano: `{fix_cmd}`", clipboard_text=fix_cmd)
 
-        if option_id == "copy_fix" and rule and match:
-            fix_cmd = self._expand_template(rule.get("fix", ""), match, text)
-            return SkillResult(success=True, message=f"📋 Skopiowano: `{fix_cmd}`", clipboard_text=fix_cmd)
+    async def _execute_fix(self, text: str, ctx: SkillContext) -> SkillResult:
+        rule, match = self._find_match(text)
+        if not rule or not match:
+            return SkillResult(success=False, message="Brak dopasowanej regu\u0142y")
+        fix_cmd = self._expand_template(rule.get("fix", ""), match, text)
+        if not fix_cmd:
+            return SkillResult(success=False, message="Brak komendy naprawczej")
 
-        if option_id == "fix" and rule and match:
-            fix_cmd = self._expand_template(rule.get("fix", ""), match, text)
-            if not fix_cmd:
-                return SkillResult(success=False, message="Brak komendy naprawczej")
+        import subprocess, os
+        try:
+            result = subprocess.run(
+                fix_cmd, shell=True, capture_output=True, text=True,
+                timeout=30, cwd=ctx.cwd or None,
+            )
+            output = (result.stdout + result.stderr)[:2000]
+            ok = result.returncode == 0
+            return SkillResult(
+                success=ok,
+                message=f"{'\u2705' if ok else '\u274c'} {fix_cmd} (exit: {result.returncode})",
+                output=output,
+                clipboard_text=output.strip(),
+            )
+        except Exception as e:
+            return SkillResult(success=False, error=str(e))
 
-            import subprocess, os
-            try:
-                result = subprocess.run(
-                    fix_cmd, shell=True, capture_output=True, text=True,
-                    timeout=30, cwd=ctx.cwd or None,
-                )
-                output = (result.stdout + result.stderr)[:2000]
-                ok = result.returncode == 0
-                return SkillResult(
-                    success=ok,
-                    message=f"{'✅' if ok else '❌'} {fix_cmd} (exit: {result.returncode})",
-                    output=output,
-                    clipboard_text=output.strip(),
-                )
-            except Exception as e:
-                return SkillResult(success=False, error=str(e))
-
-        if option_id == "search":
-            query = ""
-            if rule and match:
-                query = self._expand_template(rule.get("search", ""), match, text)
-            else:
-                query = text[:80]
-            url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-            return SkillResult(success=True, message=f"🔍 Szukam: {query[:50]}", open_url=url)
-
-        return SkillResult(success=False, error=f"Unknown option: {option_id}")
+    async def _execute_search(self, text: str, ctx: SkillContext) -> SkillResult:
+        rule, match = self._find_match(text)
+        if rule and match:
+            query = self._expand_template(rule.get("search", ""), match, text)
+        else:
+            query = text[:80]
+        url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        return SkillResult(success=True, message=f"🔍 Szukam: {query[:50]}", open_url=url)
 
     def _label(self, text: str, ctx: SkillContext) -> str:
         rule, match = self._find_match(text)
         if rule and match:
             return self._expand_template(rule["label"], match, text)
-        return "Wykryto błąd"
+        return "Wykryto b\u0142\u0105d"

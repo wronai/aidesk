@@ -126,20 +126,11 @@ async def add_snippet(request: Request):
     return {"ok": True, "trigger": trigger}
 
 
-@router.post("/analyze-selection")
-async def analyze_selection(request: Request):
-    """Analyze selected text via SkillRouter — returns ranked skill matches with popup options."""
-    from skills import SkillRouter
+def _build_skill_context(body: dict, text: str):
+    """Build SkillContext from request body and app_state (shared by analyze + execute)."""
     from skills.base import SkillContext
 
-    body = await request.json()
-    text = body.get("text", "").strip()
-    if not text:
-        return JSONResponse(status_code=400, content={"error": "text required"})
-
-    # Build context from app_state
     latest_window = _state.get("latest_window") or {}
-    # Build clipboard context
     clipboard_top = body.get("clipboard_text", "")
     clipboard_items_raw = []
     mgr = _state.get("clipboard_manager")
@@ -149,7 +140,7 @@ async def analyze_selection(request: Request):
             clipboard_top = recent[0].text if recent else ""
         clipboard_items_raw = [i.to_dict() for i in mgr.queue.get_recent(5)]
 
-    ctx = SkillContext(
+    return SkillContext(
         text=text,
         window_category=latest_window.get("category", "unknown"),
         window_title=latest_window.get("title", ""),
@@ -161,15 +152,20 @@ async def analyze_selection(request: Request):
         clipboard_items=clipboard_items_raw,
     )
 
-    # Get or create router (cached on app_state)
+
+def _get_or_create_router():
+    """Get cached SkillRouter or create a new one."""
+    from skills import SkillRouter
     router = _state.get("skill_router")
     if not router:
         router = SkillRouter()
         _state["skill_router"] = router
+    return router
 
-    matches = router.analyze(text, ctx)
 
-    result = {
+def _format_analysis_result(text: str, matches) -> dict:
+    """Format skill matches into response dict."""
+    return {
         "text": text[:200],
         "matches": [m.to_dict() for m in matches[:5]],
         "top_skill": matches[0].skill_name if matches else None,
@@ -177,7 +173,9 @@ async def analyze_selection(request: Request):
         "top_icon": matches[0].icon if matches else "\U0001f4dd",
     }
 
-    # Auto-push extracted text to clipboard queue
+
+def _auto_push_extracted(matches):
+    """Auto-push first match's extracted text to clipboard queue."""
     mgr = _state.get("clipboard_manager")
     if mgr and matches:
         from clipboard_intel import ClipSource
@@ -185,7 +183,20 @@ async def analyze_selection(request: Request):
         if extracted:
             mgr.push(extracted, source=ClipSource.AUTO, label=matches[0].label)
 
-    # Broadcast to overlay via SSE
+
+@router.post("/analyze-selection")
+async def analyze_selection(request: Request):
+    """Analyze selected text via SkillRouter — returns ranked skill matches with popup options."""
+    body = await request.json()
+    text = body.get("text", "").strip()
+    if not text:
+        return JSONResponse(status_code=400, content={"error": "text required"})
+
+    ctx = _build_skill_context(body, text)
+    matches = _get_or_create_router().analyze(text, ctx)
+    result = _format_analysis_result(text, matches)
+    _auto_push_extracted(matches)
+
     if _broadcast:
         await _broadcast("selection_analysis", result)
 
@@ -195,9 +206,6 @@ async def analyze_selection(request: Request):
 @router.post("/skill/execute")
 async def execute_skill(request: Request):
     """Execute a specific skill option chosen by user from the popup."""
-    from skills import SkillRouter
-    from skills.base import SkillContext
-
     body = await request.json()
     skill_name = body.get("skill", "")
     option_id = body.get("option_id", "")
@@ -206,42 +214,14 @@ async def execute_skill(request: Request):
     if not skill_name or not option_id or not text:
         return JSONResponse(status_code=400, content={"error": "skill, option_id, and text required"})
 
-    latest_window = _state.get("latest_window") or {}
-    # Build clipboard context
-    clipboard_top = body.get("clipboard_text", "")
-    clipboard_items_raw = []
-    mgr = _state.get("clipboard_manager")
-    if mgr:
-        if not clipboard_top:
-            recent = mgr.queue.get_recent(1)
-            clipboard_top = recent[0].text if recent else ""
-        clipboard_items_raw = [i.to_dict() for i in mgr.queue.get_recent(5)]
-
-    ctx = SkillContext(
-        text=text,
-        window_category=latest_window.get("category", "unknown"),
-        window_title=latest_window.get("title", ""),
-        window_class=latest_window.get("wm_class_name", ""),
-        cwd=latest_window.get("cwd", ""),
-        locale=body.get("locale", "pl"),
-        latest_transcript=_state.get("latest_transcript", ""),
-        clipboard_top=clipboard_top,
-        clipboard_items=clipboard_items_raw,
-    )
-
-    router = _state.get("skill_router")
-    if not router:
-        router = SkillRouter()
-        _state["skill_router"] = router
-
-    result = await router.execute(skill_name, text, option_id, ctx)
+    ctx = _build_skill_context(body, text)
+    result = await _get_or_create_router().execute(skill_name, text, option_id, ctx)
 
     # Feed execution into action template learning loop
     library = _state.get("action_library")
     if library and result.success:
         library.learn_from_execution(f"{skill_name}:{option_id}")
 
-    # Broadcast result to overlay
     if _broadcast:
         await _broadcast("skill_result", result.to_dict())
 

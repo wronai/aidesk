@@ -416,6 +416,31 @@ class BuildContextStep:
             "Skup się na tym oknie — tu użytkownik aktualnie pracuje."
         )
 
+    def _assemble_context_parts(self, ctx: PipelineContext, focus_prefix: str) -> str:
+        """Build context string from window info, screen summary, focus, and history."""
+        base_context = self._context.get_context_string(n=5, max_length=500)
+        parts = []
+        if ctx.window_context_str:
+            parts.append(ctx.window_context_str)
+        if ctx.screen_summary:
+            parts.append(f"📊 Ekran: {ctx.screen_summary}")
+        if focus_prefix:
+            parts.append(focus_prefix)
+        if base_context:
+            parts.append(base_context)
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _build_full_context(context_str: str, prompt_addon: str, transcript: str) -> str:
+        """Prepend prompt addon and transcript to context string."""
+        full = context_str
+        if prompt_addon:
+            full = f"{prompt_addon}\n\n{full}" if full else prompt_addon
+        if transcript:
+            prefix = f"🎤 Użytkownik powiedział: {transcript}"
+            full = f"{prefix}\n\n{full}" if full else prefix
+        return full
+
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         prompt_addon = ""
         if self._profiles and ctx.active_window:
@@ -433,34 +458,13 @@ class BuildContextStep:
             latest_transcript,
         )
 
-        cached = False
-        if self._cached_key == cache_key:
+        cached = self._cached_key == cache_key
+        if cached:
             ctx.context_str = self._cached_context_str
             ctx.full_context = self._cached_full_context
-            cached = True
         else:
-            base_context = self._context.get_context_string(n=5, max_length=500)
-
-            context_parts = []
-            if ctx.window_context_str:
-                context_parts.append(ctx.window_context_str)
-            if ctx.screen_summary:
-                context_parts.append(f"📊 Ekran: {ctx.screen_summary}")
-            if focus_prefix:
-                context_parts.append(focus_prefix)
-            if base_context:
-                context_parts.append(base_context)
-
-            ctx.context_str = "\n\n".join(context_parts)
-
-            full_context = ctx.context_str
-            if prompt_addon:
-                full_context = f"{prompt_addon}\n\n{full_context}" if full_context else prompt_addon
-            if latest_transcript:
-                transcript_prefix = f"🎤 Użytkownik powiedział: {latest_transcript}"
-                full_context = f"{transcript_prefix}\n\n{full_context}" if full_context else transcript_prefix
-
-            ctx.full_context = full_context
+            ctx.context_str = self._assemble_context_parts(ctx, focus_prefix)
+            ctx.full_context = self._build_full_context(ctx.context_str, prompt_addon, latest_transcript)
             self._cached_key = cache_key
             self._cached_context_str = ctx.context_str
             self._cached_full_context = ctx.full_context
@@ -485,82 +489,72 @@ class AnalyzeStep:
     def can_run(self, ctx: PipelineContext) -> bool:
         return self._analyzer is not None and ctx.image_b64 is not None
 
+    def _apply_budget_downgrade(self, requested_mode: str) -> tuple:
+        """Try budget-aware mode downgrade. Returns (effective_mode, mode_switched)."""
+        if not self._budget or not hasattr(self._budget, "get_suggested_mode"):
+            return requested_mode, False
+
+        try:
+            effective_mode = self._budget.get_suggested_mode(requested_mode)
+        except Exception as e:
+            logger.warning("Budget mode suggestion failed", error=str(e))
+            return requested_mode, False
+
+        if effective_mode == requested_mode:
+            return requested_mode, False
+
+        if not hasattr(self._analyzer, "set_mode"):
+            logger.warning(
+                "Budget requested mode downgrade but analyzer has no set_mode",
+                requested_mode=requested_mode, suggested_mode=effective_mode,
+            )
+            return requested_mode, False
+
+        logger.warning("Budget exceeded, downgrading mode", from_mode=requested_mode, to_mode=effective_mode)
+        try:
+            switched = self._analyzer.set_mode(effective_mode)
+            if switched is False:
+                logger.warning("Analyzer rejected budget-safe mode switch", mode=effective_mode)
+                return requested_mode, False
+            return effective_mode, True
+        except Exception as e:
+            logger.warning("Failed to switch to budget-safe mode", mode=effective_mode, error=str(e))
+            return requested_mode, False
+
+    def _restore_mode(self, requested_mode: str):
+        """Restore analyzer to user-selected mode after budget downgrade."""
+        try:
+            restored = self._analyzer.set_mode(requested_mode)
+            if restored is False:
+                logger.warning("Analyzer rejected restore of requested mode", mode=requested_mode)
+        except Exception as e:
+            logger.warning("Failed to restore analysis mode after budget downgrade", mode=requested_mode, error=str(e))
+
+    def _record_spend(self, cost: float):
+        """Record analysis cost to budget tracker."""
+        if self._budget and cost > 0 and hasattr(self._budget, "record_spend"):
+            try:
+                self._budget.record_spend(cost)
+            except Exception as e:
+                logger.warning("Failed to record analysis spend", error=str(e), cost=cost)
+
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         t0 = time.time()
         requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
-        effective_mode = requested_mode
-        mode_switched = False
-
-        # Budget-aware mode downgrade (e.g. HYBRID -> OCR_ONLY) for this run only.
-        if self._budget and hasattr(self._budget, "get_suggested_mode"):
-            try:
-                effective_mode = self._budget.get_suggested_mode(requested_mode)
-            except Exception as e:
-                logger.warning("Budget mode suggestion failed", error=str(e))
-                effective_mode = requested_mode
-
-            if effective_mode != requested_mode and not hasattr(self._analyzer, "set_mode"):
-                logger.warning(
-                    "Budget requested mode downgrade but analyzer has no set_mode",
-                    requested_mode=requested_mode,
-                    suggested_mode=effective_mode,
-                )
-                effective_mode = requested_mode
-
-            if effective_mode != requested_mode and hasattr(self._analyzer, "set_mode"):
-                logger.warning(
-                    "Budget exceeded, downgrading mode",
-                    from_mode=requested_mode,
-                    to_mode=effective_mode,
-                )
-                try:
-                    switched = self._analyzer.set_mode(effective_mode)
-                    if switched is False:
-                        logger.warning(
-                            "Analyzer rejected budget-safe mode switch",
-                            mode=effective_mode,
-                        )
-                        effective_mode = requested_mode
-                    else:
-                        mode_switched = True
-                except Exception as e:
-                    logger.warning(
-                        "Failed to switch to budget-safe mode",
-                        mode=effective_mode,
-                        error=str(e),
-                    )
-                    effective_mode = requested_mode
+        effective_mode, mode_switched = self._apply_budget_downgrade(requested_mode)
 
         try:
             analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
         finally:
-            # Restore requested mode so future ticks can re-evaluate budget from user-selected mode.
             if mode_switched:
-                try:
-                    restored = self._analyzer.set_mode(requested_mode)
-                    if restored is False:
-                        logger.warning(
-                            "Analyzer rejected restore of requested mode",
-                            mode=requested_mode,
-                        )
-                except Exception as e:
-                    logger.warning(
-                        "Failed to restore analysis mode after budget downgrade",
-                        mode=requested_mode,
-                        error=str(e),
-                    )
+                self._restore_mode(requested_mode)
 
         ctx.analysis_result = analysis
         analysis_cost = float(analysis.get("cost", 0.0) or 0.0)
         actual_mode = analysis.get("mode", effective_mode)
         latency_ms = round((time.time() - t0) * 1000)
 
-        # Record spend
-        if self._budget and analysis_cost > 0 and hasattr(self._budget, "record_spend"):
-            try:
-                self._budget.record_spend(analysis_cost)
-            except Exception as e:
-                logger.warning("Failed to record analysis spend", error=str(e), cost=analysis_cost)
+        self._record_spend(analysis_cost)
 
         await bus.publish(Event(
             type=EventType.ANALYSIS_COMPLETED.value,
@@ -871,36 +865,32 @@ class ClipboardStep:
             return False
         return self._clipboard is not None and ctx.analysis_result is not None
 
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+    @staticmethod
+    def _extract_category(ctx: PipelineContext):
+        """Extract AppCategory from active window."""
         from window_aware import AppCategory
-        analysis_text = ctx.analysis_result.get("text", "")
-        category = AppCategory.UNKNOWN
         if ctx.active_window:
-            category = getattr(ctx.active_window, 'category', AppCategory.UNKNOWN)
+            return getattr(ctx.active_window, 'category', AppCategory.UNKNOWN)
+        return AppCategory.UNKNOWN
 
-        auto_copies = self._clipboard.scan_and_copy(analysis_text, category=category)
-        ctx.clipboard_auto_copies = [r.to_dict() if hasattr(r, 'to_dict') else r for r in auto_copies]
-
-        # Auto-copy agent actions to clipboard
+    def _push_agent_actions(self, ctx: PipelineContext, category):
+        """Push agent-suggested commands to clipboard queue."""
+        from clipboard_intel import ClipSource
         for action in ctx.agent_actions:
             cmd = action.get("command", "")
             if cmd:
-                from clipboard_intel import ClipSource
-                self._clipboard.push(cmd, source=ClipSource.AGENT, category=category.value if hasattr(category, 'value') else '', label=action.get("description", ""))
+                self._clipboard.push(
+                    cmd, source=ClipSource.AGENT,
+                    category=category.value if hasattr(category, 'value') else '',
+                    label=action.get("description", ""),
+                )
 
-        suggestions = self._clipboard.suggest_paste(category=category, screen_text=analysis_text)
-        ctx.clipboard_suggestions = [s.to_dict() if hasattr(s, 'to_dict') else {"text": str(s)} for s in suggestions]
-
-        queue_size = 0
-        non_zero_sources: List[str] = []
-        stats_extracted = False
-
-        # Fast path: one queue traversal (cheaper than full get_stats())
+    def _collect_queue_stats(self) -> tuple:
+        """Collect queue size and active sources via fast path or fallback."""
         queue = getattr(self._clipboard, "queue", None)
         if queue is not None and hasattr(queue, "get_all"):
             try:
                 items = queue.get_all()
-                queue_size = len(items)
                 source_values = set()
                 for item in items:
                     src = getattr(item, "source", None)
@@ -908,18 +898,32 @@ class ClipboardStep:
                         source_values.add(src.value)
                     elif src:
                         source_values.add(str(src))
-                non_zero_sources = sorted(source_values)
-                stats_extracted = True
+                return len(items), sorted(source_values)
             except Exception:
-                stats_extracted = False
+                pass
 
-        if not stats_extracted and hasattr(self._clipboard, "get_stats"):
+        if hasattr(self._clipboard, "get_stats"):
             stats = self._clipboard.get_stats()
             if isinstance(stats, dict):
-                queue_size = stats.get("queue_size", 0)
                 sources = stats.get("sources", {})
-                if isinstance(sources, dict):
-                    non_zero_sources = [k for k, v in sources.items() if v]
+                non_zero = [k for k, v in sources.items() if v] if isinstance(sources, dict) else []
+                return stats.get("queue_size", 0), non_zero
+
+        return 0, []
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        analysis_text = ctx.analysis_result.get("text", "")
+        category = self._extract_category(ctx)
+
+        auto_copies = self._clipboard.scan_and_copy(analysis_text, category=category)
+        ctx.clipboard_auto_copies = [r.to_dict() if hasattr(r, 'to_dict') else r for r in auto_copies]
+
+        self._push_agent_actions(ctx, category)
+
+        suggestions = self._clipboard.suggest_paste(category=category, screen_text=analysis_text)
+        ctx.clipboard_suggestions = [s.to_dict() if hasattr(s, 'to_dict') else {"text": str(s)} for s in suggestions]
+
+        queue_size, non_zero_sources = self._collect_queue_stats()
 
         await bus.publish(Event(
             type=EventType.CLIPBOARD_UPDATED.value,
@@ -962,36 +966,30 @@ class ClipboardRelationStep:
         recent = self._clipboard.queue.get_recent(1) if hasattr(self._clipboard, 'queue') else []
         return bool(recent)
 
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        # Lazy-init skill to avoid import at module level
+    def _ensure_skill(self):
+        """Lazy-init ClipboardRelationSkill to avoid circular imports."""
         if self._skill is None:
             try:
                 from skills.clipboard_relation import ClipboardRelationSkill
                 self._skill = ClipboardRelationSkill()
             except Exception as e:
                 logger.warning("ClipboardRelationStep: failed to init skill", error=str(e))
-                return ctx
+        return self._skill
 
-        from skills.base import SkillContext
-
-        # Build screen text from analysis + OCR
+    @staticmethod
+    def _extract_screen_text(ctx: PipelineContext) -> str:
+        """Build screen text from analysis + OCR."""
         analysis_text = ctx.analysis_result.get("text", "")
         ocr_text = ""
         if ctx.analysis_result.get("ocr") and ctx.analysis_result["ocr"].get("text"):
             ocr_text = ctx.analysis_result["ocr"]["text"]
-        screen_text = f"{analysis_text}\n{ocr_text}".strip()
-        if len(screen_text) < 10:
-            return ctx
+        return f"{analysis_text}\n{ocr_text}".strip()
 
-        # Get clipboard top
-        recent = self._clipboard.queue.get_recent(1)
-        clipboard_top = recent[0].text if recent else ""
-        if not clipboard_top:
-            return ctx
-
-        # Build minimal SkillContext
+    def _build_skill_ctx(self, screen_text: str, clipboard_top: str):
+        """Build minimal SkillContext for clipboard relation detection."""
+        from skills.base import SkillContext
         latest_window = self._state.get("latest_window") or {}
-        skill_ctx = SkillContext(
+        return SkillContext(
             text=screen_text[:500],
             clipboard_top=clipboard_top,
             window_category=latest_window.get("category", "unknown"),
@@ -1000,13 +998,28 @@ class ClipboardRelationStep:
             locale=self._state.get("locale", "pl"),
         )
 
-        # Detect intent
-        confidence = self._skill.detect(screen_text[:500], skill_ctx)
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        skill = self._ensure_skill()
+        if not skill:
+            return ctx
+
+        screen_text = self._extract_screen_text(ctx)
+        if len(screen_text) < 10:
+            return ctx
+
+        recent = self._clipboard.queue.get_recent(1)
+        clipboard_top = recent[0].text if recent else ""
+        if not clipboard_top:
+            return ctx
+
+        skill_ctx = self._build_skill_ctx(screen_text, clipboard_top)
+
+        confidence = skill.detect(screen_text[:500], skill_ctx)
         if confidence < 0.5:
             self._last_intent_key = None
             return ctx
 
-        intent = self._skill._best_intent(screen_text[:500], skill_ctx)
+        intent = skill._best_intent(screen_text[:500], skill_ctx)
         if not intent:
             self._last_intent_key = None
             return ctx
@@ -1017,8 +1030,7 @@ class ClipboardRelationStep:
             return ctx
         self._last_intent_key = intent_key
 
-        # Get options for the detected intent
-        options = self._skill.get_options(screen_text[:500], skill_ctx)
+        options = skill.get_options(screen_text[:500], skill_ctx)
 
         await bus.publish(Event(
             type=EventType.CLIPBOARD_RELATION.value,

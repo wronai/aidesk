@@ -1,3 +1,22 @@
+## [2.1.23] - 2026-02-14
+
+### Summary
+
+refactor(tests): CLI interface improvements
+
+### Other
+
+- update backend/pipeline.py
+- update backend/routes/clipboard.py
+- update backend/skills/error_fixer.py
+- update backend/skills/shell_command.py
+- update backend/skills/tts.py
+- update backend/skills/voice_command.py
+- update backend/tests/test_action_templates.py
+- update backend/tests/test_semantic_memory.py
+- update backend/window_aware.py
+
+
 ## [2.1.22] - 2026-02-14
 
 ### Summary
