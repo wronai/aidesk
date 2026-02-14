@@ -152,13 +152,13 @@ status: ## Check if backend is running
 	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"
 
 stop: ## Stop backend and overlay applications
-	@echo "🛑 Stopping AIDesk..."
+	@echo "🛑 Stopping Proxeen..."
 	@-pkill -9 -f "wayland_screencast[.]py" 2>/dev/null && echo "  ✓ Wayland screencast stopped" || true
 	@-pkill -9 -f "python.*backend/server[.]py" 2>/dev/null && echo "  ✓ Backend stopped" || true
 	@ps aux | grep 'overlay/node_modules' | grep -v grep | grep -v make | awk '{print $$2}' | xargs -r kill -9 2>/dev/null && echo "  ✓ Overlay processes stopped" || true
 	@sleep 0.3
 	@-fuser -k $(PORT)/tcp 2>/dev/null && echo "  ✓ Port $(PORT) freed" || true
-	@echo "🛑 AIDesk stopped"
+	@echo "🛑 Proxeen stopped"
 
 clean: ## Remove venv and node_modules
 	rm -rf $(VENV_DIR)

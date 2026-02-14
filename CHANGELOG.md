@@ -1,3 +1,26 @@
+## [2.1.31] - 2026-02-14
+
+### Summary
+
+feat(docs): deep code analysis engine
+
+### Docs
+
+- docs: update README
+- docs: update health-monitoring-and-cost-control.md
+- docs: update create-first-plugin.md
+- docs: update INSTALL.md
+- docs: update QUICKSTART.md
+
+### Other
+
+- build: update Makefile
+- update backend/.env.backup
+- update backend/.env.example
+- update backend/capture.py.bak
+- update backend/tests/test_preflight.py
+
+
 ## [2.1.30] - 2026-02-14
 
 ### Summary

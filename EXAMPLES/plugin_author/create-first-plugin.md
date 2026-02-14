@@ -2,7 +2,7 @@
 
 ## Dla kogo
 
-Developer rozszerzający AIDesk o własne zachowanie.
+Developer rozszerzający Proxeen o własne zachowanie.
 
 ## Cel
 

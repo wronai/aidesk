@@ -406,7 +406,7 @@ print(model.generate_content("test"))
 ### Wayland — czarny ekran
 
 Na GNOME Wayland (Shell 49+) standardowe narzędzia (`mss`, `scrot`, `grim`) nie działają.
-AIDesk automatycznie używa **PipeWire ScreenCast Portal** — przy pierwszym uruchomieniu
+Proxeen automatycznie używa **PipeWire ScreenCast Portal** — przy pierwszym uruchomieniu
 pojawi się dialog GNOME z prośbą o zgodę na udostępnienie ekranu.
 
 ### Overlay niewidoczny

@@ -139,7 +139,7 @@ xdg-open http://localhost:8001/config/ui
 ```
 
 ### Wayland — czarny ekran
-AIDesk automatycznie używa PipeWire ScreenCast Portal na GNOME Wayland.
+Proxeen automatycznie używa PipeWire ScreenCast Portal na GNOME Wayland.
 Przy pierwszym uruchomieniu pojawi się dialog z prośbą o zgodę.
 
 ### Wysokie koszty API

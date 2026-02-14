@@ -1,4 +1,4 @@
-# EXAMPLES — Przykłady użycia AIDesk
+# EXAMPLES — Przykłady użycia Proxeen
 
 Ten katalog zbiera gotowe scenariusze użycia dla różnych grup użytkowników.
 Każdy plik pokazuje **realny workflow krok po kroku** z wykorzystaniem aktualnych funkcji projektu.

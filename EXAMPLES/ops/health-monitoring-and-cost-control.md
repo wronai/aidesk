@@ -2,7 +2,7 @@
 
 ## Dla kogo
 
-Osoba utrzymująca środowisko lokalne/zespołowe AIDesk.
+Osoba utrzymująca środowisko lokalne/zespołowe Proxeen.
 
 ## Cel
 

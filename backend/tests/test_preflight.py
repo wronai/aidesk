@@ -8,12 +8,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Mock litellm before import
+# Mock litellm before import — use setdefault so we coexist with other test files
 _mock_litellm = MagicMock()
 _mock_litellm.acompletion = AsyncMock()
 _mock_litellm.completion = MagicMock()
 _mock_litellm.drop_params = False
 sys.modules.setdefault("litellm", _mock_litellm)
+
+# Stable name for the litellm module key used by patch()
+_LITELLM_MOD = "litellm"
 
 from preflight import (
     PreflightDiagnostics,
@@ -172,10 +175,6 @@ class TestCheckLitellm:
 # --- Vision LLM ping ---
 
 class TestPingVisionLLM:
-    def setup_method(self):
-        _mock_litellm.acompletion.side_effect = None
-        _mock_litellm.completion.side_effect = None
-
     @pytest.mark.asyncio
     async def test_ocr_only_mode_skips(self):
         settings = _make_settings(analysis_mode="ocr_only")
@@ -185,19 +184,21 @@ class TestPingVisionLLM:
 
     @pytest.mark.asyncio
     async def test_successful_ping(self):
-        _mock_litellm.acompletion = AsyncMock(return_value=_make_llm_response("OK", 5))
-        settings = _make_settings()
-        pf = PreflightDiagnostics(settings)
-        result = await pf._ping_vision_llm()
+        mock_ac = AsyncMock(return_value=_make_llm_response("OK", 5))
+        with patch(f"{_LITELLM_MOD}.acompletion", mock_ac):
+            settings = _make_settings()
+            pf = PreflightDiagnostics(settings)
+            result = await pf._ping_vision_llm()
         assert result.ok is True
         assert result.latency_ms >= 0
 
     @pytest.mark.asyncio
     async def test_failed_ping(self):
-        _mock_litellm.acompletion = AsyncMock(side_effect=Exception("Connection refused"))
-        settings = _make_settings()
-        pf = PreflightDiagnostics(settings)
-        result = await pf._ping_vision_llm()
+        mock_ac = AsyncMock(side_effect=Exception("Connection refused"))
+        with patch(f"{_LITELLM_MOD}.acompletion", mock_ac):
+            settings = _make_settings()
+            pf = PreflightDiagnostics(settings)
+            result = await pf._ping_vision_llm()
         assert result.ok is False
         assert "Connection refused" in result.detail
 
@@ -205,10 +206,6 @@ class TestPingVisionLLM:
 # --- VLM OCR ping ---
 
 class TestPingVlmOcr:
-    def setup_method(self):
-        _mock_litellm.acompletion.side_effect = None
-        _mock_litellm.completion.side_effect = None
-
     @pytest.mark.asyncio
     async def test_skips_when_not_vlm_ocr(self):
         settings = _make_settings(ocr_engine="paddleocr")
@@ -229,41 +226,36 @@ class TestPingVlmOcr:
 
     @pytest.mark.asyncio
     async def test_successful_vlm_ping(self):
-        _mock_litellm.completion = MagicMock(return_value=_make_llm_response("OK", 3))
-        settings = _make_settings(
-            ocr_engine="vlm_ocr",
-            vlm_ocr_model="openrouter/qwen/vlm-ocr",
-            vision_model="ollama/llava",
-        )
-        pf = PreflightDiagnostics(settings)
-        result = await pf._ping_vlm_ocr()
+        mock_comp = MagicMock(return_value=_make_llm_response("OK", 3))
+        with patch(f"{_LITELLM_MOD}.completion", mock_comp):
+            settings = _make_settings(
+                ocr_engine="vlm_ocr",
+                vlm_ocr_model="openrouter/qwen/vlm-ocr",
+                vision_model="ollama/llava",
+            )
+            pf = PreflightDiagnostics(settings)
+            result = await pf._ping_vlm_ocr()
         assert result.ok is True
 
     @pytest.mark.asyncio
     async def test_failed_vlm_ping(self):
-        _mock_litellm.completion = MagicMock(side_effect=Exception("timeout"))
-        settings = _make_settings(
-            ocr_engine="vlm_ocr",
-            vlm_ocr_model="openrouter/qwen/vlm-ocr",
-            vision_model="ollama/llava",
-        )
-        pf = PreflightDiagnostics(settings)
-        result = await pf._ping_vlm_ocr()
+        mock_comp = MagicMock(side_effect=Exception("timeout"))
+        with patch(f"{_LITELLM_MOD}.completion", mock_comp):
+            settings = _make_settings(
+                ocr_engine="vlm_ocr",
+                vlm_ocr_model="openrouter/qwen/vlm-ocr",
+                vision_model="ollama/llava",
+            )
+            pf = PreflightDiagnostics(settings)
+            result = await pf._ping_vlm_ocr()
         assert result.ok is False
 
 
 # --- Full run ---
 
 class TestFullRun:
-    def setup_method(self):
-        _mock_litellm.acompletion.side_effect = None
-        _mock_litellm.completion.side_effect = None
-
     @pytest.mark.asyncio
     async def test_run_produces_report(self):
-        _mock_litellm.acompletion.return_value = _make_llm_response("OK")
-        _mock_litellm.acompletion.side_effect = None
-        _mock_litellm.completion.side_effect = None
         settings = _make_settings(analysis_mode="ocr_only", ocr_engine="paddleocr")
         pf = PreflightDiagnostics(settings)
         report = await pf.run()
@@ -279,14 +271,14 @@ class TestFullRun:
 
     @pytest.mark.asyncio
     async def test_run_all_ok_with_local_model(self):
-        _mock_litellm.acompletion.return_value = _make_llm_response("OK")
-        _mock_litellm.acompletion.side_effect = None
-        settings = _make_settings(
-            vision_model="ollama/llava",
-            analysis_mode="hybrid",
-            ocr_engine="paddleocr",
-        )
-        pf = PreflightDiagnostics(settings)
-        report = await pf.run()
+        mock_ac = AsyncMock(return_value=_make_llm_response("OK"))
+        with patch(f"{_LITELLM_MOD}.acompletion", mock_ac):
+            settings = _make_settings(
+                vision_model="ollama/llava",
+                analysis_mode="hybrid",
+                ocr_engine="paddleocr",
+            )
+            pf = PreflightDiagnostics(settings)
+            report = await pf.run()
         # Even if window tools are missing, the LLM ping should work
         assert isinstance(report["all_ok"], bool)
