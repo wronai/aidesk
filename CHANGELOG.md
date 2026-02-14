@@ -1,3 +1,23 @@
+## [2.1.18] - 2026-02-14
+
+### Summary
+
+docs(docs): deep code analysis engine
+
+
+# Changelog
+
+## [Unreleased]
+
+### Docs
+
+- docs(readme): zsynchronizowano README z aktualnym kodem i indeksem `project.functions.toon`
+  - aktualny snapshot projektu: 89 modułów, 10 routerów FastAPI, 19 plików testowych
+  - opis pipeline zaktualizowany do 14 kroków + profile FAST/NORMAL/FULL
+  - doprecyzowane endpointy monitoringu (`/stats`, `/events`, `/pipeline`, `/read-model`, `/traces`, `/diagnostics`)
+  - doprecyzowana zależność portu overlay (`8001`) względem backendu (`PORT`)
+- docs(todo): dodano techniczny backlog `TODO.md` na podstawie TODO w kodzie i aktualnego stanu projektu
+
 ## [2.1.17] - 2026-02-14
 
 ### Summary
@@ -88,19 +108,6 @@ refactor(docs): CLI interface improvements
 - update backend/tests/test_skills.py
 - update backend/window_aware.py
 - ... and 3 more
-
-# Changelog
-
-## [Unreleased]
-
-### Docs
-
-- docs(readme): zsynchronizowano README z aktualnym kodem i indeksem `project.functions.toon`
-  - aktualny snapshot projektu: 89 modułów, 10 routerów FastAPI, 19 plików testowych
-  - opis pipeline zaktualizowany do 14 kroków + profile FAST/NORMAL/FULL
-  - doprecyzowane endpointy monitoringu (`/stats`, `/events`, `/pipeline`, `/read-model`, `/traces`, `/diagnostics`)
-  - doprecyzowana zależność portu overlay (`8001`) względem backendu (`PORT`)
-- docs(todo): dodano techniczny backlog `TODO.md` na podstawie TODO w kodzie i aktualnego stanu projektu
 
 ## [2.1.13] - 2026-02-14
 
