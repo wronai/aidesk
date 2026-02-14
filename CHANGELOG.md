@@ -1,3 +1,17 @@
+## [2.1.8] - 2026-02-14
+
+### Summary
+
+refactor(tests): configuration management system
+
+### Other
+
+- update backend/test_setup.py
+- update backend/tests/test_plugins.py
+- update backend/tests/test_units.py
+- update project.functions.toon
+
+
 ## [2.1.7] - 2026-02-14
 
 ### Summary

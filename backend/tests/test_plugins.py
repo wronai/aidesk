@@ -54,6 +54,11 @@ class TestPluginLoader:
         assert loader.app_state is state
         assert loader.loaded_plugins == {}
 
+    def test_default_plugin_dir_resolves_to_backend_plugins(self):
+        loader = PluginLoader()
+        expected = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plugins")
+        assert loader.plugin_dir == expected
+
     @patch("pkgutil.iter_modules")
     @patch("importlib.import_module")
     def test_discover_and_load_success(self, mock_import, mock_iter_modules):

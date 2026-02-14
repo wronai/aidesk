@@ -5,6 +5,7 @@ Tests process_scanner, window_cropper, window_aware, app_profiles, shell_agent.
 import sys
 import os
 import time
+from unittest.mock import patch
 
 import pytest
 from PIL import Image
@@ -17,6 +18,7 @@ from app_profiles import ProfileManager, create_profile_manager, AppProfile
 from shell_agent import ShellAgent, AgentAction, ActionRisk, create_shell_agent_from_env
 from process_scanner import ProcessScanner, ProcessInfo, VisibleWindow
 from window_cropper import WindowCropper, CroppedWindow, OrganizedScreenData
+from capture import create_capture_from_env
 
 
 # ===== WindowManager / AppCategory =====
@@ -393,6 +395,33 @@ class TestWindowCropper:
         assert "total_crops" in stats
         assert "total_organizes" in stats
         assert "scanner" in stats
+
+
+class TestCaptureFactory:
+    @patch("capture.SmartScreenCapture")
+    def test_create_capture_from_env_uses_settings_values(self, mock_capture_cls):
+        class _Settings:
+            change_threshold = 11
+            min_capture_interval = 1.5
+            idle_threshold = 42
+            idle_interval = 7.5
+            max_dimension = 1440
+            jpeg_quality = 73
+            captures_dir = "/tmp/test_caps"
+            save_captures = False
+
+        create_capture_from_env(settings=_Settings())
+
+        mock_capture_cls.assert_called_once_with(
+            change_threshold=11,
+            min_interval=1.5,
+            idle_threshold=42,
+            idle_interval=7.5,
+            max_dimension=1440,
+            jpeg_quality=73,
+            captures_dir="/tmp/test_caps",
+            save_to_disk=False,
+        )
 
 
 # ===== EventBus Tests =====
