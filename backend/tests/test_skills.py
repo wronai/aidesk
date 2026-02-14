@@ -1130,3 +1130,31 @@ class TestActionableOptions:
         options = self.skill.get_options(sel, ctx)
         ids = [o.id for o in options]
         assert "json_diff" in ids
+
+    def test_all_builder_option_ids_have_execute_dispatch(self):
+        dispatch_ids = set(self.skill._OPTION_DISPATCH.keys())
+        ctx = _ctx(clipboard_top='Traceback (most recent call last):\n  File "app.py", line 42')
+
+        option_groups = [
+            self.skill._default_options("sample", ctx, SimpleNamespace(name="already_copied")),
+            self.skill._default_options("sample", ctx, SimpleNamespace(name="code_similarity")),
+            self.skill._default_options("sample", ctx, SimpleNamespace(name="url_pair")),
+            self.skill._error_file_options("app.py", ctx),
+            self.skill._translate_options("Czesc", ctx),
+            self.skill._install_options("requests", ctx),
+            self.skill._json_options('{"a": 1}', ctx),
+            self.skill._git_options("main", ctx),
+            self.skill._git_compare_options("main", _ctx(clipboard_top="develop")),
+            self.skill._ip_error_options("db.example.com:5432", ctx),
+            self.skill._env_options("DATABASE_URL=postgres://localhost/db", ctx),
+            self.skill._env_missing_options("SECRET_KEY", ctx),
+            self.skill._docker_options("a1b2c3d4e5f6", ctx),
+            self.skill._config_options("server.port", ctx),
+            self.skill._stack_trace_options("handle_request", ctx),
+            self.skill._regex_options(r"\d+", ctx),
+            self.skill._save_options("/tmp/out.txt", ctx),
+        ]
+
+        builder_ids = {opt.id for options in option_groups for opt in options}
+        missing = sorted(builder_ids - dispatch_ids)
+        assert not missing, f"Option IDs without execute dispatch: {missing}"

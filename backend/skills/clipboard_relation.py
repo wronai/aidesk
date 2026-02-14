@@ -160,6 +160,25 @@ class ClipboardRelationSkill(BaseSkill):
     category = SkillCategory.CLIPBOARD
     icon = "📎"
     priority = 80
+    _OPTION_DISPATCH: Dict[str, str] = {
+        "copy_both": "_execute_copy_both_option",
+        "show_diff": "_execute_show_diff_option",
+        "replace_clipboard": "_execute_replace_clipboard_option",
+        "translate_pair": "_execute_translate_pair_option",
+        "install_package": "_execute_install_package_option",
+        "open_error_file": "_execute_open_error_file_option",
+        "save_to_file": "_execute_save_to_file_option",
+        "git_show": "_execute_git_show_option",
+        "git_diff_range": "_execute_git_diff_range_option",
+        "ping_host": "_execute_ping_host_option",
+        "check_port": "_execute_check_port_option",
+        "docker_logs": "_execute_docker_logs_option",
+        "docker_inspect": "_execute_docker_inspect_option",
+        "env_export": "_execute_env_export_option",
+        "regex_match": "_execute_regex_match_option",
+        "json_diff": "_execute_json_diff_option",
+        "search_pair": "_execute_search_pair_option",
+    }
 
     def detect(self, text: str, ctx: SkillContext) -> float:
         if not ctx.clipboard_top:
@@ -176,104 +195,107 @@ class ClipboardRelationSkill(BaseSkill):
         return self._default_options(text, ctx, intent)
 
     async def execute(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
-        clipboard = ctx.clipboard_top
+        clipboard = ctx.clipboard_top or ""
+        handler_name = self._OPTION_DISPATCH.get(option_id)
+        if not handler_name:
+            return SkillResult(success=False, error=f"Unknown option: {option_id}")
+        handler = getattr(self, handler_name)
+        return await handler(text, clipboard, ctx)
 
-        if option_id == "copy_both":
-            combined = f"--- Zaznaczenie ---\n{text}\n\n--- Schowek ---\n{clipboard}"
-            return SkillResult(success=True, message="📋 Skopiowano oba fragmenty", clipboard_text=combined)
+    async def _execute_copy_both_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        combined = f"--- Zaznaczenie ---\n{text}\n\n--- Schowek ---\n{clipboard}"
+        return SkillResult(success=True, message="📋 Skopiowano oba fragmenty", clipboard_text=combined)
 
-        if option_id == "show_diff":
-            diff = self._make_diff(text, clipboard)
-            return SkillResult(success=True, message="📊 Porównanie fragmentów", output=diff, clipboard_text=diff)
+    async def _execute_show_diff_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        diff = self._make_diff(text, clipboard)
+        return SkillResult(success=True, message="📊 Porównanie fragmentów", output=diff, clipboard_text=diff)
 
-        if option_id == "replace_clipboard":
-            return SkillResult(success=True, message="📋 Zastąpiono schowek zaznaczeniem", clipboard_text=text)
+    async def _execute_replace_clipboard_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        return SkillResult(success=True, message="📋 Zastąpiono schowek zaznaczeniem", clipboard_text=text)
 
-        if option_id == "translate_pair":
-            return SkillResult(
-                success=True,
-                message="🌐 Para do tłumaczenia skopiowana",
-                clipboard_text=f"{text}\n---\n{clipboard}",
+    async def _execute_translate_pair_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        return SkillResult(
+            success=True,
+            message="🌐 Para do tłumaczenia skopiowana",
+            clipboard_text=f"{text}\n---\n{clipboard}",
+        )
+
+    async def _execute_install_package_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        pkg = text.strip().split()[0] if text.strip() else ""
+        cmd = f"pip install {pkg}"
+        import subprocess
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60, cwd=ctx.cwd or None)
+            output = (result.stdout + result.stderr)[:2000]
+            ok = result.returncode == 0
+            return SkillResult(success=ok, message=f"{'✅' if ok else '❌'} {cmd}", output=output)
+        except Exception as e:
+            return SkillResult(success=False, error=str(e))
+
+    async def _execute_open_error_file_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        m = _FILE_LINE_RE.search(clipboard)
+        if m:
+            filepath, line = m.group(1), m.group(2)
+            return SkillResult(success=True, message=f"📂 Otwórz {filepath}:{line}", clipboard_text=f"{filepath}:{line}")
+        return SkillResult(success=False, error="Nie znaleziono pliku w schowku")
+
+    async def _execute_save_to_file_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        path = text.strip()
+        try:
+            with open(path, "w") as f:
+                f.write(clipboard)
+            return SkillResult(success=True, message=f"💾 Zapisano do {path}")
+        except Exception as e:
+            return SkillResult(success=False, error=str(e))
+
+    async def _execute_git_show_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        ref = text.strip()[:40]
+        return await self._run_cmd(f"git show --stat {ref}", ctx.cwd, f"🔀 git show {ref}")
+
+    async def _execute_git_diff_range_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        ref_a = text.strip()[:40]
+        ref_b = clipboard.strip()[:40]
+        return await self._run_cmd(f"git diff --stat {ref_a}..{ref_b}", ctx.cwd, f"🔀 git diff {ref_a}..{ref_b}")
+
+    async def _execute_ping_host_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        host = re.sub(r':\d+$', '', text.strip().split()[0])
+        return await self._run_cmd(f"ping -c 3 -W 2 {host}", None, f"🌐 ping {host}")
+
+    async def _execute_check_port_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        m = _HOST_PORT_RE.search(text)
+        if m:
+            target = m.group()
+            host, port = target.rsplit(":", 1)
+            return await self._run_cmd(
+                f"timeout 3 bash -c 'echo > /dev/tcp/{host}/{port}' 2>&1 && echo 'Port {port} OPEN' || echo 'Port {port} CLOSED'",
+                None, f"🌐 Sprawdzam {target}",
             )
+        return SkillResult(success=False, error="Nie znaleziono host:port")
 
-        if option_id == "install_package":
-            pkg = text.strip().split()[0] if text.strip() else ""
-            cmd = f"pip install {pkg}"
-            import subprocess
-            try:
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60, cwd=ctx.cwd or None)
-                output = (result.stdout + result.stderr)[:2000]
-                ok = result.returncode == 0
-                return SkillResult(success=ok, message=f"{'✅' if ok else '❌'} {cmd}", output=output)
-            except Exception as e:
-                return SkillResult(success=False, error=str(e))
+    async def _execute_docker_logs_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        container = text.strip()[:64]
+        return await self._run_cmd(f"docker logs --tail 30 {container}", None, f"🐳 docker logs {container}")
 
-        if option_id == "open_error_file":
-            m = _FILE_LINE_RE.search(ctx.clipboard_top)
-            if m:
-                filepath, line = m.group(1), m.group(2)
-                return SkillResult(success=True, message=f"📂 Otwórz {filepath}:{line}", clipboard_text=f"{filepath}:{line}")
-            return SkillResult(success=False, error="Nie znaleziono pliku w schowku")
+    async def _execute_docker_inspect_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        container = text.strip()[:64]
+        return await self._run_cmd(f"docker inspect --format '{{{{.State.Status}}}}' {container}", None, f"🐳 docker inspect {container}")
 
-        if option_id == "save_to_file":
-            path = text.strip()
-            try:
-                with open(path, "w") as f:
-                    f.write(clipboard)
-                return SkillResult(success=True, message=f"💾 Zapisano do {path}")
-            except Exception as e:
-                return SkillResult(success=False, error=str(e))
+    async def _execute_env_export_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        line = text.strip()
+        if "=" in line:
+            return SkillResult(success=True, message="⚙️ Skopiowano export", clipboard_text=f"export {line}")
+        return SkillResult(success=True, message="⚙️ Skopiowano export", clipboard_text=f"export {line}=")
 
-        if option_id == "git_show":
-            ref = text.strip()[:40]
-            return await self._run_cmd(f"git show --stat {ref}", ctx.cwd, f"🔀 git show {ref}")
+    async def _execute_regex_match_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        return self._execute_regex_match(text, clipboard)
 
-        if option_id == "git_diff_range":
-            ref_a = text.strip()[:40]
-            ref_b = clipboard.strip()[:40]
-            return await self._run_cmd(f"git diff --stat {ref_a}..{ref_b}", ctx.cwd, f"🔀 git diff {ref_a}..{ref_b}")
+    async def _execute_json_diff_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        return self._execute_json_diff(text, clipboard)
 
-        if option_id == "ping_host":
-            host = re.sub(r':\d+$', '', text.strip().split()[0])
-            return await self._run_cmd(f"ping -c 3 -W 2 {host}", None, f"🌐 ping {host}")
-
-        if option_id == "check_port":
-            m = _HOST_PORT_RE.search(text)
-            if m:
-                target = m.group()
-                host, port = target.rsplit(":", 1)
-                return await self._run_cmd(
-                    f"timeout 3 bash -c 'echo > /dev/tcp/{host}/{port}' 2>&1 && echo 'Port {port} OPEN' || echo 'Port {port} CLOSED'",
-                    None, f"🌐 Sprawdzam {target}",
-                )
-            return SkillResult(success=False, error="Nie znaleziono host:port")
-
-        if option_id == "docker_logs":
-            container = text.strip()[:64]
-            return await self._run_cmd(f"docker logs --tail 30 {container}", None, f"🐳 docker logs {container}")
-
-        if option_id == "docker_inspect":
-            container = text.strip()[:64]
-            return await self._run_cmd(f"docker inspect --format '{{{{.State.Status}}}}' {container}", None, f"🐳 docker inspect {container}")
-
-        if option_id == "env_export":
-            line = text.strip()
-            if "=" in line:
-                return SkillResult(success=True, message=f"⚙️ Skopiowano export", clipboard_text=f"export {line}")
-            return SkillResult(success=True, message=f"⚙️ Skopiowano export", clipboard_text=f"export {line}=")
-
-        if option_id == "regex_match":
-            return self._execute_regex_match(text, clipboard)
-
-        if option_id == "json_diff":
-            return self._execute_json_diff(text, clipboard)
-
-        if option_id == "search_pair":
-            query = f"{text[:40]} {clipboard[:40]}".strip()
-            url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-            return SkillResult(success=True, message=f"🔍 Szukam kontekstu", open_url=url)
-
-        return SkillResult(success=False, error=f"Unknown option: {option_id}")
+    async def _execute_search_pair_option(self, text: str, clipboard: str, ctx: SkillContext) -> SkillResult:
+        query = f"{text[:40]} {clipboard[:40]}".strip()
+        url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        return SkillResult(success=True, message="🔍 Szukam kontekstu", open_url=url)
 
     @staticmethod
     async def _run_cmd(cmd: str, cwd: Optional[str], label: str) -> SkillResult:

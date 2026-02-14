@@ -23,6 +23,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
 
+import nfo
 import structlog
 
 logger = structlog.get_logger()
@@ -57,6 +58,7 @@ class EventType(str, Enum):
     BROADCAST_SENT = "pipeline.broadcast_sent"
     PIPELINE_COMPLETED = "pipeline.completed"
     CLIPBOARD_UPDATED = "pipeline.clipboard_updated"
+    CLIPBOARD_RELATION = "pipeline.clipboard_relation"
     PASTE_SUGGESTED = "pipeline.paste_suggested"
 
     # Commands (CQRS write side)
@@ -151,11 +153,58 @@ class EventStore:
             os.makedirs(db_dir, exist_ok=True)
         self._flush_every = max(1, int(flush_every))
         self._prune_every = max(1, int(prune_every))
+        self._nfo_sample_every = max(1, int(os.getenv("EVENTSTORE_NFO_SAMPLE_EVERY", "50")))
         self._pending_writes = 0
         self._writes_since_prune = 0
+        self._append_calls = 0
+        self._query_calls = 0
+        self._event_count = 0
+        self._closed = False
         self._lock = threading.Lock()
         self._conn = self._open_connection()
         self._ensure_db()
+
+    @nfo.log_call(level="INFO")
+    def _trace_append_sample(
+        self,
+        *,
+        event_type: str,
+        source: str,
+        inserted: bool,
+        payload_bytes: int,
+        pending_writes: int,
+        total_events: int,
+    ):
+        """Sampled nfo tracing for append() without logging full event payloads."""
+        return {
+            "event_type": event_type,
+            "source": source,
+            "inserted": inserted,
+            "payload_bytes": payload_bytes,
+            "pending_writes": pending_writes,
+            "total_events": total_events,
+        }
+
+    @nfo.log_call(level="INFO")
+    def _trace_query_sample(
+        self,
+        *,
+        event_type: str,
+        source: str,
+        correlation_id: str,
+        since: Optional[float],
+        limit: int,
+        returned: int,
+    ):
+        """Sampled nfo tracing for query() parameters/results."""
+        return {
+            "event_type": event_type,
+            "source": source,
+            "correlation_id": correlation_id,
+            "since": since,
+            "limit": limit,
+            "returned": returned,
+        }
 
     def _open_connection(self):
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
@@ -193,6 +242,7 @@ class EventStore:
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp)")
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_corr ON events(correlation_id)")
             self._conn.commit()
+            self._event_count = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
 
     def _flush_if_needed(self):
         if self._pending_writes > 0:
@@ -203,15 +253,16 @@ class EventStore:
         if self.max_events <= 0:
             return
 
-        count = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
-        over_limit = count - self.max_events
+        over_limit = self._event_count - self.max_events
         if over_limit <= 0:
             return
 
-        self._conn.execute(
+        deleted_cur = self._conn.execute(
             "DELETE FROM events WHERE event_id IN (SELECT event_id FROM events ORDER BY timestamp ASC LIMIT ?)",
             (over_limit,),
         )
+        deleted = deleted_cur.rowcount if deleted_cur.rowcount and deleted_cur.rowcount > 0 else over_limit
+        self._event_count = max(0, self._event_count - deleted)
 
     def flush(self):
         """Flush pending writes to disk."""
@@ -225,8 +276,11 @@ class EventStore:
         """Flush and close connection (call on app shutdown)."""
         try:
             with self._lock:
+                if self._closed:
+                    return
                 self._flush_if_needed()
                 self._conn.close()
+                self._closed = True
         except Exception as e:
             logger.warning("Event store close failed", error=str(e))
 
@@ -234,8 +288,12 @@ class EventStore:
         """Append event to store (fire-and-forget, never blocks pipeline)."""
         try:
             payload = json.dumps(event.data, default=str)
+            trace_sample = None
             with self._lock:
-                self._conn.execute(
+                if self._closed:
+                    return
+
+                inserted_cur = self._conn.execute(
                     "INSERT OR IGNORE INTO events (event_id, type, category, source, timestamp, correlation_id, version, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         event.event_id,
@@ -249,8 +307,23 @@ class EventStore:
                     ),
                 )
 
-                self._pending_writes += 1
-                self._writes_since_prune += 1
+                inserted = inserted_cur.rowcount == 1
+                self._append_calls += 1
+
+                if inserted:
+                    self._event_count += 1
+                    self._pending_writes += 1
+                    self._writes_since_prune += 1
+
+                if self._append_calls % self._nfo_sample_every == 0:
+                    trace_sample = {
+                        "event_type": event.type,
+                        "source": event.source,
+                        "inserted": inserted,
+                        "payload_bytes": len(payload),
+                        "pending_writes": self._pending_writes,
+                        "total_events": self._event_count,
+                    }
 
                 if self._writes_since_prune >= self._prune_every:
                     self._prune_old_events_if_needed()
@@ -258,6 +331,9 @@ class EventStore:
 
                 if self._pending_writes >= self._flush_every:
                     self._flush_if_needed()
+
+            if trace_sample is not None:
+                self._trace_append_sample(**trace_sample)
         except Exception as e:
             logger.warning("Event store append failed", error=str(e))
 
@@ -290,9 +366,27 @@ class EventStore:
         sql = f"SELECT * FROM events {where} ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
 
+        trace_sample = None
         with self._lock:
+            if self._closed:
+                return []
+
             self._flush_if_needed()
             rows = self._conn.execute(sql, params).fetchall()
+            self._query_calls += 1
+
+            if self._query_calls % self._nfo_sample_every == 0:
+                trace_sample = {
+                    "event_type": event_type or "*",
+                    "source": source or "",
+                    "correlation_id": correlation_id or "",
+                    "since": since,
+                    "limit": limit,
+                    "returned": len(rows),
+                }
+
+        if trace_sample is not None:
+            self._trace_query_sample(**trace_sample)
 
         results = []
         for row in rows:
@@ -312,8 +406,11 @@ class EventStore:
         """Get event store statistics."""
         try:
             with self._lock:
+                if self._closed:
+                    return {"total_events": self._event_count, "db_path": self.db_path}
+
                 self._flush_if_needed()
-                total = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+                total = self._event_count
                 types = self._conn.execute(
                     "SELECT type, COUNT(*) as cnt FROM events GROUP BY type ORDER BY cnt DESC LIMIT 10"
                 ).fetchall()

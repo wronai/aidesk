@@ -38,6 +38,13 @@ async def approve_action(action_id: str):
     success = agent.approve_action(action_id)
     if not success:
         return JSONResponse(status_code=404, content={"error": f"Action not found: {action_id}"})
+
+    # Feed approval into action template learning loop
+    library = _state.get("action_library")
+    if library:
+        # action_id may match a template_id if the action was template-generated
+        library.learn_from_approval(action_id)
+
     return {"action_id": action_id, "status": "approved"}
 
 
@@ -55,6 +62,12 @@ async def execute_action(action_id: str):
             cwd = latest_window["cwd"]
 
         result = agent.execute_action(action_id, cwd=cwd)
+
+        # Feed execution into action template learning loop
+        library = _state.get("action_library")
+        if library:
+            library.learn_from_execution(action_id)
+
         await _broadcast("agent_result", result.to_dict())
         return result.to_dict()
     except ValueError as e:

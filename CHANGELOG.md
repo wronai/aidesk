@@ -1,3 +1,22 @@
+## [2.1.17] - 2026-02-14
+
+### Summary
+
+refactor(tests): CLI interface improvements
+
+### Other
+
+- build: update Makefile
+- update backend/event_bus.py
+- update backend/pipeline.py
+- update backend/routes/agent.py
+- update backend/routes/clipboard.py
+- update backend/skills/clipboard_relation.py
+- update backend/tests/test_event_store.py
+- update backend/tests/test_skills.py
+- update backend/tests/test_units.py
+
+
 ## [2.1.16] - 2026-02-14
 
 ### Summary

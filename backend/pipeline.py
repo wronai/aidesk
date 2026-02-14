@@ -873,6 +873,7 @@ class ClipboardStep:
             return False
         return self._clipboard is not None and ctx.analysis_result is not None
 
+    @nfo.log_call(level="INFO")
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         from window_aware import AppCategory
         analysis_text = ctx.analysis_result.get("text", "")
@@ -893,17 +894,145 @@ class ClipboardStep:
         suggestions = self._clipboard.suggest_paste(category=category, screen_text=analysis_text)
         ctx.clipboard_suggestions = [s.to_dict() if hasattr(s, 'to_dict') else {"text": str(s)} for s in suggestions]
 
-        stats = self._clipboard.get_stats() if hasattr(self._clipboard, "get_stats") else {}
-        sources = stats.get("sources", {}) if isinstance(stats, dict) else {}
-        non_zero_sources = [k for k, v in sources.items() if v] if isinstance(sources, dict) else []
+        queue_size = 0
+        non_zero_sources: List[str] = []
+        stats_extracted = False
+
+        # Fast path: one queue traversal (cheaper than full get_stats())
+        queue = getattr(self._clipboard, "queue", None)
+        if queue is not None and hasattr(queue, "get_all"):
+            try:
+                items = queue.get_all()
+                queue_size = len(items)
+                source_values = set()
+                for item in items:
+                    src = getattr(item, "source", None)
+                    if hasattr(src, "value"):
+                        source_values.add(src.value)
+                    elif src:
+                        source_values.add(str(src))
+                non_zero_sources = sorted(source_values)
+                stats_extracted = True
+            except Exception:
+                stats_extracted = False
+
+        if not stats_extracted and hasattr(self._clipboard, "get_stats"):
+            stats = self._clipboard.get_stats()
+            if isinstance(stats, dict):
+                queue_size = stats.get("queue_size", 0)
+                sources = stats.get("sources", {})
+                if isinstance(sources, dict):
+                    non_zero_sources = [k for k, v in sources.items() if v]
 
         await bus.publish(Event(
             type=EventType.CLIPBOARD_UPDATED.value,
             data={
                 "auto_copied": len(ctx.clipboard_auto_copies),
                 "suggestions": len(ctx.clipboard_suggestions),
-                "queue_size": stats.get("queue_size", 0),
+                "queue_size": queue_size,
                 "sources": non_zero_sources,
+            },
+            source=self.name,
+            correlation_id=ctx.correlation_id,
+        ))
+        return ctx
+
+
+class ClipboardRelationStep:
+    """Proactive clipboard↔screen relation detection.
+
+    Runs ClipboardRelationSkill.detect() against the latest OCR/analysis text
+    combined with the current clipboard top item.  When a strong intent is found,
+    emits a CLIPBOARD_RELATION event so the overlay can show a suggestion badge
+    without requiring the user to manually trigger selection analysis.
+
+    Skipped on FAST profile and when clipboard is empty.
+    """
+    name = "clipboard_relation"
+
+    def __init__(self, clipboard_manager, app_state_ref=None):
+        self._clipboard = clipboard_manager
+        self._state = app_state_ref or {}
+        self._skill = None  # lazy-init to avoid circular imports at module load
+        self._last_intent_key: Optional[str] = None  # dedup repeated events
+
+    def can_run(self, ctx: PipelineContext) -> bool:
+        if ctx.profile == PipelineProfile.FAST.value:
+            return False
+        if self._clipboard is None or ctx.analysis_result is None:
+            return False
+        # Need clipboard content
+        recent = self._clipboard.queue.get_recent(1) if hasattr(self._clipboard, 'queue') else []
+        return bool(recent)
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        # Lazy-init skill to avoid import at module level
+        if self._skill is None:
+            try:
+                from skills.clipboard_relation import ClipboardRelationSkill
+                self._skill = ClipboardRelationSkill()
+            except Exception as e:
+                logger.warning("ClipboardRelationStep: failed to init skill", error=str(e))
+                return ctx
+
+        from skills.base import SkillContext
+
+        # Build screen text from analysis + OCR
+        analysis_text = ctx.analysis_result.get("text", "")
+        ocr_text = ""
+        if ctx.analysis_result.get("ocr") and ctx.analysis_result["ocr"].get("text"):
+            ocr_text = ctx.analysis_result["ocr"]["text"]
+        screen_text = f"{analysis_text}\n{ocr_text}".strip()
+        if len(screen_text) < 10:
+            return ctx
+
+        # Get clipboard top
+        recent = self._clipboard.queue.get_recent(1)
+        clipboard_top = recent[0].text if recent else ""
+        if not clipboard_top:
+            return ctx
+
+        # Build minimal SkillContext
+        latest_window = self._state.get("latest_window") or {}
+        skill_ctx = SkillContext(
+            text=screen_text[:500],
+            clipboard_top=clipboard_top,
+            window_category=latest_window.get("category", "unknown"),
+            window_title=latest_window.get("title", ""),
+            cwd=latest_window.get("cwd", ""),
+            locale=self._state.get("locale", "pl"),
+        )
+
+        # Detect intent
+        confidence = self._skill.detect(screen_text[:500], skill_ctx)
+        if confidence < 0.5:
+            self._last_intent_key = None
+            return ctx
+
+        intent = self._skill._best_intent(screen_text[:500], skill_ctx)
+        if not intent:
+            self._last_intent_key = None
+            return ctx
+
+        # Dedup: don't re-emit same intent for same clipboard+screen pair
+        intent_key = f"{intent.name}:{clipboard_top[:80]}:{screen_text[:80]}"
+        if intent_key == self._last_intent_key:
+            return ctx
+        self._last_intent_key = intent_key
+
+        # Get options for the detected intent
+        options = self._skill.get_options(screen_text[:500], skill_ctx)
+
+        await bus.publish(Event(
+            type=EventType.CLIPBOARD_RELATION.value,
+            data={
+                "intent": intent.name,
+                "confidence": round(confidence, 3),
+                "label": intent.label,
+                "icon": intent.icon,
+                "options_count": len(options),
+                "clipboard_preview": clipboard_top[:60],
+                "screen_preview": screen_text[:60],
             },
             source=self.name,
             correlation_id=ctx.correlation_id,
@@ -1111,6 +1240,7 @@ def create_pipeline(
         (semantic_memory,   lambda: SemanticMemoryStep(semantic_memory)),
         (predictive_engine, lambda: PredictiveStep(predictive_engine)),
         (clipboard_manager, lambda: ClipboardStep(clipboard_manager)),
+        (clipboard_manager, lambda: ClipboardRelationStep(clipboard_manager, app_state_ref)),
         (True,              lambda: BuildBroadcastStep()),
     ]
 

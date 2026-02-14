@@ -235,6 +235,11 @@ async def execute_skill(request: Request):
 
     result = await router.execute(skill_name, text, option_id, ctx)
 
+    # Feed execution into action template learning loop
+    library = _state.get("action_library")
+    if library and result.success:
+        library.learn_from_execution(f"{skill_name}:{option_id}")
+
     # Broadcast result to overlay
     if _broadcast:
         await _broadcast("skill_result", result.to_dict())

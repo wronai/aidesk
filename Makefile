@@ -22,7 +22,7 @@ ifeq ($(PORT),)
   PORT := 8000
 endif
 
-.PHONY: help setup setup-backend setup-overlay env install run run-backend run-overlay stop clean test test-setup test-units test-e2e status logs
+.PHONY: help setup setup-backend setup-overlay env install install-system-deps diagnostics run run-backend run-overlay stop clean test test-setup test-units test-e2e status logs
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -96,13 +96,34 @@ run-overlay: ## Run overlay only
 
 # ---- Utilities ----
 
-install: setup-backend ## Reinstall Python deps
+install: setup-backend setup-overlay env ## Install all dependencies (python + node + system) and run diagnostics
 	$(PYTHON) -m pip install -r $(BACKEND_DIR)/requirements.txt --upgrade
+	$(MAKE) install-system-deps
+	$(MAKE) diagnostics
+
+install-system-deps: ## Install Linux system dependencies (OCR/STT/TTS/window tools)
+	@if command -v apt-get >/dev/null 2>&1; then \
+		echo "📦 Installing system dependencies (APT)..."; \
+		sudo apt update; \
+		sudo apt install -y \
+			xdotool xprop xrandr wmctrl \
+			tesseract-ocr tesseract-ocr-pol \
+			libportaudio2 portaudio19-dev \
+			libttspico-utils \
+			speech-dispatcher speech-dispatcher-pico speech-dispatcher-festival speech-dispatcher-flite speech-dispatcher-rhvoice \
+			rhvoice rhvoice-polish rhvoice-english \
+			festival festvox-kallpc16k \
+			flite espeak-ng alsa-utils ffmpeg; \
+	else \
+		echo "⚠️ apt-get not found. Install system dependencies manually (see INSTALL.md)."; \
+	fi
+
+diagnostics: ## Run post-install diagnostics
+	$(PYTHON) $(BACKEND_DIR)/test_setup.py
 
 test: test-units test-e2e ## Run all tests (unit + e2e)
 
-test-setup: ## Run backend test_setup.py
-	$(PYTHON) $(BACKEND_DIR)/test_setup.py
+test-setup: diagnostics ## Run backend setup diagnostics
 
 test-units: ## Run unit tests (fast, no server)
 	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_units.py -v
