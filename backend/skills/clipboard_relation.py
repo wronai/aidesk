@@ -224,12 +224,141 @@ class ClipboardRelationSkill(BaseSkill):
             except Exception as e:
                 return SkillResult(success=False, error=str(e))
 
+        if option_id == "git_show":
+            ref = text.strip()[:40]
+            return await self._run_cmd(f"git show --stat {ref}", ctx.cwd, f"🔀 git show {ref}")
+
+        if option_id == "git_diff_range":
+            ref_a = text.strip()[:40]
+            ref_b = clipboard.strip()[:40]
+            return await self._run_cmd(f"git diff --stat {ref_a}..{ref_b}", ctx.cwd, f"🔀 git diff {ref_a}..{ref_b}")
+
+        if option_id == "ping_host":
+            host = re.sub(r':\d+$', '', text.strip().split()[0])
+            return await self._run_cmd(f"ping -c 3 -W 2 {host}", None, f"🌐 ping {host}")
+
+        if option_id == "check_port":
+            m = _HOST_PORT_RE.search(text)
+            if m:
+                target = m.group()
+                host, port = target.rsplit(":", 1)
+                return await self._run_cmd(
+                    f"timeout 3 bash -c 'echo > /dev/tcp/{host}/{port}' 2>&1 && echo 'Port {port} OPEN' || echo 'Port {port} CLOSED'",
+                    None, f"🌐 Sprawdzam {target}",
+                )
+            return SkillResult(success=False, error="Nie znaleziono host:port")
+
+        if option_id == "docker_logs":
+            container = text.strip()[:64]
+            return await self._run_cmd(f"docker logs --tail 30 {container}", None, f"🐳 docker logs {container}")
+
+        if option_id == "docker_inspect":
+            container = text.strip()[:64]
+            return await self._run_cmd(f"docker inspect --format '{{{{.State.Status}}}}' {container}", None, f"🐳 docker inspect {container}")
+
+        if option_id == "env_export":
+            line = text.strip()
+            if "=" in line:
+                return SkillResult(success=True, message=f"⚙️ Skopiowano export", clipboard_text=f"export {line}")
+            return SkillResult(success=True, message=f"⚙️ Skopiowano export", clipboard_text=f"export {line}=")
+
+        if option_id == "regex_match":
+            return self._execute_regex_match(text, clipboard)
+
+        if option_id == "json_diff":
+            return self._execute_json_diff(text, clipboard)
+
         if option_id == "search_pair":
             query = f"{text[:40]} {clipboard[:40]}".strip()
             url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
             return SkillResult(success=True, message=f"🔍 Szukam kontekstu", open_url=url)
 
         return SkillResult(success=False, error=f"Unknown option: {option_id}")
+
+    @staticmethod
+    async def _run_cmd(cmd: str, cwd: Optional[str], label: str) -> SkillResult:
+        """Run a shell command and return the result."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True,
+                timeout=15, cwd=cwd or None,
+            )
+            output = (result.stdout + result.stderr)[:2000]
+            ok = result.returncode == 0
+            return SkillResult(
+                success=ok,
+                message=f"{'✅' if ok else '❌'} {label}",
+                output=output,
+                clipboard_text=output.strip() if output.strip() else cmd,
+            )
+        except subprocess.TimeoutExpired:
+            return SkillResult(success=False, message=f"⏱️ Timeout: {label}", error="timeout")
+        except Exception as e:
+            return SkillResult(success=False, error=str(e))
+
+    @staticmethod
+    def _execute_regex_match(text: str, clipboard: str) -> SkillResult:
+        """Test regex (from one side) against data (from the other)."""
+        sel_is_regex = bool(_REGEX_RE.search(text)) and len(text.strip()) < 200
+        pattern_str = text.strip() if sel_is_regex else clipboard.strip()
+        test_data = clipboard if sel_is_regex else text
+        try:
+            compiled = re.compile(pattern_str, re.MULTILINE)
+            matches = compiled.findall(test_data)
+            if matches:
+                match_list = "\n".join(str(m) for m in matches[:20])
+                return SkillResult(
+                    success=True,
+                    message=f"🔣 {len(matches)} dopasowań",
+                    output=f"Pattern: {pattern_str}\n\nMatches ({len(matches)}):\n{match_list}",
+                    clipboard_text=match_list,
+                )
+            return SkillResult(
+                success=True,
+                message="🔣 Brak dopasowań",
+                output=f"Pattern: {pattern_str}\n\nNo matches in:\n{test_data[:200]}",
+            )
+        except re.error as e:
+            return SkillResult(success=False, error=f"Regex error: {e}")
+
+    @staticmethod
+    def _execute_json_diff(text: str, clipboard: str) -> SkillResult:
+        """Pretty-print and diff two JSON objects."""
+        import json
+        try:
+            obj_a = json.loads(text)
+            obj_b = json.loads(clipboard)
+        except json.JSONDecodeError as e:
+            return SkillResult(success=False, error=f"JSON parse error: {e}")
+
+        pretty_a = json.dumps(obj_a, indent=2, ensure_ascii=False, sort_keys=True)
+        pretty_b = json.dumps(obj_b, indent=2, ensure_ascii=False, sort_keys=True)
+
+        if pretty_a == pretty_b:
+            return SkillResult(success=True, message="📋 JSON identyczne (po normalizacji)", output=pretty_a, clipboard_text=pretty_a)
+
+        lines_a = pretty_a.splitlines()
+        lines_b = pretty_b.splitlines()
+        output = ["--- Zaznaczenie (JSON)", "+++ Schowek (JSON)", ""]
+        sm = SequenceMatcher(None, lines_a, lines_b)
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                for line in lines_a[i1:i2]:
+                    output.append(f"  {line}")
+            elif tag == "replace":
+                for line in lines_a[i1:i2]:
+                    output.append(f"- {line}")
+                for line in lines_b[j1:j2]:
+                    output.append(f"+ {line}")
+            elif tag == "delete":
+                for line in lines_a[i1:i2]:
+                    output.append(f"- {line}")
+            elif tag == "insert":
+                for line in lines_b[j1:j2]:
+                    output.append(f"+ {line}")
+        diff_text = "\n".join(output[:150])
+        return SkillResult(success=True, message="📊 JSON diff", output=diff_text, clipboard_text=diff_text)
 
     # ── Intent detection engine ──
 
@@ -611,8 +740,8 @@ class ClipboardRelationSkill(BaseSkill):
     def _json_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
         return [
             SkillOption(
-                id="show_diff", label="📊 Porównaj JSON",
-                icon="📊", description="Pokaż różnice między obiektami JSON",
+                id="json_diff", label="📊 Porównaj JSON (pretty diff)",
+                icon="📊", description="Normalizuj i pokaż różnice między obiektami JSON",
                 data={"extracted": text[:100]},
             ),
             SkillOption(
@@ -629,6 +758,12 @@ class ClipboardRelationSkill(BaseSkill):
         ref = text.strip()[:40]
         return [
             SkillOption(
+                id="git_show", label=f"🔀 git show {ref}",
+                icon="🔀", description="Pokaż szczegóły commita",
+                risk=OptionRisk.SAFE,
+                data={"command": f"git show --stat {ref}", "extracted": ref},
+            ),
+            SkillOption(
                 id="copy_both", label=f"📋 Kopiuj ref {ref} + diff",
                 icon="📋", data={"extracted": ref},
             ),
@@ -643,6 +778,12 @@ class ClipboardRelationSkill(BaseSkill):
         ref_b = ctx.clipboard_top.strip()[:20]
         return [
             SkillOption(
+                id="git_diff_range", label=f"🔀 git diff {ref_a}..{ref_b}",
+                icon="🔀", description="Porównaj dwa commity/branche",
+                risk=OptionRisk.SAFE,
+                data={"command": f"git diff --stat {ref_a}..{ref_b}", "extracted": f"{ref_a}..{ref_b}"},
+            ),
+            SkillOption(
                 id="copy_both", label=f"📋 Kopiuj {ref_a}..{ref_b}",
                 icon="📋", data={"extracted": f"{ref_a}..{ref_b}"},
             ),
@@ -654,7 +795,22 @@ class ClipboardRelationSkill(BaseSkill):
 
     def _ip_error_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
         host = text.strip()[:40]
-        return [
+        options = [
+            SkillOption(
+                id="ping_host", label=f"🌐 ping {host}",
+                icon="🌐", description="Sprawdź dostępność hosta",
+                risk=OptionRisk.SAFE,
+                data={"command": f"ping -c 3 {host}", "extracted": host},
+            ),
+        ]
+        if _HOST_PORT_RE.search(text):
+            options.append(SkillOption(
+                id="check_port", label=f"🔌 Sprawdź port {host}",
+                icon="🔌", description="Sprawdź czy port jest otwarty",
+                risk=OptionRisk.SAFE,
+                data={"extracted": host},
+            ))
+        options.extend([
             SkillOption(
                 id="copy_both", label=f"📋 Kopiuj {host} + błąd",
                 icon="📋", data={"extracted": host},
@@ -663,11 +819,17 @@ class ClipboardRelationSkill(BaseSkill):
                 id="search_pair", label="🔍 Diagnozuj połączenie",
                 icon="🔍", data={"extracted": host},
             ),
-        ]
+        ])
+        return options
 
     def _env_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
         var = text.strip().split('=')[0].strip()
         return [
+            SkillOption(
+                id="env_export", label=f"⚙️ export {var}=...",
+                icon="⚙️", description="Skopiuj jako polecenie export",
+                data={"extracted": var},
+            ),
             SkillOption(
                 id="copy_both", label=f"📋 Kopiuj {var} + kontekst",
                 icon="📋", data={"extracted": var},
@@ -682,6 +844,11 @@ class ClipboardRelationSkill(BaseSkill):
         var = text.strip()
         return [
             SkillOption(
+                id="env_export", label=f"⚙️ export {var}=",
+                icon="⚙️", description="Skopiuj szablon export",
+                data={"extracted": var},
+            ),
+            SkillOption(
                 id="copy_both", label=f"📋 Kopiuj {var} + błąd",
                 icon="📋", data={"extracted": var},
             ),
@@ -695,7 +862,19 @@ class ClipboardRelationSkill(BaseSkill):
         container = text.strip()[:12]
         return [
             SkillOption(
-                id="copy_both", label=f"📋 Kopiuj kontener {container} + logi",
+                id="docker_logs", label=f"🐳 docker logs {container}",
+                icon="🐳", description="Pokaż ostatnie 30 linii logów",
+                risk=OptionRisk.SAFE,
+                data={"command": f"docker logs --tail 30 {container}", "extracted": container},
+            ),
+            SkillOption(
+                id="docker_inspect", label=f"🐳 docker inspect {container}",
+                icon="🐳", description="Sprawdź status kontenera",
+                risk=OptionRisk.SAFE,
+                data={"extracted": container},
+            ),
+            SkillOption(
+                id="copy_both", label=f"📋 Kopiuj kontener + błąd",
                 icon="📋", data={"extracted": container},
             ),
             SkillOption(
@@ -733,11 +912,16 @@ class ClipboardRelationSkill(BaseSkill):
     def _regex_options(self, text: str, ctx: SkillContext) -> List[SkillOption]:
         return [
             SkillOption(
+                id="regex_match", label="🔣 Testuj regex lokalnie",
+                icon="🔣", description="Uruchom regex na danych i pokaż dopasowania",
+                data={"extracted": text[:100]},
+            ),
+            SkillOption(
                 id="copy_both", label="📋 Kopiuj regex + dane testowe",
                 icon="📋", data={"extracted": text[:100]},
             ),
             SkillOption(
-                id="search_pair", label="🔍 Testuj regex online",
+                id="search_pair", label="🔍 Testuj regex online (regex101)",
                 icon="🔍", data={"extracted": text[:100]},
             ),
         ]

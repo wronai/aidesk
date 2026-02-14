@@ -691,7 +691,7 @@ class TestClipboardRelationExpandedIntents:
         ctx = _ctx(clipboard_top=clip)
         options = self.skill.get_options(sel, ctx)
         ids = [o.id for o in options]
-        assert "show_diff" in ids
+        assert "json_diff" in ids
 
     # ── Git context ──
 
@@ -913,3 +913,184 @@ class TestExpandedIntentOptions:
         options = self.skill.get_options(sel, ctx)
         ids = [o.id for o in options]
         assert "copy_both" in ids
+
+
+# ===== Execution Handler Tests =====
+
+class TestExpandedExecutionHandlers:
+    """Test the new actionable execution handlers."""
+
+    def setup_method(self):
+        self.skill = ClipboardRelationSkill()
+
+    @pytest.mark.asyncio
+    async def test_regex_match_with_matches(self):
+        sel = r"\d+"
+        clip = "abc 123 def 456 ghi"
+        ctx = _ctx(clipboard_top=clip)
+        result = await self.skill.execute(sel, "regex_match", ctx)
+        assert result.success is True
+        assert "2" in result.message  # 2 matches
+        assert "123" in result.output
+        assert "456" in result.output
+
+    @pytest.mark.asyncio
+    async def test_regex_match_no_matches(self):
+        sel = r"^\d{10}$"
+        clip = "hello world"
+        ctx = _ctx(clipboard_top=clip)
+        result = await self.skill.execute(sel, "regex_match", ctx)
+        assert result.success is True
+        assert "Brak" in result.message
+
+    @pytest.mark.asyncio
+    async def test_regex_match_invalid_regex(self):
+        # Both sides have regex chars so _REGEX_RE matches; selection is treated as pattern
+        sel = r"[invalid(++"
+        clip = "test data with [special] chars"
+        ctx = _ctx(clipboard_top=clip)
+        result = await self.skill.execute(sel, "regex_match", ctx)
+        assert result.success is False
+        assert "Regex error" in result.error
+
+    @pytest.mark.asyncio
+    async def test_json_diff_different(self):
+        sel = '{"name": "Alice", "age": 30}'
+        clip = '{"name": "Bob", "age": 25}'
+        ctx = _ctx(clipboard_top=clip)
+        result = await self.skill.execute(sel, "json_diff", ctx)
+        assert result.success is True
+        assert "JSON diff" in result.message
+        assert "-" in result.output  # diff markers
+        assert "+" in result.output
+
+    @pytest.mark.asyncio
+    async def test_json_diff_identical(self):
+        sel = '{"a": 1, "b": 2}'
+        clip = '{"b": 2, "a": 1}'
+        ctx = _ctx(clipboard_top=clip)
+        result = await self.skill.execute(sel, "json_diff", ctx)
+        assert result.success is True
+        assert "identyczne" in result.message
+
+    @pytest.mark.asyncio
+    async def test_json_diff_invalid_json(self):
+        sel = '{"broken'
+        clip = '{"valid": true}'
+        ctx = _ctx(clipboard_top=clip)
+        result = await self.skill.execute(sel, "json_diff", ctx)
+        assert result.success is False
+        assert "JSON parse error" in result.error
+
+    @pytest.mark.asyncio
+    async def test_env_export_with_value(self):
+        sel = "DATABASE_URL=postgres://localhost/mydb"
+        ctx = _ctx(clipboard_top="some config")
+        result = await self.skill.execute(sel, "env_export", ctx)
+        assert result.success is True
+        assert result.clipboard_text.startswith("export DATABASE_URL=")
+
+    @pytest.mark.asyncio
+    async def test_env_export_without_value(self):
+        sel = "API_KEY"
+        ctx = _ctx(clipboard_top="some error")
+        result = await self.skill.execute(sel, "env_export", ctx)
+        assert result.success is True
+        assert result.clipboard_text == "export API_KEY="
+
+    @pytest.mark.asyncio
+    async def test_copy_both(self):
+        sel = "selection text"
+        clip = "clipboard text"
+        ctx = _ctx(clipboard_top=clip)
+        result = await self.skill.execute(sel, "copy_both", ctx)
+        assert result.success is True
+        assert "selection text" in result.clipboard_text
+        assert "clipboard text" in result.clipboard_text
+
+    @pytest.mark.asyncio
+    async def test_unknown_option(self):
+        ctx = _ctx(clipboard_top="clip")
+        result = await self.skill.execute("text", "nonexistent_option", ctx)
+        assert result.success is False
+        assert "Unknown option" in result.error
+
+
+class TestActionableOptions:
+    """Test that option builders offer actionable commands."""
+
+    def setup_method(self):
+        self.skill = ClipboardRelationSkill()
+
+    def test_git_options_has_git_show(self):
+        sel = "abc1234"
+        clip = "diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "git_show" in ids
+
+    def test_git_compare_has_diff_range(self):
+        sel = "main"
+        clip = "develop"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "git_diff_range" in ids
+
+    def test_ip_error_has_ping(self):
+        sel = "192.168.1.1"
+        clip = "ECONNREFUSED 192.168.1.1:3000"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "ping_host" in ids
+
+    def test_host_port_has_check_port(self):
+        sel = "db.example.com:5432"
+        clip = "Connection timeout to db.example.com:5432"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "check_port" in ids
+
+    def test_docker_has_logs_and_inspect(self):
+        sel = "a1b2c3d4e5f6"
+        clip = "docker: Error response from daemon: container a1b2c3d4e5f6 failed"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "docker_logs" in ids
+        assert "docker_inspect" in ids
+
+    def test_env_match_has_export(self):
+        sel = "DATABASE_URL=postgres://localhost/mydb"
+        clip = "Error: DATABASE_URL is not configured"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "env_export" in ids
+
+    def test_env_missing_has_export(self):
+        sel = "SECRET_KEY"
+        clip = "Error: SECRET_KEY is not set"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "env_export" in ids
+
+    def test_regex_has_local_match(self):
+        sel = r"^\d{3}-\d{4}$"
+        clip = "555-1234\nhello"
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "regex_match" in ids
+
+    def test_json_has_json_diff(self):
+        sel = '{"x": 1}'
+        clip = '{"y": 2}'
+        ctx = _ctx(clipboard_top=clip)
+        options = self.skill.get_options(sel, ctx)
+        ids = [o.id for o in options]
+        assert "json_diff" in ids

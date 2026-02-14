@@ -1,3 +1,42 @@
+## [2.1.14] - 2026-02-14
+
+### Summary
+
+refactor(docs): CLI interface improvements
+
+### Docs
+
+- docs: update ARCHITECTURE.md
+- docs: update README
+
+### Other
+
+- update backend/bootstrap.py
+- update backend/cost_budget.py
+- update backend/ocr_post_process.py
+- update backend/pipeline.py
+- update backend/process_scanner.py
+- update backend/settings.py
+- update backend/skills/clipboard_relation.py
+- update backend/skills/shell_command.py
+- update backend/tests/test_skills.py
+- update backend/window_aware.py
+- ... and 3 more
+
+
+# Changelog
+
+## [Unreleased]
+
+### Docs
+
+- docs(readme): zsynchronizowano README z aktualnym kodem i indeksem `project.functions.toon`
+  - aktualny snapshot projektu: 89 modułów, 10 routerów FastAPI, 19 plików testowych
+  - opis pipeline zaktualizowany do 14 kroków + profile FAST/NORMAL/FULL
+  - doprecyzowane endpointy monitoringu (`/stats`, `/events`, `/pipeline`, `/read-model`, `/traces`, `/diagnostics`)
+  - doprecyzowana zależność portu overlay (`8001`) względem backendu (`PORT`)
+- docs(todo): dodano techniczny backlog `TODO.md` na podstawie TODO w kodzie i aktualnego stanu projektu
+
 ## [2.1.13] - 2026-02-14
 
 ### Summary
@@ -23,20 +62,6 @@ fix(docs): CLI interface improvements
 - update backend/tests/test_skills.py
 - update backend/tests/test_units.py
 - ... and 4 more
-
-
-# Changelog
-
-## [Unreleased]
-
-### Docs
-
-- docs(readme): zsynchronizowano README z aktualnym kodem i indeksem `project.functions.toon`
-  - aktualny snapshot projektu: 89 modułów, 10 routerów FastAPI, 19 plików testowych
-  - opis pipeline zaktualizowany do 14 kroków + profile FAST/NORMAL/FULL
-  - doprecyzowane endpointy monitoringu (`/stats`, `/events`, `/pipeline`, `/read-model`, `/traces`, `/diagnostics`)
-  - doprecyzowana zależność portu overlay (`8001`) względem backendu (`PORT`)
-- docs(todo): dodano techniczny backlog `TODO.md` na podstawie TODO w kodzie i aktualnego stanu projektu
 
 ## [2.1.12] - 2026-02-14
 
@@ -727,9 +752,6 @@ refactor(docs): code analysis engine
 - update backend/test_setup.py
 - update overlay/app.js
 - ... and 7 more
-
-
-# Changelog
 
 ## Version 1.0.0 - Initial Release (2025-02-14)
 

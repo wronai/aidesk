@@ -946,6 +946,33 @@ kbd {
   overflow-x: auto;
 }
 
+.clipboard-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-bottom: 6px;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.15);
+  border-radius: 6px;
+  font-size: 10px;
+  color: rgba(167, 139, 250, 0.7);
+  overflow: hidden;
+}
+
+.clipboard-preview-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.clipboard-preview-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+}
+
 .selection-panel-clipboard {
   margin-top: 6px;
   display: flex;

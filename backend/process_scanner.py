@@ -207,12 +207,17 @@ class ProcessScanner:
         active_wid = 0
         cursor_wid = self._query_mouse_window_id()
         focused_wid = self._query_active_window_id()
-        if cursor_wid and cursor_wid != focused_wid and not self._is_service_window_id(cursor_wid):
+        cursor_is_service = self._is_service_window_id(cursor_wid) if cursor_wid else False
+        focused_is_service = self._is_service_window_id(focused_wid) if focused_wid else False
+
+        if cursor_wid and cursor_wid != focused_wid and not cursor_is_service:
             active_wid = cursor_wid
-        elif focused_wid and not self._is_service_window_id(focused_wid):
+        elif focused_wid and not focused_is_service:
             active_wid = focused_wid
+        elif cursor_wid and not cursor_is_service:
+            active_wid = cursor_wid
         else:
-            active_wid = cursor_wid or focused_wid or 0
+            active_wid = 0
 
         if self._has_wmctrl:
             windows = self._scan_via_wmctrl(active_wid)

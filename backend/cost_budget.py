@@ -152,10 +152,9 @@ def create_cost_budget_from_env(settings=None) -> CostBudget:
         from settings import get_settings
         settings = get_settings()
     
-    # TODO: Add budget settings to Settings model (using defaults for now)
     config = BudgetConfig(
-        daily_limit_usd=float(getattr(settings, "daily_budget", 5.0)),
-        hourly_limit_usd=float(getattr(settings, "hourly_budget", 1.0)),
+        daily_limit_usd=settings.daily_budget,
+        hourly_limit_usd=settings.hourly_budget,
         degradation_mode="ocr_only",
     )
     return CostBudget(config)

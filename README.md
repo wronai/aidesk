@@ -325,6 +325,7 @@ Pliki logów:
 ### Wersja lokalna (zero cloud API calls)
 
 W `backend/.env` ustaw model Ollama:
+
 ```env
 VISION_MODEL=ollama/llava:13b
 ENABLE_STT=false

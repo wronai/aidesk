@@ -277,7 +277,7 @@ class AppBootstrap:
                     logger.warning("STT initialization failed", error=str(e))
 
         # Auto-diagnostics
-        diag_interval = float(os.getenv("DIAG_INTERVAL", "30"))  # TODO: add to settings if needed
+        diag_interval = self.settings.diag_interval
         self.state["diagnostics"] = AutoDiagnostics(self.state, interval=diag_interval)
         diag_task = asyncio.create_task(
             self.state["diagnostics"].run_loop(self.broadcast)

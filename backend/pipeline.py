@@ -186,6 +186,7 @@ class PipelineContext:
     prediction: Optional[Dict] = None
     used_prefetch: bool = False
     clipboard_suggestions: List[Dict] = field(default_factory=list)
+    clipboard_auto_copies: List[Dict] = field(default_factory=list)
 
     # Metadata
     steps_executed: List[str] = field(default_factory=list)
@@ -842,7 +843,8 @@ class ClipboardStep:
         if ctx.active_window:
             category = getattr(ctx.active_window, 'category', AppCategory.UNKNOWN)
 
-        self._clipboard.scan_and_copy(analysis_text, category=category)
+        auto_copies = self._clipboard.scan_and_copy(analysis_text, category=category)
+        ctx.clipboard_auto_copies = [r.to_dict() if hasattr(r, 'to_dict') else r for r in auto_copies]
 
         # Auto-copy agent actions to clipboard
         for action in ctx.agent_actions:

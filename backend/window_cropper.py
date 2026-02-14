@@ -504,7 +504,7 @@ def create_window_cropper(
         crops_dir=crops_dir,
         jpeg_quality=settings.jpeg_quality,
         max_crop_dimension=settings.max_dimension,
-        change_threshold=3.0,  # TODO: Add to settings if needed, currently hardcoded in env default as 3.0
+        change_threshold=settings.crop_change_threshold,
         max_crop_windows=settings.max_crop_windows,
         save_to_disk=settings.save_crops,
     )

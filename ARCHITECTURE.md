@@ -622,9 +622,15 @@ SkillRouter
 ClipboardRelationSkill (priority 80)
 ├── Analyzes the *pair* (selected_text, clipboard_content)
 ├── 16 intent detectors with confidence scoring
-├── Custom option builders per intent type
-└── Execution handlers: copy_both, show_diff, replace_clipboard,
-    translate_pair, install_package, open_error_file, save_to_file, search_pair
+├── Custom option builders per intent type (actionable commands)
+└── 18 execution handlers:
+    ├── Generic: copy_both, show_diff, replace_clipboard, search_pair
+    ├── Code: install_package, open_error_file, save_to_file, translate_pair
+    ├── Git: git_show, git_diff_range
+    ├── Network: ping_host, check_port
+    ├── Docker: docker_logs, docker_inspect
+    ├── Config: env_export
+    └── Data: regex_match, json_diff
 ```
 
 **Intent Catalog (16 detectors):**
@@ -634,18 +640,18 @@ ClipboardRelationSkill (priority 80)
 | 1 | `already_copied` | 0.95 | Any text | Same text (>90% similar) | Replace clipboard |
 | 2 | `error_file_match` | 0.92 | `app.py` | Traceback mentioning `app.py` | Open file at error line |
 | 3 | `complement_cmd` | 0.88 | `flask` | `ModuleNotFoundError: flask` | `pip install flask` |
-| 4 | `stack_trace_symbol` | 0.86 | `handle_request` | Stack trace with `handle_request` | Search symbol + error |
-| 5 | `ip_conn_error` | 0.85 | `192.168.1.100` | `connection refused` | Diagnose connection |
-| 6 | `env_var_missing` | 0.84 | `API_KEY` | `API_KEY is not set` | How to set env var |
-| 7 | `docker_error` | 0.83 | Container ID | Docker error for that container | Docker troubleshoot |
-| 8 | `git_diff_ref` | 0.82 | `abc1234` | `diff --git ...` | Copy ref + diff |
+| 4 | `stack_trace_symbol` | 0.86 | `handle_request` | Stack trace with `handle_request` | Copy symbol + stack trace |
+| 5 | `ip_conn_error` | 0.85 | `192.168.1.100` | `connection refused` | `ping` / check port |
+| 6 | `env_var_missing` | 0.84 | `API_KEY` | `API_KEY is not set` | `export API_KEY=` |
+| 7 | `docker_error` | 0.83 | Container ID | Docker error for that container | `docker logs` / `inspect` |
+| 8 | `git_diff_ref` | 0.82 | `abc1234` | `diff --git ...` | `git show --stat` |
 | 9 | `cross_language` | 0.78 | Polish text | English text | Translation pair |
-| 10 | `env_var_match` | 0.76 | `DB_URL=...` | Config referencing `DB_URL` | Copy var + context |
+| 10 | `env_var_match` | 0.76 | `DB_URL=...` | Config referencing `DB_URL` | `export DB_URL=...` |
 | 11 | `config_key_match` | 0.73 | `server.port` | Config block with `server.port` | Copy key + config |
-| 12 | `json_pair` | 0.72 | `{"a": 1}` | `{"b": 2}` | Compare/diff JSON |
+| 12 | `json_pair` | 0.72 | `{"a": 1}` | `{"b": 2}` | JSON pretty diff |
 | 13 | `url_pair` | 0.70 | URL (github.com) | URL (github.com) | Compare pages |
-| 14 | `git_compare` | 0.70 | `main` | `develop` | Compare branches |
-| 15 | `regex_test` | 0.68 | `^\d{3}-\d{4}$` | Test data | Test regex online |
+| 14 | `git_compare` | 0.70 | `main` | `develop` | `git diff main..develop` |
+| 15 | `regex_test` | 0.68 | `^\d{3}-\d{4}$` | Test data | Local regex match |
 | 16 | `save_to_path` | 0.65 | `/tmp/out.txt` | Long content | Save clipboard to file |
 
 Additional low-priority intents (always available as fallback):

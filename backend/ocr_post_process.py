@@ -577,7 +577,7 @@ def create_ocr_enhancer_from_env(settings=None) -> OCREnhancer:
 
     return OCREnhancer(
         enable_spell_check=settings.ocr_spell_check,
-        spell_dict_path=os.getenv("OCR_SPELL_DICT") or None,  # TODO: add to settings if needed
+        spell_dict_path=settings.ocr_spell_dict or None,
         max_edit_distance=settings.ocr_max_edit_distance,
         enabled=settings.enable_ocr_post_process,
     )

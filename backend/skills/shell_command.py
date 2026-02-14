@@ -67,26 +67,49 @@ class ShellCommandSkill(BaseSkill):
         if not text:
             return 0.0
 
+        base = 0.0
+
         # Strong signal: starts with known command
         if _CMD_PATTERN.match(text):
-            return 0.9
-
+            base = 0.9
         # Shebang script
-        if _SHEBANG_PATTERN.match(text):
-            return 0.85
+        elif _SHEBANG_PATTERN.match(text):
+            base = 0.85
+        else:
+            # Pipe chain anywhere
+            lines = text.split("\n")
+            if len(lines) <= 5 and any(_PIPE_PATTERN.search(l) for l in lines):
+                if _CMD_PATTERN.search(text):
+                    base = 0.8
+            # Single short line that looks like a command
+            elif len(lines) == 1 and len(text) < 200 and " " in text:
+                if _CMD_PATTERN.search(text):
+                    base = 0.7
 
-        # Pipe chain anywhere
-        lines = text.split("\n")
-        if len(lines) <= 5 and any(_PIPE_PATTERN.search(l) for l in lines):
-            if _CMD_PATTERN.search(text):
-                return 0.8
+        if base == 0.0:
+            return 0.0
 
-        # Single short line that looks like a command (no spaces = probably a path/word)
-        if len(lines) == 1 and len(text) < 200 and " " in text:
-            if _CMD_PATTERN.search(text):
-                return 0.7
+        # Clipboard context boost: if clipboard has an error and the command
+        # looks like a fix (e.g. "pip install X" when clipboard has ModuleNotFoundError)
+        if ctx.clipboard_top and self._clipboard_relates_to_cmd(text, ctx.clipboard_top):
+            base = min(base + 0.05, 0.95)
 
-        return 0.0
+        return base
+
+    @staticmethod
+    def _clipboard_relates_to_cmd(cmd: str, clipboard: str) -> bool:
+        """Check if clipboard error context is related to the command."""
+        clip_lower = clipboard.lower()
+        has_error = any(kw in clip_lower for kw in (
+            "error", "exception", "traceback", "failed", "not found",
+            "permission denied", "command not found", "no such file",
+        ))
+        if not has_error:
+            return False
+        # Check if any word from the command appears in the error
+        cmd_words = set(cmd.lower().split())
+        clip_words = set(clip_lower.split())
+        return len(cmd_words & clip_words) >= 1
 
     def _assess_risk(self, text: str) -> OptionRisk:
         for pat in _DANGEROUS:
@@ -144,6 +167,17 @@ class ShellCommandSkill(BaseSkill):
                 data={"command": text.strip(), "extracted": cmd},
             ))
 
+        # Clipboard context: if clipboard has error, offer to copy command + error together
+        if ctx.clipboard_top and self._clipboard_relates_to_cmd(cmd, ctx.clipboard_top):
+            options.append(SkillOption(
+                id="copy_with_error",
+                label="📋 Kopiuj komendę + błąd ze schowka",
+                icon="📋",
+                description="Komenda + kontekst błędu do wklejenia w czat/issue",
+                risk=OptionRisk.SAFE,
+                data={"command": cmd, "extracted": cmd},
+            ))
+
         return options
 
     async def execute(self, text: str, option_id: str, ctx: SkillContext) -> SkillResult:
@@ -154,6 +188,15 @@ class ShellCommandSkill(BaseSkill):
                 success=True,
                 message=f"📋 Skopiowano: `{cmd[:60]}`",
                 clipboard_text=cmd,
+            )
+
+        if option_id == "copy_with_error":
+            error_ctx = ctx.clipboard_top or ""
+            combined = f"Komenda:\n{cmd}\n\nBłąd:\n{error_ctx[:1000]}"
+            return SkillResult(
+                success=True,
+                message="📋 Skopiowano komendę + kontekst błędu",
+                clipboard_text=combined,
             )
 
         if option_id == "save_script":

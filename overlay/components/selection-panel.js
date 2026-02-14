@@ -13,6 +13,10 @@ export class SelectionPanel extends BaseComponent {
           <textarea class="selection-textarea" placeholder="Wklej tekst do analizy lub użyj Ctrl+Shift+S..." rows="3"></textarea>
           <button class="btn-analyze" title="Analizuj">▶ Analizuj</button>
         </div>
+        <div class="clipboard-preview" style="display: none;">
+          <span class="clipboard-preview-icon">📎</span>
+          <span class="clipboard-preview-text"></span>
+        </div>
         <div class="selection-panel-response"></div>
         <div class="selection-panel-clipboard" style="display: none;">
           <button class="btn-agent btn-copy" title="Kopiuj do schowka">📋 Kopiuj</button>
@@ -26,6 +30,9 @@ export class SelectionPanel extends BaseComponent {
     this.closeBtn = this.qs('.btn-close-panel');
     this.copyBtn = this.qs('.btn-copy');
     this.clipboardContainer = this.qs('.selection-panel-clipboard');
+
+    this.clipPreview = this.qs('.clipboard-preview');
+    this.clipPreviewText = this.qs('.clipboard-preview-text');
 
     this.lastClipboardText = '';
     this.lastText = '';
@@ -83,6 +90,22 @@ export class SelectionPanel extends BaseComponent {
       this.emit('analyze', { text });
       this.analyzeBtn.disabled = true;
       this.analyzeBtn.textContent = '⏳...';
+      this._updateClipboardPreview();
+    }
+  }
+
+  async _updateClipboardPreview() {
+    try {
+      const clip = await navigator.clipboard.readText();
+      if (clip && clip.trim() && clip.trim() !== this.lastText) {
+        const preview = clip.trim().substring(0, 80).replace(/\n/g, ' ↵ ');
+        this.clipPreviewText.textContent = preview + (clip.length > 80 ? '…' : '');
+        this.clipPreview.style.display = 'flex';
+      } else {
+        this.clipPreview.style.display = 'none';
+      }
+    } catch {
+      this.clipPreview.style.display = 'none';
     }
   }
 

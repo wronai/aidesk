@@ -67,6 +67,16 @@ class Settings(BaseSettings):
     stt_monitor_device: str = ""
     audio_output_device: str = ""
 
+    # ===== TTS =====
+    tts_engine: str = Field(
+        "auto",
+        description="auto|piper|pico2wave|spd-say|festival|espeak-ng|espeak",
+    )
+    tts_piper_model: str = Field(
+        "",
+        description="Optional path to piper voice model (.onnx)",
+    )
+
     # ===== Performance =====
     change_threshold: int = Field(8, ge=1, le=20)
     min_capture_interval: float = Field(1.0, ge=0.1)
@@ -99,6 +109,7 @@ class Settings(BaseSettings):
     crops_dir: str = "/tmp/aidesk_crops"
     min_window_size: int = Field(100, ge=10)
     max_crop_windows: int = Field(0, ge=0)
+    crop_change_threshold: float = Field(3.0, ge=0.1)
 
     # ===== Clipboard Intelligence =====
     clipboard_max_items: int = Field(20, ge=1)
@@ -119,6 +130,10 @@ class Settings(BaseSettings):
     rate_limit_tokens: int = Field(5, ge=1)
     rate_limit_refill_rate: float = Field(1.0, ge=0.1)
 
+    # ===== Cost Budget =====
+    daily_budget: float = Field(5.0, ge=0.1)
+    hourly_budget: float = Field(1.0, ge=0.1)
+
     # ===== Context Management =====
     max_context_items: int = Field(20, ge=1)
     context_summary_interval: int = Field(50, ge=5)
@@ -130,6 +145,9 @@ class Settings(BaseSettings):
     log_level: str = Field("INFO", pattern="^(DEBUG|INFO|WARNING|ERROR)$")
     log_file: str = "logs/assistant.log"
     usage_log_file: str = "logs/usage.log"
+
+    # ===== Diagnostics =====
+    diag_interval: float = Field(30.0, ge=5.0)
 
     # ===== Multi-Monitor =====
     multi_monitor_active_only: bool = True
@@ -149,9 +167,17 @@ class Settings(BaseSettings):
     action_templates_db: str = "logs/action_templates.db"
     action_auto_approve_after: int = Field(3, ge=0)
 
+    # ===== Cost Budget =====
+    daily_budget: float = Field(5.0, ge=0.1)
+    hourly_budget: float = Field(1.0, ge=0.1)
+
+    # ===== Diagnostics =====
+    diag_interval: float = Field(30.0, ge=5.0)
+
     # ===== OCR Post-Processing =====
     enable_ocr_post_process: bool = True
     ocr_spell_check: bool = True
+    ocr_spell_dict: str = ""
     ocr_max_edit_distance: int = Field(2, ge=1, le=5)
 
     # ===== Predictive Pre-Fetching =====
@@ -184,6 +210,14 @@ class Settings(BaseSettings):
         valid = {"paddleocr", "easyocr", "tesseract"}
         if v not in valid:
             raise ValueError(f"ocr_engine must be one of {valid}, got '{v}'")
+        return v
+
+    @field_validator("tts_engine")
+    @classmethod
+    def validate_tts_engine(cls, v):
+        valid = {"auto", "piper", "pico2wave", "spd-say", "festival", "espeak-ng", "espeak"}
+        if v not in valid:
+            raise ValueError(f"tts_engine must be one of {valid}, got '{v}'")
         return v
 
     @property
