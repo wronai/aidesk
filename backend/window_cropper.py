@@ -178,11 +178,24 @@ class WindowCropper:
 
         crops = []
         screen_w, screen_h = fullscreen_image.size
+        seen_geometries = set()
 
         for win in windows:
             # Skip tiny windows
             if win.width < self.min_window_size or win.height < self.min_window_size:
                 continue
+
+            # Skip fullscreen compositor/guard windows (mutter, gnome-shell, etc.)
+            if (win.x == 0 and win.y == 0
+                    and win.width >= screen_w * 0.95 and win.height >= screen_h * 0.95
+                    and (not win.wm_class_name or win.title in ("", "mutter guard window"))):
+                continue
+
+            # Deduplicate windows with identical geometry (e.g. PyCharm sub-windows)
+            geo_key = (win.x, win.y, win.width, win.height)
+            if geo_key in seen_geometries:
+                continue
+            seen_geometries.add(geo_key)
 
             # Clamp to screen bounds
             x1 = max(0, win.x)

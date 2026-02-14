@@ -59,8 +59,8 @@ run: stop ## Run backend + overlay + open browser windows
 	$(PYTHON) $(BACKEND_DIR)/server.py &
 	@sleep 2
 	@echo "🌐 Opening browser windows..."
+	@xdg-open http://127.0.0.1:$(PORT)/config/ui 2>/dev/null || open http://127.0.0.1:$(PORT)/config/ui 2>/dev/null || true
 	@xdg-open http://127.0.0.1:$(PORT)/browser 2>/dev/null || open http://127.0.0.1:$(PORT)/browser 2>/dev/null || true
-	@xdg-open http://127.0.0.1:$(PORT)/status 2>/dev/null || open http://127.0.0.1:$(PORT)/status 2>/dev/null || true
 	@echo "🖥️  Starting overlay..."
 	$(NPM) start --prefix $(OVERLAY_DIR)
 
@@ -96,8 +96,8 @@ stop: ## Stop backend and overlay applications
 	@echo "🛑 Stopping AIDesk..."
 	@-pkill -9 -f "wayland_screencast\.py" 2>/dev/null && echo "  ✓ Wayland screencast stopped" || true
 	@-pkill -9 -f "python.*backend/server\.py" 2>/dev/null && echo "  ✓ Backend stopped" || true
-	@-pkill -9 -f "electron.*overlay" 2>/dev/null && echo "  ✓ Electron overlay stopped" || true
 	@-pkill -9 -f "node.*overlay/node_modules" 2>/dev/null && echo "  ✓ Node overlay stopped" || true
+	@-pkill -9 -f "overlay/node_modules/electron" 2>/dev/null && echo "  ✓ Electron processes stopped" || true
 	@sleep 0.3
 	@-fuser -k $(PORT)/tcp 2>/dev/null && echo "  ✓ Port $(PORT) freed" || true
 	@echo "🛑 AIDesk stopped"

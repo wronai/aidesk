@@ -1,3 +1,15 @@
+## [2.0.9] - 2026-02-14
+
+### Summary
+
+feat(build): deep code analysis engine
+
+### Other
+
+- build: update Makefile
+- update backend/window_cropper.py
+
+
 ## [2.0.8] - 2026-02-14
 
 ### Summary
