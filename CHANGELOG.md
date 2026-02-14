@@ -1,3 +1,24 @@
+## [2.1.20] - 2026-02-14
+
+### Summary
+
+refactor(goal): code analysis engine
+
+### Other
+
+- update backend/action_templates.py
+- update backend/analysis_loop.py
+- update backend/analyzer.py
+- update backend/bootstrap.py
+- update backend/capture.py
+- update backend/clipboard_intel.py
+- update backend/cost_budget.py
+- update backend/multi_monitor.py
+- update backend/ocr_engines.py
+- update backend/ocr_post_process.py
+- ... and 18 more
+
+
 ## [2.1.19] - 2026-02-14
 
 ### Summary

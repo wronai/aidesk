@@ -9,6 +9,7 @@ Usage:
     Place this file in backend/plugins/ and restart the server.
     The plugin will automatically be discovered and loaded by PluginLoader.
 """
+import nfo
 import structlog
 
 from event_bus import Event, EventBus

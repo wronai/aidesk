@@ -456,6 +456,7 @@ class MonitorAwareCapture:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_multi_monitor_from_env(settings=None) -> MonitorAwareCapture:
     """Create MonitorAwareCapture from settings."""
     if settings is None:

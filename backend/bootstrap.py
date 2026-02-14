@@ -289,6 +289,7 @@ class AppBootstrap:
 
     # ── Full startup (convenience) ──
 
+    @nfo.log_call(level="INFO")
     async def startup(self, screen_loop_coro, on_transcript_cb):
         """Run all initialization phases in order."""
         logger.info("Starting AI Desktop Assistant backend")
@@ -302,6 +303,7 @@ class AppBootstrap:
 
     # ── Shutdown ──
 
+    @nfo.log_call(level="INFO")
     async def shutdown(self):
         """Cancel all tasks and emit shutdown event."""
         logger.info("Shutting down backend")

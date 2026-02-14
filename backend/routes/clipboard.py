@@ -1,4 +1,5 @@
 """Clipboard Intelligence routes — queue, suggestions, snippets."""
+import nfo
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from typing import Dict

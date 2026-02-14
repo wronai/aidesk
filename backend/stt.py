@@ -252,6 +252,7 @@ class RealtimeSTT:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_stt_from_env(settings=None) -> Optional[RealtimeSTT]:
     """Create STT instance from settings."""
     if settings is None:

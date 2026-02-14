@@ -421,6 +421,7 @@ Zwróć odpowiedź jako JSON:
         return stats
 
 
+@nfo.log_call(level="INFO")
 def create_analyzer_from_env(ocr_manager: Optional[OCRManager] = None, settings=None) -> ScreenAnalyzer:
     """Create analyzer from settings."""
     if settings is None:

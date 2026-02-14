@@ -522,6 +522,7 @@ class SmartScreenCapture:
 
 
 # Configuration from environment
+@nfo.log_call(level="INFO")
 def create_capture_from_env(settings=None) -> SmartScreenCapture:
     """Create SmartScreenCapture from settings."""
     if settings is None:

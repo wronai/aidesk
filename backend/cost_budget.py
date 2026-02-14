@@ -147,6 +147,7 @@ class CostBudget:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_cost_budget_from_env(settings=None) -> CostBudget:
     """Create CostBudget from settings."""
     if settings is None:

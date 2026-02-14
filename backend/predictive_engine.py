@@ -431,6 +431,7 @@ class PredictiveAnalyzer:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_predictive_engine_from_env(settings=None) -> PredictiveAnalyzer:
     """Create PredictiveAnalyzer from settings."""
     if settings is None:

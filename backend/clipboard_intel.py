@@ -819,6 +819,7 @@ class SelectionAnalyzer:
 
 # ===== Factory =====
 
+@nfo.log_call(level="INFO")
 def create_clipboard_manager_from_env(settings=None) -> ClipboardManager:
     """Create ClipboardManager from settings."""
     if settings is None:

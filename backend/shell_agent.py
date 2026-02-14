@@ -481,6 +481,7 @@ class ShellAgent:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_shell_agent_from_env(settings=None) -> ShellAgent:
     """Create ShellAgent from settings."""
     if settings is None:

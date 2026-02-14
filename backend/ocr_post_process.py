@@ -570,6 +570,7 @@ class OCREnhancer:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_ocr_enhancer_from_env(settings=None) -> OCREnhancer:
     """Create OCREnhancer from settings."""
     if settings is None:

@@ -77,6 +77,7 @@ class SkillRouter:
 
         logger.info("SkillRouter initialized", skills=[s.name for s in self._skills])
 
+    @nfo.log_call(level="INFO")
     def analyze(self, text: str, ctx: SkillContext) -> List[SkillMatch]:
         """
         Analyze text against all skills, return ranked matches.
@@ -98,6 +99,7 @@ class SkillRouter:
         matches.sort(key=lambda m: m.confidence, reverse=True)
         return matches
 
+    @nfo.log_call(level="INFO")
     async def execute(
         self,
         skill_name: str,

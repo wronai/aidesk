@@ -405,6 +405,7 @@ class AppActionLibrary:
 
     # ── Learning from user feedback ──────────────────────────────────
 
+    @nfo.log_call(level="INFO")
     def learn_from_approval(self, template_id: str):
         """
         Record that user approved an action from this template.
@@ -433,6 +434,7 @@ class AppActionLibrary:
 
         self._persist_template(t)
 
+    @nfo.log_call(level="INFO")
     def learn_from_rejection(self, template_id: str):
         """
         Record that user rejected/dismissed an action from this template.
@@ -459,6 +461,7 @@ class AppActionLibrary:
 
         self._persist_template(t)
 
+    @nfo.log_call(level="INFO")
     def learn_from_execution(self, template_id: str):
         """
         Record that an action from this template was executed.
@@ -619,6 +622,7 @@ class AppActionLibrary:
             self._db = None
 
 
+@nfo.log_call(level="INFO")
 def create_action_library_from_env(settings=None) -> AppActionLibrary:
     """Create AppActionLibrary from settings."""
     if settings is None:

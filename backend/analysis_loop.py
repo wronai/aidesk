@@ -56,6 +56,7 @@ class AnalysisLoop:
     def context_mgr(self):
         return self.state["context"]
 
+    @nfo.log_call(level="INFO")
     async def run_forever(self):
         """Main loop — runs ticks until cancelled."""
         logger.info(

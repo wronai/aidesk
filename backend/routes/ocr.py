@@ -1,4 +1,5 @@
 """OCR routes: /ocr/*, /mode/*."""
+import nfo
 import base64
 from io import BytesIO
 from typing import Dict

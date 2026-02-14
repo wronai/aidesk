@@ -567,6 +567,7 @@ class SemanticMemory:
             self._db = None
 
 
+@nfo.log_call(level="INFO")
 def create_semantic_memory_from_env(settings=None) -> SemanticMemory:
     """Create SemanticMemory from settings."""
     if settings is None:

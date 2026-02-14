@@ -1,4 +1,5 @@
 """Core routes: /, /stream, /status, /stats, /health, /diagnostics, /nfo, /profiles."""
+import nfo
 import asyncio
 import json
 import time

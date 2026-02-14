@@ -1,4 +1,5 @@
 """Event Bus & Pipeline routes: /events/*, /pipeline/*, /read-model/*."""
+import nfo
 from typing import Dict, Optional
 
 from fastapi import APIRouter

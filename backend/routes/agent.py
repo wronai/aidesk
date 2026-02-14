@@ -1,4 +1,5 @@
 """Shell Agent routes: /agent/*."""
+import nfo
 from typing import Dict
 
 from fastapi import APIRouter, Request

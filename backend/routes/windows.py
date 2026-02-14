@@ -1,4 +1,5 @@
 """Window routes: /window/*, /monitors, /processes, /windows/*."""
+import nfo
 from typing import Dict
 
 from fastapi import APIRouter

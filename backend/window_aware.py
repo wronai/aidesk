@@ -762,6 +762,7 @@ class WindowManager:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_window_manager_from_env(settings=None) -> WindowManager:
     """Create WindowManager from settings."""
     if settings is None:

@@ -522,6 +522,7 @@ class OCRManager:
         }
 
 
+@nfo.log_call(level="INFO")
 def create_ocr_manager_from_env(settings=None) -> OCRManager:
     """Create OCRManager from settings."""
     if settings is None:
