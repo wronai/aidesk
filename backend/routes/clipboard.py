@@ -127,28 +127,106 @@ async def add_snippet(request: Request):
 
 @router.post("/analyze-selection")
 async def analyze_selection(request: Request):
-    """Analyze selected/highlighted text and return structured response."""
-    from clipboard_intel import SelectionAnalyzer
+    """Analyze selected text via SkillRouter — returns ranked skill matches with popup options."""
+    from skills import SkillRouter
+    from skills.base import SkillContext
 
     body = await request.json()
     text = body.get("text", "").strip()
     if not text:
         return JSONResponse(status_code=400, content={"error": "text required"})
 
-    analyzer = SelectionAnalyzer()
-    result = analyzer.analyze(text)
+    # Build context from app_state
+    latest_window = _state.get("latest_window") or {}
+    ctx = SkillContext(
+        text=text,
+        window_category=latest_window.get("category", "unknown"),
+        window_title=latest_window.get("title", ""),
+        window_class=latest_window.get("wm_class_name", ""),
+        cwd=latest_window.get("cwd", ""),
+        locale=body.get("locale", "pl"),
+        latest_transcript=_state.get("latest_transcript", ""),
+    )
 
-    # Auto-push clipboard_text to queue if available
+    # Get or create router (cached on app_state)
+    router = _state.get("skill_router")
+    if not router:
+        router = SkillRouter()
+        _state["skill_router"] = router
+
+    matches = router.analyze(text, ctx)
+
+    result = {
+        "text": text[:200],
+        "matches": [m.to_dict() for m in matches[:5]],
+        "top_skill": matches[0].skill_name if matches else None,
+        "top_label": matches[0].label if matches else "Tekst",
+        "top_icon": matches[0].icon if matches else "\ud83d\udcdd",
+    }
+
+    # Auto-push extracted text to clipboard queue
     mgr = _state.get("clipboard_manager")
-    if mgr and result.clipboard_text:
+    if mgr and matches:
         from clipboard_intel import ClipSource
-        mgr.push(result.clipboard_text, source=ClipSource.AUTO, label=result.label)
+        extracted = matches[0].extracted_text
+        if extracted:
+            mgr.push(extracted, source=ClipSource.AUTO, label=matches[0].label)
 
     # Broadcast to overlay via SSE
     if _broadcast:
-        await _broadcast("selection_analysis", result.to_dict())
+        await _broadcast("selection_analysis", result)
+
+    return result
+
+
+@router.post("/skill/execute")
+async def execute_skill(request: Request):
+    """Execute a specific skill option chosen by user from the popup."""
+    from skills import SkillRouter
+    from skills.base import SkillContext
+
+    body = await request.json()
+    skill_name = body.get("skill", "")
+    option_id = body.get("option_id", "")
+    text = body.get("text", "").strip()
+
+    if not skill_name or not option_id or not text:
+        return JSONResponse(status_code=400, content={"error": "skill, option_id, and text required"})
+
+    latest_window = _state.get("latest_window") or {}
+    ctx = SkillContext(
+        text=text,
+        window_category=latest_window.get("category", "unknown"),
+        window_title=latest_window.get("title", ""),
+        window_class=latest_window.get("wm_class_name", ""),
+        cwd=latest_window.get("cwd", ""),
+        locale=body.get("locale", "pl"),
+        latest_transcript=_state.get("latest_transcript", ""),
+    )
+
+    router = _state.get("skill_router")
+    if not router:
+        router = SkillRouter()
+        _state["skill_router"] = router
+
+    result = await router.execute(skill_name, text, option_id, ctx)
+
+    # Broadcast result to overlay
+    if _broadcast:
+        await _broadcast("skill_result", result.to_dict())
 
     return result.to_dict()
+
+
+@router.get("/skills")
+async def list_skills():
+    """List all registered skills."""
+    from skills import SkillRouter
+    router = _state.get("skill_router")
+    if not router:
+        router = SkillRouter()
+        _state["skill_router"] = router
+    return router.get_stats()
 
 
 @router.get("/clipboard/stats")

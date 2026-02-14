@@ -168,3 +168,259 @@ class TestLifecycle:
         capture.pipeline.set_state.assert_called()
         # Should quit loop
         capture.loop.quit.assert_called()
+
+    def test_stop_no_pipeline(self):
+        capture = ScreenCastCapture()
+        capture.pipeline = None
+        capture.loop = MagicMock()
+        capture.loop.is_running.return_value = True
+
+        # Should not raise
+        capture.stop()
+        capture.loop.quit.assert_called()
+
+
+# ===== Session Management Tests =====
+
+class TestSessionManagement:
+    def test_next_token_increments(self):
+        capture = ScreenCastCapture()
+        capture.sender_name = "test_sender"
+
+        t1 = capture._next_token()
+        t2 = capture._next_token()
+        t3 = capture._next_token()
+
+        assert t1 == "aidesk_1"
+        assert t2 == "aidesk_2"
+        assert t3 == "aidesk_3"
+
+    def test_on_session_created_success(self):
+        capture = ScreenCastCapture()
+        capture.loop = MagicMock()
+        capture._select_sources = MagicMock()
+
+        # Mock successful response with session handle
+        mock_results = MagicMock()
+        mock_variant = MagicMock()
+        mock_variant.get_string.return_value = "/org/freedesktop/portal/desktop/session/123"
+        mock_results.lookup_value.return_value = mock_variant
+
+        capture._on_session_created(0, mock_results)
+
+        assert capture.session_handle == "/org/freedesktop/portal/desktop/session/123"
+        capture._select_sources.assert_called_once()
+        capture.loop.quit.assert_not_called()
+
+    def test_on_session_created_failure_response(self):
+        capture = ScreenCastCapture()
+        capture.loop = MagicMock()
+        capture._write_status = MagicMock()
+
+        capture._on_session_created(1, None)
+
+        capture._write_status.assert_called_with({"state": "error", "error": "CreateSession denied"})
+        capture.loop.quit.assert_called_once()
+
+    def test_on_session_created_missing_handle(self):
+        capture = ScreenCastCapture()
+        capture.loop = MagicMock()
+        capture._write_status = MagicMock()
+
+        mock_results = MagicMock()
+        mock_results.lookup_value.return_value = None
+
+        capture._on_session_created(0, mock_results)
+
+        capture.loop.quit.assert_called_once()
+
+    def test_on_sources_selected_success(self):
+        capture = ScreenCastCapture()
+        capture._start_session = MagicMock()
+
+        capture._on_sources_selected(0, None)
+
+        capture._start_session.assert_called_once()
+
+    def test_on_sources_selected_failure(self):
+        capture = ScreenCastCapture()
+        capture.loop = MagicMock()
+        capture._write_status = MagicMock()
+
+        capture._on_sources_selected(1, None)
+
+        capture._write_status.assert_called_with({"state": "error", "error": "Source selection denied"})
+        capture.loop.quit.assert_called_once()
+
+
+# ===== Pipeline Tests =====
+
+class TestPipeline:
+    def test_start_pipeline_creates_pipeline(self):
+        capture = ScreenCastCapture()
+        capture.node_id = 123
+        capture._log = MagicMock()
+
+        with patch.object(wayland_screencast.Gst, 'parse_launch') as mock_parse:
+            mock_pipeline = MagicMock()
+            mock_sink = MagicMock()
+            mock_pipeline.get_by_name.return_value = mock_sink
+            mock_parse.return_value = mock_pipeline
+
+            capture._start_pipeline()
+
+            mock_parse.assert_called_once()
+            assert capture.pipeline == mock_pipeline
+            mock_sink.connect.assert_called_once_with('new-sample', capture._on_new_sample)
+
+    def test_on_pipeline_error(self):
+        capture = ScreenCastCapture()
+        capture._write_status = MagicMock()
+        capture.loop = MagicMock()
+        capture._log = MagicMock()
+
+        mock_bus = MagicMock()
+        mock_msg = MagicMock()
+        # Return a proper GLib.Error-like object with .message attribute
+        mock_error = MagicMock()
+        mock_error.message = "Test error"
+        mock_msg.parse_error.return_value = (mock_error, "debug info")
+
+        capture._on_pipeline_error(mock_bus, mock_msg)
+
+        # The first call writes error, second call (from stop()) writes stopped
+        capture._write_status.assert_any_call({"state": "error", "error": "Test error"})
+        capture.loop.quit.assert_called_once()
+
+    def test_on_pipeline_eos(self):
+        capture = ScreenCastCapture()
+        capture.loop = MagicMock()
+
+        capture._on_pipeline_eos(None, None)
+
+        capture.loop.quit.assert_called_once()
+
+
+# ===== Main Function Tests =====
+
+class TestMain:
+    def test_main_creates_capture_and_starts(self):
+        with patch.object(wayland_screencast, 'ScreenCastCapture') as mock_cls:
+            mock_capture = MagicMock()
+            mock_cls.return_value = mock_capture
+
+            # Mock signal handler setup
+            with patch('signal.signal') as mock_signal:
+                wayland_screencast.main()
+
+                mock_cls.assert_called_once()
+                mock_capture.start.assert_called_once()
+                mock_signal.assert_called()
+
+
+# ===== Status and Logging Tests =====
+
+class TestStatusAndLogging:
+    def test_log_function(self, capsys):
+        # _log is a static method on ScreenCastCapture, writes to stdout
+        import sys
+        old_stdout = sys.stdout
+        sys.stdout = __import__('io').StringIO()
+        try:
+            ScreenCastCapture._log("Test message")
+            output = sys.stdout.getvalue()
+            assert "Test message" in output
+            assert "[screencast]" in output
+        finally:
+            sys.stdout = old_stdout
+
+    def test_start_method_logs_and_creates_session(self):
+        capture = ScreenCastCapture()
+        capture._log = MagicMock()
+        capture._write_status = MagicMock()
+        capture._create_session = MagicMock()
+        capture.loop = MagicMock()
+
+        # Run start but don't block
+        def side_effect():
+            pass  # Don't actually run the loop
+        capture.loop.run = side_effect
+
+        capture.start()
+
+        capture._log.assert_any_call("Starting Wayland screen capture daemon")
+        capture._write_status.assert_called_with({"state": "starting"})
+        capture._create_session.assert_called_once()
+
+
+# ===== Session Retry Tests =====
+
+class TestSessionRetry:
+    def test_on_session_started_invalid_token_retries(self):
+        capture = ScreenCastCapture()
+        capture.restore_token = "invalid_token"
+        capture._save_restore_token = MagicMock()
+        capture._create_session = MagicMock()
+        capture.loop = MagicMock()
+
+        capture._on_session_started(1, None)  # response != 0 means failure
+
+        assert capture.restore_token is None
+        capture._save_restore_token.assert_called_once_with(None)
+        capture._create_session.assert_called_once()
+        capture.loop.quit.assert_not_called()
+
+    def test_on_session_started_success_saves_token(self):
+        capture = ScreenCastCapture()
+        capture._start_pipeline = MagicMock()
+        capture._save_restore_token = MagicMock()
+        capture.loop = MagicMock()
+
+        mock_results = MagicMock()
+        mock_token_variant = MagicMock()
+        mock_token_variant.get_string.return_value = "new_restore_token_xyz"
+
+        # Mock streams
+        mock_stream = MagicMock()
+        # First call for node_id, second for props
+        mock_stream.get_child_value.side_effect = [
+            MagicMock(get_uint32=lambda: 42),  # node_id at index 0
+            MagicMock(lookup_value=lambda key, _: None),  # props at index 1
+        ]
+        mock_streams = MagicMock()
+        mock_streams.n_children.return_value = 1
+        mock_streams.get_child_value.return_value = mock_stream
+        
+        def lookup_side_effect(key, _):
+            if key == 'restore_token':
+                return mock_token_variant
+            if key == 'streams':
+                return mock_streams
+            return None
+        mock_results.lookup_value.side_effect = lookup_side_effect
+
+        capture._on_session_started(0, mock_results)
+
+        capture._save_restore_token.assert_called_once_with("new_restore_token_xyz")
+        assert capture.restore_token == "new_restore_token_xyz"
+        assert capture.node_id == 42
+        capture._start_pipeline.assert_called_once()
+
+    def test_on_session_started_no_streams_quits(self):
+        capture = ScreenCastCapture()
+        capture._write_status = MagicMock()
+        capture.loop = MagicMock()
+
+        mock_results = MagicMock()
+        mock_streams = None
+        
+        def lookup_side_effect(key, _):
+            if key == 'streams':
+                return mock_streams
+            return None
+        mock_results.lookup_value.side_effect = lookup_side_effect
+
+        capture._on_session_started(0, mock_results)
+
+        capture.loop.quit.assert_called_once()
+

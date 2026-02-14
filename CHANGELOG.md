@@ -1,3 +1,24 @@
+## [2.1.7] - 2026-02-14
+
+### Summary
+
+refactor(tests): code analysis engine
+
+### Other
+
+- update backend/routes/clipboard.py
+- update backend/skills/__init__.py
+- update backend/skills/url_handler.py
+- update backend/tests/test_skills.py
+- update backend/tests/test_wayland_screencast.py
+- update overlay/app-legacy.js
+- update overlay/app.js
+- update overlay/components/agent-actions.js
+- update overlay/components/analysis-viewer.js
+- update overlay/components/base.js
+- ... and 9 more
+
+
 ## [2.1.6] - 2026-02-14
 
 ### Summary
