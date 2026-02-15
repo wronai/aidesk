@@ -1,5 +1,5 @@
 project: proxeen
-generated: "2026-02-15T09:49:27.757298"
+generated: "2026-02-15T10:12:28.896018"
 modules[114]{path,lang,items}:
   rename_to_proxeen.py,python,6
   backend/process_scanner.py,python,28
@@ -417,14 +417,14 @@ function_details:
   backend/server.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       _read_version,function,() -> str,31-37,false,7,2,retrieves version
-      _get_sqlite_conn,function,"(db_file:str) -> sqlite3.Connection",57-69,false,13,2,Get a shared SQLite connection for log writes (reused across log entries).
-      _flush_and_close_sqlite_conn,function,(),72-90,false,19,4,Flush buffered SQLite log writes and close shared connection on shutdown.
-      setup_logging,function,(),93-154,false,62,2,initializes logging
-      broadcast,function,"(event_type:str, data:Dict)",197-221,true,25,5,Broadcast SSE event to all connected overlay clients.
-      screen_analysis_loop,function,(),224-233,true,10,1,Main loop — delegates to AnalysisLoop (testable tick extraction).
-      on_transcript,function,"(text:str, is_final:bool)",236-262,true,27,4,Callback for STT transcripts.
-      _nfo_validate_startup,function,"(state:Dict)",266-304,false,39,5,nfo-instrumented startup validation.
-      lifespan,function,"(app:FastAPI)",308-325,true,18,1,FastAPI lifespan context manager — delegates to AppBootstrap.
+      _get_sqlite_conn,function,"(db_file:str) -> sqlite3.Connection",65-77,false,13,2,Get a shared SQLite connection for log writes (reused across log entries).
+      _flush_and_close_sqlite_conn,function,(),80-98,false,19,4,Flush buffered SQLite log writes and close shared connection on shutdown.
+      setup_logging,function,(),101-162,false,62,2,initializes logging
+      broadcast,function,"(event_type:str, data:Dict)",205-229,true,25,5,Broadcast SSE event to all connected overlay clients.
+      screen_analysis_loop,function,(),232-241,true,10,1,Main loop — delegates to AnalysisLoop (testable tick extraction).
+      on_transcript,function,"(text:str, is_final:bool)",244-270,true,27,4,Callback for STT transcripts.
+      _nfo_validate_startup,function,"(state:Dict)",274-312,false,39,5,nfo-instrumented startup validation.
+      lifespan,function,"(app:FastAPI)",316-333,true,18,1,FastAPI lifespan context manager — delegates to AppBootstrap.
   backend/app_profiles.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       create_profile_manager,function,(settings=None) -> ProfileManager,390-392,false,3,1,Create ProfileManager instance.

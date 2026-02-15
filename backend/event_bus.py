@@ -165,7 +165,7 @@ class EventStore:
         self._conn = self._open_connection()
         self._ensure_db()
 
-    @nfo.log_call(level="INFO")
+    @nfo.log_call(level="INFO", sample_rate=0.05)
     def _trace_append_sample(
         self,
         *,
@@ -186,7 +186,7 @@ class EventStore:
             "total_events": total_events,
         }
 
-    @nfo.log_call(level="INFO")
+    @nfo.log_call(level="INFO", sample_rate=0.05)
     def _trace_query_sample(
         self,
         *,

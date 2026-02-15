@@ -1,3 +1,19 @@
+## [2.1.35] - 2026-02-15
+
+### Summary
+
+refactor(backend): configuration management system
+
+### Other
+
+- update backend/event_bus.py
+- update backend/process_scanner.py
+- update backend/server.py
+- update backend/skills/__init__.py
+- update project.functions.toon
+- update project.toon
+
+
 ## [2.1.34] - 2026-02-15
 
 ### Summary

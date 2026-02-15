@@ -269,7 +269,7 @@ class ProcessScanner:
             if new_cat != AppCategory.UNKNOWN:
                 win.category = new_cat
 
-    @nfo.log_call(level="INFO")
+    @nfo.log_call(level="INFO", sample_rate=0.1)
     def scan_all_windows(self) -> List[VisibleWindow]:
         """
         Scan all visible windows on the desktop.
@@ -534,7 +534,7 @@ class ProcessScanner:
         except (OSError, FileNotFoundError, PermissionError):
             return None
 
-    @nfo.log_call(level="INFO")
+    @nfo.log_call(level="INFO", sample_rate=0.1)
     def get_window_layout(self) -> Dict:
         """
         Get organized layout of all visible windows.

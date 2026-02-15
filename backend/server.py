@@ -39,6 +39,8 @@ def _read_version() -> str:
 APP_VERSION = _read_version()
 
 # Configure nfo structured function logging (SQLite + Markdown)
+# auto_extract_meta=True ensures binary data (images, audio, streams) is never
+# logged raw — only lightweight metadata (format, size, hash, dimensions).
 os.makedirs("logs", exist_ok=True)
 nfo_logger = nfo.configure(
     name="proxeen",
@@ -46,6 +48,12 @@ nfo_logger = nfo.configure(
     sinks=["sqlite:logs/nfo_proxeen.db", "md:logs/nfo_proxeen.md"],
     bridge_stdlib=True,
     force=True,
+    meta_policy=nfo.ThresholdPolicy(
+        max_arg_bytes=1024,
+        max_return_bytes=1024,
+        max_total_bytes=4096,
+    ),
+    auto_extract_meta=True,
 )
 
 _SQLITE_CONN: Optional[sqlite3.Connection] = None
