@@ -102,6 +102,7 @@ class Tracer:
         self._metrics: Dict[str, Dict[str, Any]] = defaultdict(
             lambda: {"count": 0, "total_ms": 0.0, "errors": 0, "min_ms": float("inf"), "max_ms": 0.0}
         )
+        self._nfo_bridge: Optional[Any] = None  # TracerNfoBridge when attached
 
     @contextmanager
     def span(self, name: str, parent: Optional[Span] = None, attributes: Optional[Dict] = None):
@@ -141,6 +142,13 @@ class Tracer:
             m["errors"] += 1
         m["min_ms"] = min(m["min_ms"], span.duration_ms)
         m["max_ms"] = max(m["max_ms"], span.duration_ms)
+
+        # Emit to nfo if bridge is attached
+        if self._nfo_bridge is not None:
+            try:
+                self._nfo_bridge.emit_span(span)
+            except Exception:
+                pass  # nfo bridge must never break tracing
 
     def get_metrics(self) -> Dict[str, Dict]:
         """Get aggregated metrics per span name."""
@@ -200,3 +208,64 @@ def reset_tracer():
     """Reset the global tracer (for testing)."""
     global _tracer
     _tracer = None
+
+
+# ===== Tracer ↔ nfo bridge =====
+
+class TracerNfoBridge:
+    """Emits nfo LogEntry for each finished Tracer span.
+
+    Attach to a Tracer to bridge spans into the nfo logging pipeline.
+    This avoids maintaining two separate observability systems.
+
+    Usage::
+
+        tracer = get_tracer()
+        bridge = TracerNfoBridge()
+        tracer.nfo_bridge = bridge  # tracer._record() will call bridge
+    """
+
+    @staticmethod
+    def emit_span(span: Span) -> None:
+        """Convert a finished Span into an nfo LogEntry and emit it."""
+        from nfo.models import LogEntry
+        from nfo.decorators import _get_default_logger
+
+        level = "ERROR" if span.status == "error" else "INFO"
+        extra = {
+            "trace_id": span.trace_id,
+            "span_id": span.span_id,
+            "span_name": span.name,
+        }
+        if span.parent_id:
+            extra["parent_span_id"] = span.parent_id
+        if span.attributes:
+            extra.update(span.attributes)
+
+        entry = LogEntry(
+            timestamp=LogEntry.now(),
+            level=level,
+            function_name=f"span.{span.name}",
+            module="observability",
+            args=(),
+            kwargs={},
+            arg_types=[],
+            kwarg_types={},
+            duration_ms=span.duration_ms,
+            exception=span.error_message if span.status == "error" else None,
+            exception_type="SpanError" if span.status == "error" else None,
+            trace_id=span.trace_id,
+            extra=extra,
+        )
+        _get_default_logger().emit(entry)
+
+
+def attach_nfo_bridge(tracer: Optional[Tracer] = None) -> TracerNfoBridge:
+    """Attach nfo bridge to the global (or given) tracer.
+
+    After calling this, every finished span is also emitted as an nfo LogEntry.
+    """
+    t = tracer or get_tracer()
+    bridge = TracerNfoBridge()
+    t._nfo_bridge = bridge
+    return bridge

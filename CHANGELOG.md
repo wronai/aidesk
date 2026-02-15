@@ -1,3 +1,19 @@
+## [2.1.36] - 2026-02-15
+
+### Summary
+
+feat(backend): deep code analysis engine with 5 supporting modules
+
+### Other
+
+- update backend/bootstrap.py
+- update backend/observability.py
+- update backend/pipeline/context.py
+- update backend/pipeline/orchestrator.py
+- update backend/pipeline/steps_core.py
+- update backend/server.py
+
+
 ## [2.1.35] - 2026-02-15
 
 ### Summary

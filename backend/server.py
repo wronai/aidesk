@@ -38,14 +38,35 @@ def _read_version() -> str:
 
 APP_VERSION = _read_version()
 
-# Configure nfo structured function logging (SQLite + Markdown)
+# Configure nfo structured function logging with full observability chain:
+#   EnvTagger → RingBufferSink → PipelineSink → [TerminalSink, SQLiteSink, MarkdownSink]
 # auto_extract_meta=True ensures binary data (images, audio, streams) is never
 # logged raw — only lightweight metadata (format, size, hash, dimensions).
 os.makedirs("logs", exist_ok=True)
+
+_nfo_terminal = nfo.TerminalSink(format="toon", show_args=False, show_return=True)
+_nfo_sqlite = nfo.SQLiteSink(db_path="logs/nfo_proxeen.db")
+_nfo_markdown = nfo.MarkdownSink(file_path="logs/nfo_proxeen.md")
+_nfo_pipeline = nfo.PipelineSink(
+    delegate=_nfo_terminal,
+    width=72,
+    buffer_timeout=10.0,
+    color=True,
+)
+_nfo_ring = nfo.RingBufferSink(
+    delegate=_nfo_pipeline,
+    capacity=50,
+    trigger_levels=["ERROR", "CRITICAL"],
+)
+
 nfo_logger = nfo.configure(
     name="proxeen",
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    sinks=["sqlite:logs/nfo_proxeen.db", "md:logs/nfo_proxeen.md"],
+    level=os.getenv("NFO_LEVEL", os.getenv("LOG_LEVEL", "INFO")),
+    sinks=[
+        nfo.EnvTagger(_nfo_ring, auto_detect=True),
+        _nfo_sqlite,
+        _nfo_markdown,
+    ],
     bridge_stdlib=True,
     force=True,
     meta_policy=nfo.ThresholdPolicy(

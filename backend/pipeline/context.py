@@ -5,9 +5,34 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from nfo.models import LogEntry
 import structlog
 
 logger = structlog.get_logger()
+
+
+def _emit_profile_decision(profile: str, reason: str, **extra) -> None:
+    """Emit a profile selection decision to nfo."""
+    from nfo.decorators import _get_default_logger
+    entry = LogEntry(
+        timestamp=LogEntry.now(),
+        level="INFO",
+        function_name="decision.profile_select",
+        module="pipeline.context",
+        args=(),
+        kwargs={},
+        arg_types=[],
+        kwarg_types={},
+        return_value=profile,
+        return_type="decision",
+        extra={
+            "decision_name": "profile_select",
+            "decision": profile,
+            "decision_reason": reason,
+            **extra,
+        },
+    )
+    _get_default_logger().emit(entry)
 
 
 # ===== Pipeline Profiles =====
@@ -64,6 +89,7 @@ class ProfileSelector:
         """
         if self.force_profile:
             self.profile_counts[self.force_profile.value] += 1
+            _emit_profile_decision(self.force_profile.value, "forced")
             return self.force_profile
 
         now = time.time()
@@ -73,6 +99,8 @@ class ProfileSelector:
             self._last_full_time = now
             self._consecutive_fast = 0
             self.profile_counts[PipelineProfile.FULL.value] += 1
+            _emit_profile_decision("full", "periodic_scan",
+                                   interval=self.full_interval)
             return PipelineProfile.FULL
 
         # Check if capture system is in idle mode
@@ -85,14 +113,18 @@ class ProfileSelector:
             if self._is_vlm_ocr_active():
                 self._consecutive_fast = 0
                 self.profile_counts[PipelineProfile.NORMAL.value] += 1
+                _emit_profile_decision("normal", "idle_but_vlm_ocr_active")
                 return PipelineProfile.NORMAL
             self._consecutive_fast += 1
             self.profile_counts[PipelineProfile.FAST.value] += 1
+            _emit_profile_decision("fast", "idle",
+                                   consecutive_fast=self._consecutive_fast)
             return PipelineProfile.FAST
 
         # Default: NORMAL
         self._consecutive_fast = 0
         self.profile_counts[PipelineProfile.NORMAL.value] += 1
+        _emit_profile_decision("normal", "default")
         return PipelineProfile.NORMAL
 
     def _is_vlm_ocr_active(self) -> bool:

@@ -2,9 +2,10 @@
 import asyncio
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import nfo
+from nfo.models import LogEntry
 import structlog
 
 from event_bus import Event, EventBus, EventType
@@ -114,11 +115,15 @@ class PipelineOrchestrator:
 
         Steps that fail can_run() are skipped.
         Steps that throw are logged and skipped (pipeline continues).
+        Each step emits an nfo LogEntry with pipeline_run_id for PipelineSink grouping.
         """
         if ctx is None:
             ctx = PipelineContext()
 
         self.total_runs += 1
+        run_id = ctx.run_id
+        pipeline_t0 = time.monotonic()
+        total_cost = 0.0
 
         for step in self.steps:
             step_name = step.name
@@ -126,29 +131,55 @@ class PipelineOrchestrator:
             # Gate check
             if not step.can_run(ctx):
                 ctx.skipped.append(step_name)
+                self._emit_step(
+                    run_id, step_name, decision="skipped",
+                    decision_reason="can_run=False",
+                )
                 continue
 
             # Execute with timing
-            t0 = time.time()
+            t0 = time.monotonic()
             try:
                 ctx = await step.execute(ctx, self.bus)
-                elapsed = time.time() - t0
+                elapsed_ms = (time.monotonic() - t0) * 1000
                 ctx.steps_executed.append(step_name)
-                ctx.step_timings[step_name] = round(elapsed * 1000, 1)
+                ctx.step_timings[step_name] = round(elapsed_ms, 1)
+                metrics = _extract_step_metrics(step_name, ctx)
+                step_cost = metrics.get("cost_usd", 0)
+                total_cost += step_cost
+                self._emit_step(
+                    run_id, step_name, duration_ms=elapsed_ms,
+                    decision="executed", **metrics,
+                )
             except Exception as e:
-                elapsed = time.time() - t0
+                elapsed_ms = (time.monotonic() - t0) * 1000
                 self.total_errors += 1
                 ctx.errors.append({
                     "step": step_name,
                     "error": str(e),
-                    "elapsed_ms": round(elapsed * 1000, 1),
+                    "elapsed_ms": round(elapsed_ms, 1),
                 })
                 logger.error(
                     "Pipeline step failed",
                     step=step_name,
                     error=str(e),
-                    elapsed_ms=round(elapsed * 1000, 1),
+                    elapsed_ms=round(elapsed_ms, 1),
                 )
+                self._emit_step(
+                    run_id, step_name, duration_ms=elapsed_ms,
+                    exception=str(e), exception_type=type(e).__name__,
+                )
+
+        # Pipeline completion marker
+        total_ms = (time.monotonic() - pipeline_t0) * 1000
+        self._emit_completion(
+            run_id,
+            total_ms=total_ms,
+            total_cost=total_cost,
+            total_steps=len(ctx.steps_executed),
+            skipped=len(ctx.skipped),
+            errors=len(ctx.errors),
+        )
 
         # Emit pipeline completion event for ReadModel projection
         await self.bus.publish(Event(
@@ -166,6 +197,72 @@ class PipelineOrchestrator:
 
         return ctx
 
+    # -- nfo emission helpers ------------------------------------------------
+
+    def _emit_step(
+        self,
+        run_id: str,
+        step_name: str,
+        duration_ms: Optional[float] = None,
+        exception: Optional[str] = None,
+        exception_type: Optional[str] = None,
+        **extra_kwargs: Any,
+    ) -> None:
+        """Emit a single pipeline step entry to nfo."""
+        level = "ERROR" if exception else "INFO"
+        extra = {
+            "pipeline_run_id": run_id,
+            "step_name": step_name,
+            **extra_kwargs,
+        }
+        entry = LogEntry(
+            timestamp=LogEntry.now(),
+            level=level,
+            function_name=f"pipeline.{step_name}",
+            module="pipeline.orchestrator",
+            args=(),
+            kwargs={},
+            arg_types=[],
+            kwarg_types={},
+            duration_ms=round(duration_ms, 1) if duration_ms is not None else None,
+            exception=exception,
+            exception_type=exception_type,
+            extra=extra,
+        )
+        _get_nfo_logger().emit(entry)
+
+    def _emit_completion(
+        self,
+        run_id: str,
+        total_ms: float,
+        total_cost: float,
+        total_steps: int,
+        skipped: int,
+        errors: int,
+    ) -> None:
+        """Emit the pipeline completion marker for PipelineSink flush."""
+        entry = LogEntry(
+            timestamp=LogEntry.now(),
+            level="INFO",
+            function_name="pipeline.complete",
+            module="pipeline.orchestrator",
+            args=(),
+            kwargs={},
+            arg_types=[],
+            kwarg_types={},
+            duration_ms=round(total_ms, 1),
+            extra={
+                "pipeline_run_id": run_id,
+                "pipeline_complete": True,
+                "total_ms": round(total_ms, 1),
+                "total_cost": total_cost,
+                "total_steps": total_steps,
+                "skipped": skipped,
+                "errors": errors,
+            },
+        )
+        _get_nfo_logger().emit(entry)
+
     def get_step_names(self) -> List[str]:
         """Get ordered list of step names."""
         return [s.name for s in self.steps]
@@ -177,6 +274,100 @@ class PipelineOrchestrator:
             "steps": self.get_step_names(),
             "step_count": len(self.steps),
         }
+
+
+# -- module-level helpers for nfo emission --------------------------------
+
+def _get_nfo_logger():
+    """Return the nfo default logger (set by nfo.configure)."""
+    from nfo.decorators import _get_default_logger
+    return _get_default_logger()
+
+
+def _extract_step_metrics(step_name: str, ctx: PipelineContext) -> Dict[str, Any]:
+    """Extract lightweight metrics from PipelineContext after a step executes.
+
+    Returns a dict of extra fields suitable for nfo LogEntry.extra.
+    """
+    dispatch: Dict[str, Any] = {
+        "scan_windows": lambda: {
+            "windows_total": len(ctx.all_windows or []),
+            "active_window": (
+                getattr(ctx.active_window, "title", "")[:50]
+                if ctx.active_window else ""
+            ),
+        },
+        "detect_active_window": lambda: {
+            "active_window": (
+                getattr(ctx.active_window, "title", "")[:50]
+                if ctx.active_window else ""
+            ),
+        },
+        "capture_screen": lambda: {
+            "data_size_kb": round(len(ctx.image_b64 or "") * 3 / 4 / 1024, 1),
+            "has_change": ctx.image_b64 is not None,
+        },
+        "crop_windows": lambda: {
+            "crops_total": (
+                getattr(ctx.organized_screen, "total_windows", 0)
+                if ctx.organized_screen else 0
+            ),
+        },
+        "build_context": lambda: {
+            "context_length": len(ctx.full_context or ""),
+            "memories_recalled": len(ctx.recalled_memories or []),
+        },
+        "analyze": lambda: _analyze_metrics(ctx),
+        "suggest_actions": lambda: {
+            "actions_count": len(ctx.agent_actions or []),
+        },
+        "build_broadcast": lambda: {
+            "events_count": len(ctx.broadcast_data.keys()) if ctx.broadcast_data else 0,
+        },
+        "semantic_memory": lambda: {
+            "memories_recalled": len(ctx.recalled_memories or []),
+        },
+        "ocr_post_process": lambda: {
+            "ocr_enhanced": ctx.ocr_enhanced,
+            "ocr_corrections": ctx.ocr_corrections,
+        },
+        "predictive": lambda: {
+            "has_prediction": ctx.prediction is not None,
+            "used_prefetch": ctx.used_prefetch,
+        },
+        "clipboard": lambda: {
+            "clipboard_suggestions": len(ctx.clipboard_suggestions or []),
+        },
+    }
+
+    factory = dispatch.get(step_name)
+    if factory:
+        try:
+            return factory()
+        except Exception:
+            return {}
+    return {}
+
+
+def _analyze_metrics(ctx: PipelineContext) -> Dict[str, Any]:
+    """Extract analysis-specific metrics (cost, tokens, provider, OCR)."""
+    ar = ctx.analysis_result
+    if not ar:
+        return {}
+    metrics: Dict[str, Any] = {
+        "cost_usd": float(ar.get("cost", 0) or 0),
+        "tokens_in": ar.get("input_tokens", ar.get("tokens", 0)),
+        "tokens_out": ar.get("output_tokens", 0),
+        "provider": ar.get("provider", ""),
+        "model": ar.get("model", ""),
+        "mode": ar.get("mode", ""),
+    }
+    ocr = ar.get("ocr")
+    if ocr:
+        metrics["ocr_engine"] = ocr.get("engine", "")
+        metrics["ocr_ms"] = ocr.get("latency_ms", ocr.get("processing_time_ms", 0))
+        metrics["ocr_chars"] = len(ocr.get("text", ""))
+    return metrics
 
 
 def create_pipeline(

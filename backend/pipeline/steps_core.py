@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import structlog
 from PIL import Image
 
+from nfo.models import LogEntry
 from event_bus import Event, EventBus, EventType
 from .context import PipelineContext, PipelineProfile
 
@@ -313,15 +314,18 @@ class AnalyzeStep:
     def _apply_budget_downgrade(self, requested_mode: str) -> tuple:
         """Try budget-aware mode downgrade. Returns (effective_mode, mode_switched)."""
         if not self._budget or not hasattr(self._budget, "get_suggested_mode"):
+            self._emit_decision("no_budget_tracker", "", requested_mode, requested_mode)
             return requested_mode, False
 
         try:
             effective_mode = self._budget.get_suggested_mode(requested_mode)
         except Exception as e:
             logger.warning("Budget mode suggestion failed", error=str(e))
+            self._emit_decision("budget_error", str(e), requested_mode, requested_mode)
             return requested_mode, False
 
         if effective_mode == requested_mode:
+            self._emit_decision("budget_ok", "within_limits", requested_mode, requested_mode)
             return requested_mode, False
 
         if not hasattr(self._analyzer, "set_mode"):
@@ -329,6 +333,7 @@ class AnalyzeStep:
                 "Budget requested mode downgrade but analyzer has no set_mode",
                 requested_mode=requested_mode, suggested_mode=effective_mode,
             )
+            self._emit_decision("no_set_mode", "analyzer lacks set_mode", requested_mode, effective_mode)
             return requested_mode, False
 
         logger.warning("Budget exceeded, downgrading mode", from_mode=requested_mode, to_mode=effective_mode)
@@ -336,11 +341,39 @@ class AnalyzeStep:
             switched = self._analyzer.set_mode(effective_mode)
             if switched is False:
                 logger.warning("Analyzer rejected budget-safe mode switch", mode=effective_mode)
+                self._emit_decision("rejected", "analyzer rejected switch", requested_mode, effective_mode)
                 return requested_mode, False
+            self._emit_decision("downgraded", "budget_exceeded", requested_mode, effective_mode)
             return effective_mode, True
         except Exception as e:
             logger.warning("Failed to switch to budget-safe mode", mode=effective_mode, error=str(e))
+            self._emit_decision("switch_error", str(e), requested_mode, effective_mode)
             return requested_mode, False
+
+    @staticmethod
+    def _emit_decision(decision: str, reason: str, from_mode: str, to_mode: str) -> None:
+        """Emit a budget decision entry to nfo."""
+        from nfo.decorators import _get_default_logger
+        entry = LogEntry(
+            timestamp=LogEntry.now(),
+            level="WARNING" if decision == "downgraded" else "INFO",
+            function_name="decision.budget_check",
+            module="pipeline.steps_core",
+            args=(),
+            kwargs={},
+            arg_types=[],
+            kwarg_types={},
+            return_value=decision,
+            return_type="decision",
+            extra={
+                "decision_name": "budget_check",
+                "decision": decision,
+                "decision_reason": reason,
+                "from_mode": from_mode,
+                "to_mode": to_mode,
+            },
+        )
+        _get_default_logger().emit(entry)
 
     def _restore_mode(self, requested_mode: str):
         """Restore analyzer to user-selected mode after budget downgrade."""

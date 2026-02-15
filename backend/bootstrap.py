@@ -17,6 +17,7 @@ import time
 from typing import Callable, Dict, List, Optional
 
 import nfo
+from nfo.models import LogEntry
 import structlog
 
 from capture import create_capture_from_env
@@ -45,6 +46,32 @@ from plugins.loader import PluginLoader
 from preflight import run_preflight
 
 logger = structlog.get_logger()
+
+
+def _get_nfo_logger():
+    """Return the nfo default logger (set by nfo.configure)."""
+    from nfo.decorators import _get_default_logger
+    return _get_default_logger()
+
+
+def _emit_boot(component: str, phase: str, ok: bool, elapsed_ms: float,
+               summary: str = "", **extra) -> None:
+    """Emit an nfo LogEntry for a bootstrap component init."""
+    entry = LogEntry(
+        timestamp=LogEntry.now(),
+        level="INFO" if ok else "WARNING",
+        function_name=f"boot.{component}",
+        module="bootstrap",
+        args=(),
+        kwargs={},
+        arg_types=[],
+        kwarg_types={},
+        duration_ms=round(elapsed_ms, 1),
+        return_value=summary if ok else "FAILED",
+        return_type="str",
+        extra={"phase": phase, "component": component, "ok": ok, **extra},
+    )
+    _get_nfo_logger().emit(entry)
 
 
 def _init_optional(state: dict, key: str, factory, **kwargs) -> bool:
@@ -86,19 +113,55 @@ class AppBootstrap:
         self._init_results: Dict[str, bool] = {}
         self.settings = get_settings()
 
+    # ── Generic component init with nfo tracing ──
+
+    def _init_component(self, key: str, factory, phase: str, **kwargs) -> bool:
+        """Initialize a component with timing, nfo logging, and error handling."""
+        t0 = time.monotonic()
+        try:
+            self.state[key] = factory(**kwargs)
+            elapsed = (time.monotonic() - t0) * 1000
+            self._init_results[key] = True
+
+            # Try to extract a summary from the component
+            component = self.state[key]
+            summary = ""
+            if hasattr(component, "get_stats"):
+                try:
+                    stats = component.get_stats()
+                    summary = ", ".join(f"{k}={v}" for k, v in list(stats.items())[:3])
+                except Exception:
+                    pass
+            if not summary:
+                summary = type(component).__name__
+
+            _emit_boot(key, phase, ok=True, elapsed_ms=elapsed, summary=summary)
+            return True
+        except Exception as e:
+            elapsed = (time.monotonic() - t0) * 1000
+            self._init_results[key] = False
+            logger.warning(f"{key} initialization failed", error=str(e))
+            _emit_boot(key, phase, ok=False, elapsed_ms=elapsed, error=str(e))
+            return False
+
     # ── Phase 1: Core (required) ──
 
     def init_core(self):
         """Initialize capture, OCR manager, and analyzer."""
-        self.state["capture"] = create_capture_from_env(settings=self.settings)
-        self.state["ocr_manager"] = create_ocr_manager_from_env(settings=self.settings)
-        self.state["analyzer"] = create_analyzer_from_env(
-            ocr_manager=self.state["ocr_manager"],
+        for key, factory, kw in [
+            ("capture", create_capture_from_env, {"settings": self.settings}),
+            ("ocr_manager", create_ocr_manager_from_env, {"settings": self.settings}),
+        ]:
+            self._init_component(key, factory, "core", **kw)
+
+        self._init_component(
+            "analyzer",
+            lambda **kw: create_analyzer_from_env(
+                ocr_manager=self.state["ocr_manager"], **kw
+            ),
+            "core",
             settings=self.settings,
         )
-        self._init_results["capture"] = True
-        self._init_results["ocr_manager"] = True
-        self._init_results["analyzer"] = True
         logger.info("Core components initialized")
 
     # ── Phase 2: Window awareness (optional) ──
@@ -106,39 +169,33 @@ class AppBootstrap:
     def init_window(self):
         """Initialize window manager, profile manager, and shell agent."""
         if self.settings.enable_window_aware:
-            ok = _init_optional(self.state, "window_manager", create_window_manager_from_env, settings=self.settings)
-            self._init_results["window_manager"] = ok
-            if ok:
-                logger.info("Window awareness enabled")
-
-        self.state["profile_manager"] = create_profile_manager(settings=self.settings)
-        self._init_results["profile_manager"] = True
-
+            self._init_component("window_manager", create_window_manager_from_env, "window", settings=self.settings)
+        self._init_component("profile_manager", create_profile_manager, "window", settings=self.settings)
         if self.settings.enable_shell_agent:
-            ok = _init_optional(self.state, "shell_agent", create_shell_agent_from_env, settings=self.settings)
-            self._init_results["shell_agent"] = ok
-            if ok:
-                logger.info("Shell agent enabled")
+            self._init_component("shell_agent", create_shell_agent_from_env, "window", settings=self.settings)
 
     # ── Phase 3: Process scanner & window cropper (optional) ──
 
     def init_scanners(self):
         """Initialize process scanner and window cropper."""
-        try:
-            self.state["process_scanner"] = create_process_scanner(
-                window_manager=self.state.get("window_manager"),
+        self._init_component(
+            "process_scanner",
+            lambda **kw: create_process_scanner(
+                window_manager=self.state.get("window_manager"), **kw
+            ),
+            "scanners",
+            settings=self.settings,
+        )
+        if self.state.get("process_scanner"):
+            self._init_component(
+                "window_cropper",
+                lambda **kw: create_window_cropper(
+                    process_scanner=self.state["process_scanner"], **kw
+                ),
+                "scanners",
                 settings=self.settings,
             )
-            self.state["window_cropper"] = create_window_cropper(
-                process_scanner=self.state["process_scanner"],
-                settings=self.settings,
-            )
-            self._init_results["process_scanner"] = True
-            self._init_results["window_cropper"] = True
-            logger.info("Process scanner & window cropper enabled")
-        except Exception as e:
-            logger.warning("Process scanner/cropper initialization failed", error=str(e))
-            self._init_results["process_scanner"] = False
+        else:
             self._init_results["window_cropper"] = False
 
     # ── Phase 4: Tier 1 modules (all optional, each independent) ──
@@ -146,19 +203,16 @@ class AppBootstrap:
     def init_tier1(self):
         """Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR post-process, predictive."""
         tier1_components = [
-            ("multi_monitor", create_multi_monitor_from_env, {"settings": self.settings}),
-            ("semantic_memory", create_semantic_memory_from_env, {"settings": self.settings}),
-            ("action_library", create_action_library_from_env, {"settings": self.settings}),
-            ("ocr_enhancer", create_ocr_enhancer_from_env, {"settings": self.settings}),
-            ("predictive_engine", create_predictive_engine_from_env, {"settings": self.settings}),
-            ("clipboard_manager", create_clipboard_manager_from_env, {"settings": self.settings}),
-            ("cost_budget", create_cost_budget_from_env, {"settings": self.settings}),
+            ("multi_monitor", create_multi_monitor_from_env),
+            ("semantic_memory", create_semantic_memory_from_env),
+            ("action_library", create_action_library_from_env),
+            ("ocr_enhancer", create_ocr_enhancer_from_env),
+            ("predictive_engine", create_predictive_engine_from_env),
+            ("clipboard_manager", create_clipboard_manager_from_env),
+            ("cost_budget", create_cost_budget_from_env),
         ]
-        for key, factory, kwargs in tier1_components:
-            ok = _init_optional(self.state, key, factory, **kwargs)
-            self._init_results[key] = ok
-            if ok:
-                logger.info(f"{key} enabled")
+        for key, factory in tier1_components:
+            self._init_component(key, factory, "tier1", settings=self.settings)
 
     # ── Phase 5: Pipeline + CQRS (depends on phases 1-4) ──
 
@@ -212,6 +266,13 @@ class AppBootstrap:
         qry_handlers.register_all()
         self.state["query_handlers"] = qry_handlers
 
+        # Attach nfo bridge to Tracer (spans → nfo entries)
+        try:
+            from observability import attach_nfo_bridge
+            attach_nfo_bridge()
+        except Exception:
+            pass  # observability bridge is optional
+
         self._init_results["event_bus"] = True
         self._init_results["pipeline"] = True
         self._init_results["read_model"] = True
@@ -221,17 +282,19 @@ class AppBootstrap:
 
     def init_plugins(self):
         """Discover and load plugins."""
-        # Use plugins_dir from settings if available, else default to 'plugins' relative to backend
         plugin_dir = getattr(self.settings, "plugins_dir", os.path.join(os.path.dirname(__file__), "plugins"))
-        
-        loader = PluginLoader(
-            plugin_dir=plugin_dir,
-            bus=self.state.get("event_bus"),
-            app_state=self.state,
-        )
-        loader.discover_and_load()
-        self.state["plugin_loader"] = loader
-        self._init_results["plugins"] = True
+
+        def _create_loader(**_kw):
+            loader = PluginLoader(
+                plugin_dir=plugin_dir,
+                bus=self.state.get("event_bus"),
+                app_state=self.state,
+            )
+            loader.discover_and_load()
+            return loader
+
+        self._init_component("plugin_loader", _create_loader, "plugins")
+        self._init_results["plugins"] = self._init_results.get("plugin_loader", False)
 
     # ── Phase 7: Start async tasks ──
 
@@ -296,6 +359,8 @@ class AppBootstrap:
     async def startup(self, screen_loop_coro, on_transcript_cb):
         """Run all initialization phases in order."""
         logger.info("Starting Proxeen Assistant backend")
+        boot_t0 = time.monotonic()
+
         self.init_core()
         self.init_window()
         self.init_scanners()
@@ -309,6 +374,17 @@ class AppBootstrap:
         self._init_results["preflight"] = preflight_report.get("all_ok", False)
 
         await self.start_tasks(screen_loop_coro, on_transcript_cb)
+
+        # Emit boot summary
+        boot_ms = (time.monotonic() - boot_t0) * 1000
+        ok = [k for k, v in self._init_results.items() if v]
+        failed = [k for k, v in self._init_results.items() if not v]
+        _emit_boot(
+            "summary", "boot", ok=len(failed) == 0, elapsed_ms=boot_ms,
+            summary=f"{len(ok)} OK, {len(failed)} failed" if failed else f"{len(ok)} components ready",
+            ok_components=ok, failed_components=failed,
+            version=self.version,
+        )
 
     # ── Shutdown ──
 
