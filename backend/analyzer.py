@@ -17,8 +17,18 @@ import asyncio
 from typing import Optional, Dict, Literal
 import nfo
 import structlog
-import litellm
-from litellm import acompletion
+try:
+    import litellm
+    from litellm import acompletion
+    _LITELLM_AVAILABLE = True
+except Exception:  # pragma: no cover - env-dependent import
+    litellm = None
+    _LITELLM_AVAILABLE = False
+
+    async def acompletion(*args, **kwargs):
+        raise RuntimeError(
+            "litellm is not installed. Install dependency: pip install litellm"
+        )
 
 from ocr_engines import OCRManager, OCRResult
 from typing import Protocol as TypingProtocol
@@ -110,7 +120,8 @@ _STRATEGIES = {
 }
 
 # Suppress LiteLLM's verbose logging by default
-litellm.suppress_debug_info = True
+if _LITELLM_AVAILABLE:
+    litellm.suppress_debug_info = True
 
 
 class TokenBucketLimiter:
@@ -226,14 +237,20 @@ Zwróć odpowiedź jako JSON:
         self.provider = self._detect_provider(model)
 
         # Configure LiteLLM
-        litellm.drop_params = True  # Drop unsupported params silently
+        if _LITELLM_AVAILABLE:
+            litellm.drop_params = True  # Drop unsupported params silently
 
         # Only enable verbose litellm logging if explicitly requested.
         # DEBUG=true alone does NOT enable it — litellm verbose mode can leak
         # API keys in request headers to stdout/logs.
-        if os.getenv("LITELLM_VERBOSE", "false").lower() == "true":
+        if _LITELLM_AVAILABLE and os.getenv("LITELLM_VERBOSE", "false").lower() == "true":
             litellm.set_verbose = True
             litellm.suppress_debug_info = False
+
+        if not _LITELLM_AVAILABLE:
+            logger.warning(
+                "LiteLLM dependency unavailable; analysis calls will return error until installed"
+            )
 
         logger.info(
             "LiteLLM analyzer initialized",

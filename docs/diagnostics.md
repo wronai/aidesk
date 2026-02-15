@@ -63,7 +63,23 @@ Po starcie backendu przydatne endpointy:
 - `GET /events` i `GET /events/stats`
 - `GET /pipeline`
 
-## 6. Dobre praktyki operacyjne
+## 6. Sprawdzanie decyzji OptimizationStrategy
+
+Strategia optymalizacji nie ma osobnego endpointu API, ale jej decyzje sa
+widoczne w logach `nfo` jako `decision.optimization`.
+
+Szybka checklista:
+
+1. Sprawdz konfiguracje w `backend/.env`:
+   - `OPTIMIZATION_PRIORITY`
+   - `HARDWARE_PROFILE`
+   - `BUDGET_WARNING_PCT`, `BUDGET_CRITICAL_PCT`, `MAX_TICK_LATENCY_MS`
+2. Uruchom backend i wymus kilka tickow pipeline (normalna praca UI wystarczy).
+3. Zweryfikuj decyzje w logach/SQLite (`decision.optimization`, `decision.profile_select`).
+
+Przyklady zapytan SQL i interpretacja sa opisane w [observability.md](observability.md).
+
+## 7. Dobre praktyki operacyjne
 
 - Uruchamiaj `make diag` po kazdej zmianie modelu lub OCR engine.
 - Uruchamiaj `make diag` po instalacji na nowej maszynie.

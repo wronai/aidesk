@@ -491,7 +491,14 @@ class AnalyzeStep:
         if effective_mode != requested_mode and hasattr(self._analyzer, "set_mode"):
             try:
                 result = self._analyzer.set_mode(effective_mode)
-                if result is not False:
+                if result is False:
+                    logger.warning(
+                        "Analyzer rejected optimization mode switch",
+                        requested_mode=requested_mode,
+                        suggested_mode=effective_mode,
+                    )
+                    effective_mode = requested_mode
+                else:
                     mode_switched = True
             except Exception as e:
                 logger.warning("Failed to apply optimization decision mode",
@@ -536,11 +543,11 @@ class AnalyzeStep:
 
         # Strategy-driven path (when OptimizationDecision is on context)
         if ctx.optimization_decision is not None:
+            requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
             effective_mode, mode_switched, should_skip = self._apply_optimization_decision(ctx)
             if should_skip:
                 return ctx
 
-            requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
             analysis = await self._run_analysis(ctx, requested_mode, mode_switched)
 
             if analysis.get("error"):

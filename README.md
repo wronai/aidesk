@@ -12,6 +12,7 @@ Zaawansowany asystent AI z analizą ekranu w czasie rzeczywistym, rozpoznawaniem
 - ✅ **Vision AI** — 100+ providerów via LiteLLM (Gemini, GPT-4o, Claude, Ollama...)
 - ✅ **3 silniki OCR** — PaddleOCR, EasyOCR, Tesseract + benchmark runtime
 - ✅ **4 tryby analizy** — `vision_only`, `ocr_only`, `hybrid`, `ocr_plus_vision`
+- ✅ **OptimizationStrategy (Tier 1)** — centralna decyzja `auto|budget|speed|quality` dla OCR/mode/model tier + feedback loop koszt/latencja
 - ✅ **Tier 1 Intelligence** — multi-monitor, semantic memory, action templates, OCR post-process, predictive prefetch
 - ✅ **Clipboard Intelligence** — kolejka schowka, sugestie wklejania, snippets, auto-copy z kontekstu
 - ✅ **Skill Router** — analiza zaznaczonego tekstu i wykonywanie akcji per-skill (`/analyze-selection`, `/skill/execute`)
@@ -82,6 +83,8 @@ Nowa dokumentacja jest uporządkowana w katalogu `docs/`:
 - [docs/README.md](docs/README.md) — indeks dokumentacji i mapa tematów
 - [docs/system-overview.md](docs/system-overview.md) — jak działa system end-to-end
 - [docs/diagnostics.md](docs/diagnostics.md) — diagnostyka, `make diag`, interpretacja błędów
+- [docs/observability.md](docs/observability.md) — logowanie pipeline, decyzje runtime, sink chain `nfo`
+- [docs/testing.md](docs/testing.md) — suite'y testowe (`make test*`, `make test-strategy`)
 
 Dokumenty uzupełniające (zachowane w root):
 
@@ -193,6 +196,26 @@ make run-overlay
 start.bat    # Windows
 ```
 
+## 🧪 Testy
+
+Najczesciej uzywane komendy:
+
+```bash
+make test         # unit + e2e
+make test-units   # szybkie unit testy
+make test-e2e     # API e2e
+```
+
+Rozszerzone suite'y:
+
+```bash
+make test-vlm-ocr   # VLM OCR + preflight
+make test-strategy  # OptimizationStrategy (unit + integration)
+make test-all       # pelny backend/tests (z wykluczeniem test_plugins.py)
+```
+
+Szczegoly i rekomendowany workflow: [docs/testing.md](docs/testing.md)
+
 ## ⌨️ Skróty klawiszowe
 
 - `Ctrl+Shift+A` - Pokaż/Ukryj overlay
@@ -218,7 +241,7 @@ Przygotowaliśmy gotowe scenariusze pracy w katalogu `EXAMPLES/`:
 
 ## 🎯 Jak to działa — aktualny pipeline (14 kroków)
 
-Kolejność kroków (z `backend/pipeline.py:create_pipeline`):
+Kolejność kroków (z `backend/pipeline/orchestrator.py:create_pipeline`):
 
 1. **ScanWindows**
 2. **DetectActiveWindow**
@@ -246,7 +269,7 @@ proxeen/
 │   ├── server.py              # FastAPI + lifespan + logowanie
 │   ├── bootstrap.py           # Fazy startu/shutdown komponentów
 │   ├── analysis_loop.py       # Główna pętla pipeline
-│   ├── pipeline.py            # Kroki pipeline + profile FAST/NORMAL/FULL
+│   ├── pipeline/              # Kroki pipeline (context/steps/orchestrator) + profile FAST/NORMAL/FULL
 │   ├── routes/                # 10 modułów API (core/ocr/windows/agent/...)
 │   ├── skills/                # Skill Router i built-in skills
 │   ├── plugins/               # Plugin loader + interfejs pluginów
@@ -268,6 +291,31 @@ proxeen/
 ```
 
 ## 🔧 Konfiguracja zaawansowana
+
+### OptimizationStrategy (koszt vs szybkość vs jakość)
+
+W `backend/.env` możesz sterować globalną strategią wykonania pipeline:
+
+```env
+OPTIMIZATION_PRIORITY=auto   # auto|budget|speed|quality
+HARDWARE_PROFILE=auto        # auto|gpu_high|gpu_low|cpu_only
+BUDGET_WARNING_PCT=80
+BUDGET_CRITICAL_PCT=95
+MAX_TICK_LATENCY_MS=5000
+```
+
+Najważniejsze efekty:
+
+- `budget` — minimalizuje koszty, preferuje lokalny OCR i tryb `hybrid`/`ocr_only`
+- `speed` — preferuje najniższą latencję i agresywniejszy profil wykonania
+- `quality` — preferuje `ocr_plus_vision` i pełniejszą analizę
+- `auto` — adaptuje decyzję na podstawie budżetu i rolling metryk runtime
+
+Testy strategii:
+
+```bash
+make test-strategy
+```
 
 ### Zmiana modelu Vision AI
 

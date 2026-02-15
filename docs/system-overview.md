@@ -14,7 +14,7 @@ Dokument opisuje przeplyw od sygnalu z desktopu do odpowiedzi w overlay.
 
 - Udostepnia API, SSE i endpointy diagnostyczne.
 - Uruchamia glowna petle analizy i orchestruje pipeline.
-- Kluczowe pliki: `backend/server.py`, `backend/analysis_loop.py`, `backend/pipeline.py`.
+- Kluczowe pliki: `backend/server.py`, `backend/analysis_loop.py`, `backend/pipeline/orchestrator.py`.
 
 ## 1.3 Runtime intelligence
 
@@ -30,12 +30,32 @@ Kazdy tick petli wykonuje logiczny ciag krokow:
 2. Capture ekranu (X11/Wayland)
 3. Crop okien (per-app ROI)
 4. Budowa kontekstu (okno + historia + clipboard)
-5. Analiza (vision/ocr/hybrid)
-6. Post-processing OCR i sugestie akcji
-7. Broadcast do SSE + zapis eventow
+5. Decyzja OptimizationStrategy (mode/OCR/model tier)
+6. Analiza (vision/ocr/hybrid)
+7. Post-processing OCR i sugestie akcji
+8. Broadcast do SSE + zapis eventow
 
 W kodzie pipeline jest rozszerzony i modulowy (14 krokow), ale powyzsza lista
 oddaje glowna logike biznesowa i kolejnosc danych.
+
+## 2.1 Warstwa decyzyjna: OptimizationStrategy
+
+Przed krokiem analizy pipeline moze podjac centralna decyzje optymalizacyjna,
+ktora ustawia:
+
+- `analysis_mode` (`hybrid`, `ocr_only`, `ocr_plus_vision`, `skip`),
+- preferowany OCR engine,
+- tier modelu vision (`primary`/`fallback`/`emergency`),
+- uzasadnienie decyzji + estymacje kosztu i latencji.
+
+Tryby strategii:
+
+- `budget` — minimalizacja kosztow,
+- `speed` — minimalizacja opoznien,
+- `quality` — maksymalizacja jakosci,
+- `auto` — adaptacja wg budzetu i rolling metryk runtime.
+
+Implementacja: `backend/optimization_strategy.py`.
 
 ## 3. Detekcja okien i kontekst aplikacji
 
@@ -81,6 +101,7 @@ Najwazniejsze obszary konfiguracji:
 - OCR engine (`OCR_ENGINE`)
 - STT (`ENABLE_STT`, klucze Deepgram)
 - progi i profile pipeline (`FAST`, `NORMAL`, `FULL`)
+- strategia optymalizacji (`OPTIMIZATION_PRIORITY`, `HARDWARE_PROFILE`, limity budzetu i latency)
 
 Lista providerow i modele: [../PROVIDERS.md](../PROVIDERS.md).
 

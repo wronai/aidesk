@@ -300,6 +300,47 @@ class TestAnalyzeStepWithDecision:
         assert result.analysis_result is not None
         budget.get_suggested_mode.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_analyze_rejected_optimization_switch_keeps_requested_mode(self):
+        """If analyzer rejects strategy mode switch, keep requested mode in emitted result.
+
+        Regression guard: when analysis result has no explicit "mode", the fallback
+        must use requested_mode (original analyzer mode), not strategy-suggested mode.
+        """
+        analyzer = _make_analyzer(mode="hybrid")
+        analyzer.set_mode.return_value = False  # reject strategy switch
+        analyzer.analyze = AsyncMock(return_value={
+            "text": "test analysis",
+            "cost": 0.002,
+            "tokens": 500,
+            "provider": "test",
+            "model": "test-model",
+            # intentionally no "mode" key
+        })
+        step = AnalyzeStep(analyzer)
+        bus = _make_bus()
+
+        ctx = PipelineContext(image_b64="dGVzdA==", full_context="test")
+        ctx.optimization_decision = OptimizationDecision(
+            "paddleocr", "ocr_plus_vision", "primary", True, "quality", 0.003, 5000
+        )
+
+        await step.execute(ctx, bus)
+
+        analyzer.set_mode.assert_called_once_with("ocr_plus_vision")
+
+        analysis_event = None
+        for call in bus.publish.call_args_list:
+            evt = call[0][0]
+            if evt.type == "pipeline.analysis_completed":
+                analysis_event = evt
+                break
+
+        assert analysis_event is not None
+        assert analysis_event.data["requested_mode"] == "hybrid"
+        assert analysis_event.data["effective_mode"] == "hybrid"
+        assert analysis_event.data["budget_degraded"] is False
+
 
 # ===== TestProfileSelectorWithStrategy =====
 

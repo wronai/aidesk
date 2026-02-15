@@ -85,6 +85,37 @@ class TestSettingsValidation:
             Settings(_env_file=None, capture_mode="invalid")
 
 
+class TestOptimizationSettingsValidation:
+    def test_defaults_present(self):
+        s = Settings(_env_file=None)
+        assert s.optimization_priority == "auto"
+        assert s.hardware_profile == "auto"
+        assert s.prefer_local_ocr == "auto"
+        assert s.prefer_local_llm == "auto"
+
+    def test_invalid_optimization_priority_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, optimization_priority="cheap")
+
+    def test_invalid_hardware_profile_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, hardware_profile="gpu_ultra")
+
+    def test_invalid_prefer_local_ocr_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, prefer_local_ocr="sometimes")
+
+    def test_invalid_prefer_local_llm_rejected(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, prefer_local_llm="sometimes")
+
+    def test_budget_threshold_range_enforced(self):
+        with pytest.raises(Exception):
+            Settings(_env_file=None, budget_warning_pct=101)
+        with pytest.raises(Exception):
+            Settings(_env_file=None, budget_critical_pct=-1)
+
+
 class TestVlmOcrSettingsValidation:
     def test_vlm_ocr_timeout_too_low_rejected(self):
         with pytest.raises(Exception):
@@ -106,7 +137,8 @@ class TestVlmOcrSettingsValidation:
         with pytest.raises(Exception):
             Settings(_env_file=None, vlm_ocr_max_tokens=10000)
 
-    def test_vlm_ocr_defaults_valid(self):
+    def test_vlm_ocr_defaults_valid(self, monkeypatch):
+        monkeypatch.delenv("VLM_OCR_MODEL", raising=False)
         s = Settings(_env_file=None)
         assert s.vlm_ocr_model == "openrouter/qwen/qwen2.5-vl-32b-instruct:free"
         assert s.vlm_ocr_max_tokens == 1500

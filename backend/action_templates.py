@@ -24,7 +24,7 @@ import os
 import re
 import sqlite3
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Dict, List, Optional, Tuple
 
 import nfo
@@ -314,10 +314,21 @@ class AppActionLibrary:
         now = time.time()
         for seed in self._SEED_TEMPLATES:
             if seed.template_id not in self._templates:
-                seed.created_at = now
-                seed.auto_approve_after = seed.auto_approve_after or self.auto_approve_default
-                self._templates[seed.template_id] = seed
-                self._persist_template(seed)
+                # Clone class-level seed to avoid mutating shared objects across
+                # library instances/tests (which can leak approval counters).
+                seed_copy = replace(
+                    seed,
+                    times_suggested=0,
+                    times_approved=0,
+                    times_rejected=0,
+                    times_executed=0,
+                    is_auto_approved=False,
+                    last_used=0.0,
+                    created_at=now,
+                    auto_approve_after=seed.auto_approve_after or self.auto_approve_default,
+                )
+                self._templates[seed_copy.template_id] = seed_copy
+                self._persist_template(seed_copy)
 
     def _persist_template(self, t: ActionTemplate):
         """Save a single template to DB."""

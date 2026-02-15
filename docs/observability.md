@@ -55,7 +55,7 @@ Each pipeline tick renders as a terminal block:
 - **✓** — step executed successfully
 - **✗** — step failed (with error message)
 - **⊘** — step skipped (`can_run()` returned `False`)
-- **►** — decision annotation (e.g., budget downgrade)
+- **►** — decision annotation (e.g., budget downgrade, optimization strategy switch)
 - **DATA** line — data flow sizes through the pipeline
 - **COST** line — session total and rolling average per tick
 - **Footer** — total duration, cost, step count
@@ -82,6 +82,20 @@ Key decisions are logged with structured `decision`/`reason` fields:
 | `downgraded` | `budget_exceeded` | Mode downgraded to save cost |
 | `rejected` | `analyzer rejected switch` | Analyzer refused the downgrade |
 | `no_budget_tracker` | (empty) | No cost budget configured |
+
+### Optimization Strategy (`decision.optimization`)
+
+This decision is emitted when `AnalyzeStep` applies an `OptimizationDecision`
+from `OptimizationStrategy`.
+
+| Field (`extra`) | Meaning |
+|---|---|
+| `mode` | Selected analysis mode (`skip`, `ocr_only`, `hybrid`, `ocr_plus_vision`) |
+| `ocr` | Selected OCR engine (`none`, `tesseract`, `paddleocr`, `vlm_ocr`) |
+| `model_tier` | Selected vision routing tier (`none`, `fallback`, `primary`) |
+| `reason` | Human-readable reason from strategy (`auto→budget`, `speed_mode`, etc.) |
+| `estimated_cost` | Predicted per-tick cost used by the strategy |
+| `estimated_latency_ms` | Predicted per-tick latency used by the strategy |
 
 ## Tracer Bridge
 
@@ -123,6 +137,18 @@ SELECT * FROM logs WHERE function_name LIKE 'pipeline.%' ORDER BY timestamp DESC
 
 -- Budget decisions
 SELECT * FROM logs WHERE function_name = 'decision.budget_check' ORDER BY timestamp DESC;
+
+-- Optimization decisions
+SELECT
+  json_extract(extra, '$.mode') AS mode,
+  json_extract(extra, '$.ocr') AS ocr,
+  json_extract(extra, '$.model_tier') AS model_tier,
+  json_extract(extra, '$.reason') AS reason,
+  timestamp
+FROM logs
+WHERE function_name = 'decision.optimization'
+ORDER BY timestamp DESC
+LIMIT 50;
 
 -- Errors in last hour
 SELECT * FROM logs WHERE level = 'ERROR' AND timestamp > datetime('now', '-1 hour');

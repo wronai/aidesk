@@ -1,3 +1,5 @@
+# Changelog
+
 ## [2.1.38] - 2026-02-15
 
 ### Summary
@@ -415,9 +417,6 @@ fix(examples): code analysis engine
 
 docs(docs): deep code analysis engine
 
-
-# Changelog
-
 ## [Unreleased]
 
 ### Docs
@@ -427,14 +426,21 @@ docs(docs): deep code analysis engine
   - opis pipeline zaktualizowany do 14 kroków + profile FAST/NORMAL/FULL
   - doprecyzowane endpointy monitoringu (`/stats`, `/events`, `/pipeline`, `/read-model`, `/traces`, `/diagnostics`)
   - doprecyzowana zależność portu overlay (`8001`) względem backendu (`PORT`)
+- docs(optimization): udokumentowano `OptimizationStrategy` end-to-end
+  - opisano tryby `auto|budget|speed|quality` i konfigurację `OPTIMIZATION_PRIORITY` / `HARDWARE_PROFILE`
+  - dopisano warstwę decyzji strategii w `docs/system-overview.md` i mapowanie decyzji runtime w `docs/observability.md`
+  - zaktualizowano README o sekcję konfiguracji strategii oraz komendę `make test-strategy`
 - docs(todo): dodano techniczny backlog `TODO.md` na podstawie TODO w kodzie i aktualnego stanu projektu
 - docs(docs): uporządkowano dokumentację w katalogu `docs/`
   - dodano `docs/README.md` jako indeks dokumentacji
   - dodano `docs/system-overview.md` (opis działania systemu end-to-end)
   - dodano `docs/diagnostics.md` (diagnozowanie konfiguracji i runtime)
+  - dodano `docs/testing.md` (workflow testów i suite'y Makefile)
 - docs(readme): podlinkowano dokumentację `docs/` w README
   - dodano sekcję mapy dokumentacji i odnośniki do `CHANGELOG.md` oraz `TODO.md`
   - uzupełniono instrukcje o `make diag` (instalacja + troubleshooting)
+  - dodano sekcję testów (`make test`, `make test-vlm-ocr`, `make test-strategy`, `make test-all`)
+- docs(todo): odświeżono `TODO.md` (stan na 2026-02-15) z nowymi pozycjami "zrobione ostatnio" i aktualnymi priorytetami
 
 ### Other
 
