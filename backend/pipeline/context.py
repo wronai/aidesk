@@ -66,10 +66,12 @@ class ProfileSelector:
         full_interval: float = 60.0,
         force_profile: Optional[str] = None,
         ocr_manager=None,
+        optimization_strategy=None,
     ):
         self.full_interval = full_interval
         self.force_profile = PipelineProfile(force_profile) if force_profile else None
         self._ocr_manager = ocr_manager
+        self._strategy = optimization_strategy
         self._last_full_time = 0.0
         self._last_active_wid = 0
         self._consecutive_fast = 0
@@ -79,6 +81,10 @@ class ProfileSelector:
     def select(self, ctx: 'PipelineContext', capture=None) -> PipelineProfile:
         """
         Choose optimal profile for this pipeline tick.
+
+        If an OptimizationStrategy is configured, uses its decision to map
+        analysis_mode → pipeline profile. Otherwise, falls back to the
+        original heuristic-based selection.
 
         Args:
             ctx: Current pipeline context (may have cached windows from prev tick)
@@ -92,6 +98,63 @@ class ProfileSelector:
             _emit_profile_decision(self.force_profile.value, "forced")
             return self.force_profile
 
+        # Strategy-driven profile selection
+        if self._strategy is not None:
+            return self._select_via_strategy(ctx, capture)
+
+        return self._select_heuristic(ctx, capture)
+
+    def _select_via_strategy(self, ctx: 'PipelineContext', capture=None) -> PipelineProfile:
+        """Use OptimizationStrategy decision to determine pipeline profile."""
+        # Determine screen change state for strategy
+        screen_changed = True
+        idle_frames = 0
+        change_magnitude = 0.0
+        if capture:
+            if hasattr(capture, 'consecutive_unchanged'):
+                idle_frames = getattr(capture, 'consecutive_unchanged', 0)
+                screen_changed = idle_frames == 0
+            if hasattr(capture, 'last_change_magnitude'):
+                change_magnitude = getattr(capture, 'last_change_magnitude', 0.0)
+
+        decision = self._strategy.decide(
+            screen_changed=screen_changed,
+            change_magnitude=change_magnitude,
+            idle_frames=idle_frames,
+        )
+        ctx.optimization_decision = decision
+
+        # Map analysis_mode → pipeline profile
+        mode = decision.analysis_mode
+        if mode == "skip":
+            profile = PipelineProfile.FAST
+        elif mode in ("ocr_only", "hybrid"):
+            profile = PipelineProfile.NORMAL
+        elif mode in ("ocr_plus_vision", "vision_only"):
+            profile = PipelineProfile.FULL
+        else:
+            profile = PipelineProfile.NORMAL
+
+        # Still respect periodic full scan
+        now = time.time()
+        if now - self._last_full_time >= self.full_interval:
+            self._last_full_time = now
+            profile = PipelineProfile.FULL
+            _emit_profile_decision("full", "periodic_scan+strategy",
+                                   interval=self.full_interval)
+            self.profile_counts[profile.value] += 1
+            return profile
+
+        self._consecutive_fast = self._consecutive_fast + 1 if profile == PipelineProfile.FAST else 0
+        self.profile_counts[profile.value] += 1
+        _emit_profile_decision(
+            profile.value, f"strategy:{decision.reason}",
+            analysis_mode=mode,
+        )
+        return profile
+
+    def _select_heuristic(self, ctx: 'PipelineContext', capture=None) -> PipelineProfile:
+        """Original heuristic-based profile selection (no strategy)."""
         now = time.time()
 
         # Periodic FULL scan
@@ -218,6 +281,11 @@ class PipelineContext:
     used_prefetch: bool = False
     clipboard_suggestions: List[Dict] = field(default_factory=list)
     clipboard_auto_copies: List[Dict] = field(default_factory=list)
+
+    # Optimization strategy
+    optimization_decision: Optional[Any] = None  # OptimizationDecision from strategy
+    actual_cost: float = 0.0                      # Actual cost for feedback loop
+    actual_latency_ms: float = 0.0                # Actual latency for feedback loop
 
     # Metadata
     steps_executed: List[str] = field(default_factory=list)

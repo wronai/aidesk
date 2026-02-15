@@ -469,8 +469,94 @@ class AnalyzeStep:
             correlation_id=correlation_id,
         ))
 
+    def _apply_optimization_decision(self, ctx: PipelineContext) -> tuple:
+        """Apply OptimizationDecision from strategy to analyzer.
+
+        Returns (effective_mode, mode_switched, should_skip).
+        """
+        decision = ctx.optimization_decision
+        if not decision:
+            return None, False, False
+
+        # Skip decision → no analysis this tick
+        if decision.analysis_mode == "skip":
+            self._emit_optimization_decision(decision)
+            return "skip", False, True
+
+        # Apply analysis mode from decision
+        requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
+        effective_mode = decision.analysis_mode
+        mode_switched = False
+
+        if effective_mode != requested_mode and hasattr(self._analyzer, "set_mode"):
+            try:
+                result = self._analyzer.set_mode(effective_mode)
+                if result is not False:
+                    mode_switched = True
+            except Exception as e:
+                logger.warning("Failed to apply optimization decision mode",
+                               mode=effective_mode, error=str(e))
+                effective_mode = requested_mode
+
+        self._emit_optimization_decision(decision)
+        return effective_mode, mode_switched, False
+
+    @staticmethod
+    def _emit_optimization_decision(decision) -> None:
+        """Emit an nfo entry for the optimization strategy decision."""
+        try:
+            from nfo.decorators import _get_default_logger
+            entry = LogEntry(
+                timestamp=LogEntry.now(),
+                level="INFO",
+                function_name="decision.optimization",
+                module="pipeline.steps_core",
+                args=(),
+                kwargs={},
+                arg_types=[],
+                kwarg_types={},
+                return_value=f"{decision.analysis_mode}+{decision.ocr_engine}",
+                return_type="decision",
+                extra={
+                    "decision_name": "optimization",
+                    "mode": decision.analysis_mode,
+                    "ocr": decision.ocr_engine,
+                    "model_tier": decision.vision_model_tier,
+                    "reason": decision.reason,
+                    "estimated_cost": decision.estimated_cost,
+                    "estimated_latency_ms": decision.estimated_latency_ms,
+                },
+            )
+            _get_default_logger().emit(entry)
+        except Exception:
+            pass  # nfo emission must never break pipeline
+
     async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
         t0 = time.time()
+
+        # Strategy-driven path (when OptimizationDecision is on context)
+        if ctx.optimization_decision is not None:
+            effective_mode, mode_switched, should_skip = self._apply_optimization_decision(ctx)
+            if should_skip:
+                return ctx
+
+            requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
+            analysis = await self._run_analysis(ctx, requested_mode, mode_switched)
+
+            if analysis.get("error"):
+                ctx.analysis_failed = True
+            ctx.analysis_result = analysis
+
+            # Record actual cost/latency for strategy feedback loop
+            elapsed_ms = round((time.time() - t0) * 1000)
+            ctx.actual_cost = float(analysis.get("cost", 0.0) or 0.0)
+            ctx.actual_latency_ms = float(elapsed_ms)
+
+            await self._emit_result(ctx, bus, requested_mode, effective_mode,
+                                    latency_ms=elapsed_ms)
+            return ctx
+
+        # Legacy path (no strategy — use _apply_budget_downgrade)
         requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
         effective_mode, mode_switched = self._apply_budget_downgrade(requested_mode)
 

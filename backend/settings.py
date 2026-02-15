@@ -34,6 +34,30 @@ class Settings(BaseSettings):
     Environment variables override .env file values.
     """
 
+    # ===== Optimization Strategy =====
+    optimization_priority: str = Field("auto", description="auto|budget|speed|quality")
+    hardware_profile: str = Field("auto", description="auto|gpu_high|gpu_low|cpu_only")
+
+    # Extended budget
+    budget_hourly_limit: float = Field(0.50, ge=0.0)
+    budget_daily_limit: float = Field(5.00, ge=0.0)
+    budget_warning_pct: int = Field(80, ge=0, le=100)
+    budget_critical_pct: int = Field(95, ge=0, le=100)
+    budget_fallback_chain: str = Field("ocr_plus_vision,hybrid,ocr_only")
+
+    # Model routing
+    vision_model_primary: str = Field("", description="Primary vision model (empty = use VISION_MODEL)")
+    vision_model_fallback: str = Field("", description="Cheaper fallback model")
+    vision_model_emergency: str = Field("", description="Zero-cost emergency fallback")
+
+    # Local vs Cloud preferences
+    prefer_local_ocr: str = Field("auto", description="auto|always|never")
+    prefer_local_llm: str = Field("auto", description="auto|always|never")
+    local_llm_endpoint: str = Field("", description="e.g. http://localhost:11434/v1")
+    local_ocr_max_latency_ms: int = Field(500, ge=50)
+    cloud_ocr_cost_threshold: float = Field(0.001, ge=0.0)
+    max_tick_latency_ms: int = Field(5000, ge=500)
+
     # ===== Vision Model (LiteLLM) =====
     vision_model: str = Field("ollama/llava", description="LiteLLM model identifier")
     litellm_api_base: str = Field("", description="Custom API base URL for local servers")
@@ -198,6 +222,38 @@ class Settings(BaseSettings):
     analyze_circuit_threshold: int = Field(5, ge=1)
     analyze_circuit_reset: float = Field(60.0, ge=5.0)
     analyze_max_retries: int = Field(2, ge=0)
+
+    @field_validator("optimization_priority")
+    @classmethod
+    def validate_optimization_priority(cls, v):
+        valid = {"auto", "budget", "speed", "quality"}
+        if v not in valid:
+            raise ValueError(f"optimization_priority must be one of {valid}, got '{v}'")
+        return v
+
+    @field_validator("hardware_profile")
+    @classmethod
+    def validate_hardware_profile(cls, v):
+        valid = {"auto", "gpu_high", "gpu_low", "cpu_only"}
+        if v not in valid:
+            raise ValueError(f"hardware_profile must be one of {valid}, got '{v}'")
+        return v
+
+    @field_validator("prefer_local_ocr")
+    @classmethod
+    def validate_prefer_local_ocr(cls, v):
+        valid = {"auto", "always", "never"}
+        if v not in valid:
+            raise ValueError(f"prefer_local_ocr must be one of {valid}, got '{v}'")
+        return v
+
+    @field_validator("prefer_local_llm")
+    @classmethod
+    def validate_prefer_local_llm(cls, v):
+        valid = {"auto", "always", "never"}
+        if v not in valid:
+            raise ValueError(f"prefer_local_llm must be one of {valid}, got '{v}'")
+        return v
 
     @field_validator("analysis_mode")
     @classmethod

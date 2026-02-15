@@ -75,11 +75,13 @@ class PipelineOrchestrator:
     Single Responsibility: orchestrator only manages execution order and timing.
     """
 
-    def __init__(self, bus: EventBus, steps: Optional[List] = None):
+    def __init__(self, bus: EventBus, steps: Optional[List] = None,
+                 optimization_strategy=None):
         self.bus = bus
         self.steps: List = steps or []
         self.total_runs = 0
         self.total_errors = 0
+        self._strategy = optimization_strategy
 
     def add_step(self, step) -> "PipelineOrchestrator":
         """Add a step to the pipeline (builder pattern)."""
@@ -172,6 +174,19 @@ class PipelineOrchestrator:
 
         # Pipeline completion marker
         total_ms = (time.monotonic() - pipeline_t0) * 1000
+
+        # Strategy feedback loop — record actual cost and latency
+        if self._strategy and ctx.optimization_decision:
+            try:
+                mode = getattr(ctx.optimization_decision, 'analysis_mode', '')
+                self._strategy.record_tick(
+                    actual_cost=ctx.actual_cost,
+                    actual_latency_ms=total_ms,
+                    mode=mode,
+                )
+            except Exception as e:
+                logger.debug("Strategy record_tick failed", error=str(e))
+
         self._emit_completion(
             run_id,
             total_ms=total_ms,
@@ -388,6 +403,7 @@ def create_pipeline(
     predictive_engine=None,
     clipboard_manager=None,
     cost_budget=None,
+    optimization_strategy=None,
 ) -> PipelineOrchestrator:
     """
     Factory: create the standard analysis pipeline from components.
@@ -417,7 +433,7 @@ def create_pipeline(
         (True,              lambda: BuildBroadcastStep()),
     ]
 
-    pipeline = PipelineOrchestrator(bus)
+    pipeline = PipelineOrchestrator(bus, optimization_strategy=optimization_strategy)
     for guard, factory in step_defs:
         if guard:
             pipeline.add_step(factory())
@@ -431,10 +447,11 @@ def create_pipeline(
     return pipeline
 
 
-def create_profile_selector(ocr_manager=None) -> ProfileSelector:
+def create_profile_selector(ocr_manager=None, optimization_strategy=None) -> ProfileSelector:
     """Create ProfileSelector from environment variables."""
     return ProfileSelector(
         full_interval=float(os.getenv("PIPELINE_FULL_INTERVAL", "60.0")),
         force_profile=os.getenv("PIPELINE_PROFILE") or None,
         ocr_manager=ocr_manager,
+        optimization_strategy=optimization_strategy,
     )
