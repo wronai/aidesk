@@ -154,8 +154,8 @@ test-vlm-ocr: ## Run VLM OCR engine + preflight tests
 test-strategy: ## Run OptimizationStrategy unit + integration tests
 	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_optimization_strategy.py $(BACKEND_DIR)/tests/test_optimization_integration.py -v
 
-test-all: ## Run full test suite (excluding known pre-existing failures)
-	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/ -v --ignore=$(BACKEND_DIR)/tests/test_plugins.py
+test-all: ## Run full backend test suite
+	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/ -v
 
 status: ## Check if backend is running
 	@curl -s http://127.0.0.1:$(PORT)/health 2>/dev/null && echo "" || echo "❌ Backend not running on port $(PORT)"
