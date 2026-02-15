@@ -1,3 +1,22 @@
+## [2.1.37] - 2026-02-15
+
+### Summary
+
+refactor(tests): configuration management system
+
+### Docs
+
+- docs: update observability.md
+
+### Other
+
+- update backend/tests/test_observability.py
+- update backend/tests/test_pipeline_nfo.py
+- update backend/tests/test_profile_selector_nfo.py
+- update project.functions.toon
+- update project.toon
+
+
 ## [2.1.36] - 2026-02-15
 
 ### Summary

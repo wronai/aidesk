@@ -1,12 +1,12 @@
 project: proxeen
-generated: "2026-02-15T10:12:28.896018"
-modules[114]{path,lang,items}:
+generated: "2026-02-15T11:00:20.406773"
+modules[116]{path,lang,items}:
   rename_to_proxeen.py,python,6
   backend/process_scanner.py,python,28
   backend/stt.py,python,8
   backend/query_handlers.py,python,27
   backend/protocols.py,python,39
-  backend/bootstrap.py,python,12
+  backend/bootstrap.py,python,15
   backend/multi_monitor.py,python,19
   backend/window_cropper.py,python,14
   backend/circuit_breaker.py,python,14
@@ -14,7 +14,7 @@ modules[114]{path,lang,items}:
   backend/typed_events.py,python,2
   backend/capture.py,python,20
   backend/shell_agent.py,python,14
-  backend/observability.py,python,16
+  backend/observability.py,python,18
   backend/diagnostics.py,python,21
   backend/server.py,python,9
   backend/app_profiles.py,python,9
@@ -58,8 +58,10 @@ modules[114]{path,lang,items}:
   backend/clipboard_intel/models.py,python,6
   backend/tests/test_wayland_screencast.py,python,24
   backend/tests/test_settings.py,python,32
+  backend/tests/test_profile_selector_nfo.py,python,7
   backend/tests/test_units.py,python,131
   backend/tests/conftest.py,python,0
+  backend/tests/test_pipeline_nfo.py,python,23
   backend/tests/test_window_aware.py,python,34
   backend/tests/test_analysis_loop.py,python,20
   backend/tests/test_skills.py,python,158
@@ -68,7 +70,7 @@ modules[114]{path,lang,items}:
   backend/tests/test_plugins.py,python,18
   backend/tests/test_routes.py,python,122
   backend/tests/test_typed_events.py,python,26
-  backend/tests/test_observability.py,python,20
+  backend/tests/test_observability.py,python,29
   backend/tests/test_circuit_breaker.py,python,27
   backend/tests/test_clipboard_intel.py,python,67
   backend/tests/test_action_templates.py,python,32
@@ -111,10 +113,10 @@ modules[114]{path,lang,items}:
   backend/skills/url_handler.py,python,5
   backend/pipeline/protocol.py,python,2
   backend/pipeline/__init__.py,python,0
-  backend/pipeline/context.py,python,7
+  backend/pipeline/context.py,python,8
   backend/pipeline/steps_tier1.py,python,27
-  backend/pipeline/steps_core.py,python,36
-  backend/pipeline/orchestrator.py,python,13
+  backend/pipeline/steps_core.py,python,37
+  backend/pipeline/orchestrator.py,python,18
 
 function_details:
   rename_to_proxeen.py:
@@ -236,19 +238,22 @@ function_details:
       SpeechToText.get_stats,method,() -> Dict,213-214,false,2,1,retrieves stats
       EventBroadcaster.broadcast,method,"(event_type:str, data:Dict) -> None",223-225,true,3,1,Send event to all connected SSE clients.
   backend/bootstrap.py:
-    functions[12]{name,kind,sig,loc,async,lines,cc,does}:
-      _init_optional,function,"(state:dict, key:str, factory) -> bool",50-61,false,12,2,Try to initialize an optional component.
-      AppBootstrap.__init__,method,"(app_state:dict, broadcast_fn:Callable, version:str='')",80-87,false,8,1,creates
-      AppBootstrap.init_core,method,(),91-102,false,12,1,"Initialize capture, OCR manager, and analyzer."
-      AppBootstrap.init_window,method,(),106-121,false,16,5,"Initialize window manager, profile manager, and shell agent."
-      AppBootstrap.init_scanners,method,(),125-142,false,18,2,Initialize process scanner and window cropper.
-      AppBootstrap.init_tier1,method,(),146-161,false,16,3,"Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR..."
-      AppBootstrap.init_pipeline,method,(),165-218,false,54,1,"Initialize event bus, pipeline orchestrator, CQRS handlers."
-      AppBootstrap.init_plugins,method,(),222-234,false,13,1,Discover and load plugins.
-      AppBootstrap.start_tasks,method,"(screen_loop_coro, on_transcript_cb)",238-291,true,54,9,"Start screen analysis loop, STT, and diagnostics as async tasks."
-      AppBootstrap.startup,method,"(screen_loop_coro, on_transcript_cb)",296-311,true,16,1,Run all initialization phases in order.
-      AppBootstrap.shutdown,method,(),316-357,true,42,10,Cancel all tasks and emit shutdown event.
-      AppBootstrap.init_report,method,"() -> Dict[str, bool]",362-364,false,3,1,Return init success/failure for each component.
+    functions[15]{name,kind,sig,loc,async,lines,cc,does}:
+      _get_nfo_logger,function,(),51-54,false,4,1,Return the nfo default logger (set by nfo.configure).
+      _emit_boot,function,"(component:str, phase:str, ok:bool, elapsed_ms:float, summary:str='') -> None",57-74,false,18,3,Emit an nfo LogEntry for a bootstrap component init.
+      _init_optional,function,"(state:dict, key:str, factory) -> bool",77-88,false,12,2,Try to initialize an optional component.
+      AppBootstrap.__init__,method,"(app_state:dict, broadcast_fn:Callable, version:str='')",107-114,false,8,1,creates
+      AppBootstrap._init_component,method,"(key:str, factory, phase:str) -> bool",118-145,false,28,6,"Initialize a component with timing, nfo logging, and error handling."
+      AppBootstrap.init_core,method,(),149-165,false,17,2,"Initialize capture, OCR manager, and analyzer."
+      AppBootstrap.init_window,method,(),169-175,false,7,3,"Initialize window manager, profile manager, and shell agent."
+      AppBootstrap.init_scanners,method,(),179-199,false,21,2,Initialize process scanner and window cropper.
+      AppBootstrap.init_tier1,method,(),203-215,false,13,2,"Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR..."
+      AppBootstrap.init_pipeline,method,(),219-279,false,61,2,"Initialize event bus, pipeline orchestrator, CQRS handlers."
+      AppBootstrap.init_plugins,method,(),283-297,false,15,1,Discover and load plugins.
+      AppBootstrap.start_tasks,method,"(screen_loop_coro, on_transcript_cb)",301-354,true,54,9,"Start screen analysis loop, STT, and diagnostics as async tasks."
+      AppBootstrap.startup,method,"(screen_loop_coro, on_transcript_cb)",359-387,true,29,6,Run all initialization phases in order.
+      AppBootstrap.shutdown,method,(),392-433,true,42,10,Cancel all tasks and emit shutdown event.
+      AppBootstrap.init_report,method,"() -> Dict[str, bool]",438-440,false,3,1,Return init success/failure for each component.
   backend/multi_monitor.py:
     functions[19]{name,kind,sig,loc,async,lines,cc,does}:
       create_multi_monitor_from_env,function,(settings=None) -> MonitorAwareCapture,453-462,false,10,2,Create MonitorAwareCapture from settings.
@@ -374,23 +379,25 @@ function_details:
       ShellAgent.get_history,method,"(n:int=20) -> List[Dict]",471-473,false,3,2,Get recent action history.
       ShellAgent.get_stats,method,() -> Dict,475-484,false,10,1,Get ShellAgent statistics.
   backend/observability.py:
-    functions[16]{name,kind,sig,loc,async,lines,cc,does}:
-      get_tracer,function,"(service_name:str='proxeen') -> Tracer",191-196,false,6,2,Get or create the global tracer instance.
-      reset_tracer,function,(),199-202,false,4,1,Reset the global tracer (for testing).
+    functions[18]{name,kind,sig,loc,async,lines,cc,does}:
+      get_tracer,function,"(service_name:str='proxeen') -> Tracer",199-204,false,6,2,Get or create the global tracer instance.
+      reset_tracer,function,(),207-210,false,4,1,Reset the global tracer (for testing).
+      attach_nfo_bridge,function,"(tracer:Optional[Tracer]=None) -> TracerNfoBridge",263-271,false,9,2,Attach nfo bridge to the global (or given) tracer.
       Span.__post_init__,method,(),52-58,false,7,4,creates init
       Span.duration_ms,method,() -> float,61-64,false,4,2,duration ms
       Span.set_attribute,method,"(key:str, value:Any)",66-67,false,2,1,updates attribute
       Span.set_error,method,"(error:str)",69-71,false,3,1,updates error
       Span.finish,method,(),73-75,false,3,2,stops
       Span.to_dict,method,() -> Dict,77-87,false,11,2,converts dict
-      Tracer.__init__,method,"(service_name:str='proxeen', max_spans:int=500)",98-104,false,7,1,creates
-      Tracer.span,method,"(name:str, parent:Optional[Span]=None, attributes:Optional[Dict]=None)",107-129,false,23,5,"Context manager that creates, yields, and finishes a Span."
-      Tracer._record,method,"(span:Span)",131-143,false,13,3,Record a finished span into buffer and metrics.
-      Tracer.get_metrics,method,"() -> Dict[str, Dict]",145-158,false,14,5,Get aggregated metrics per span name.
-      Tracer.get_recent_spans,method,"(n:int=20, name:Optional[str]=None) -> List[Dict]",160-165,false,6,5,"Get recent spans, optionally filtered by name."
-      Tracer.get_trace,method,"(trace_id:str) -> List[Dict]",167-169,false,3,3,Get all spans belonging to a trace.
-      Tracer.get_stats,method,() -> Dict,171-178,false,8,1,Get tracer statistics.
-      Tracer.reset,method,(),180-183,false,4,1,Clear all spans and metrics.
+      Tracer.__init__,method,"(service_name:str='proxeen', max_spans:int=500)",98-105,false,8,1,creates
+      Tracer.span,method,"(name:str, parent:Optional[Span]=None, attributes:Optional[Dict]=None)",108-130,false,23,5,"Context manager that creates, yields, and finishes a Span."
+      Tracer._record,method,"(span:Span)",132-151,false,20,5,Record a finished span into buffer and metrics.
+      Tracer.get_metrics,method,"() -> Dict[str, Dict]",153-166,false,14,5,Get aggregated metrics per span name.
+      Tracer.get_recent_spans,method,"(n:int=20, name:Optional[str]=None) -> List[Dict]",168-173,false,6,5,"Get recent spans, optionally filtered by name."
+      Tracer.get_trace,method,"(trace_id:str) -> List[Dict]",175-177,false,3,3,Get all spans belonging to a trace.
+      Tracer.get_stats,method,() -> Dict,179-186,false,8,1,Get tracer statistics.
+      Tracer.reset,method,(),188-191,false,4,1,Clear all spans and metrics.
+      TracerNfoBridge.emit_span,method,"(span:Span) -> None",229-260,false,32,6,Convert a finished Span into an nfo LogEntry and emit it.
   backend/diagnostics.py:
     functions[21]{name,kind,sig,loc,async,lines,cc,does}:
       AutoDiagnostics.__init__,method,"(app_state:dict, interval:float=30.0)",30-36,false,7,1,creates
@@ -417,14 +424,14 @@ function_details:
   backend/server.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       _read_version,function,() -> str,31-37,false,7,2,retrieves version
-      _get_sqlite_conn,function,"(db_file:str) -> sqlite3.Connection",65-77,false,13,2,Get a shared SQLite connection for log writes (reused across log entries).
-      _flush_and_close_sqlite_conn,function,(),80-98,false,19,4,Flush buffered SQLite log writes and close shared connection on shutdown.
-      setup_logging,function,(),101-162,false,62,2,initializes logging
-      broadcast,function,"(event_type:str, data:Dict)",205-229,true,25,5,Broadcast SSE event to all connected overlay clients.
-      screen_analysis_loop,function,(),232-241,true,10,1,Main loop — delegates to AnalysisLoop (testable tick extraction).
-      on_transcript,function,"(text:str, is_final:bool)",244-270,true,27,4,Callback for STT transcripts.
-      _nfo_validate_startup,function,"(state:Dict)",274-312,false,39,5,nfo-instrumented startup validation.
-      lifespan,function,"(app:FastAPI)",316-333,true,18,1,FastAPI lifespan context manager — delegates to AppBootstrap.
+      _get_sqlite_conn,function,"(db_file:str) -> sqlite3.Connection",86-98,false,13,2,Get a shared SQLite connection for log writes (reused across log entries).
+      _flush_and_close_sqlite_conn,function,(),101-119,false,19,4,Flush buffered SQLite log writes and close shared connection on shutdown.
+      setup_logging,function,(),122-183,false,62,2,initializes logging
+      broadcast,function,"(event_type:str, data:Dict)",226-250,true,25,5,Broadcast SSE event to all connected overlay clients.
+      screen_analysis_loop,function,(),253-262,true,10,1,Main loop — delegates to AnalysisLoop (testable tick extraction).
+      on_transcript,function,"(text:str, is_final:bool)",265-291,true,27,4,Callback for STT transcripts.
+      _nfo_validate_startup,function,"(state:Dict)",295-333,false,39,5,nfo-instrumented startup validation.
+      lifespan,function,"(app:FastAPI)",337-354,true,18,1,FastAPI lifespan context manager — delegates to AppBootstrap.
   backend/app_profiles.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       create_profile_manager,function,(settings=None) -> ProfileManager,390-392,false,3,1,Create ProfileManager instance.
@@ -965,6 +972,15 @@ function_details:
       TestGetSettings.test_returns_settings_instance,method,(),156-159,false,4,1,checks returns settings instance
       TestGetSettings.test_cached,method,(),161-165,false,5,1,checks cached
       TestGetSettings.test_reload_clears_cache,method,(),167-170,false,4,1,checks reload clears cache
+  backend/tests/test_profile_selector_nfo.py:
+    functions[7]{name,kind,sig,loc,async,lines,cc,does}:
+      TestProfileSelectorDecisions._make_selector,method,(),16-17,false,2,1,creates selector
+      TestProfileSelectorDecisions.test_default_emits_normal,method,(),19-28,false,10,1,checks default emits normal
+      TestProfileSelectorDecisions.test_forced_profile_emits_forced,method,(),30-39,false,10,1,checks forced profile emits forced
+      TestProfileSelectorDecisions.test_periodic_full_scan_emits_periodic,method,(),41-53,false,13,1,checks periodic full scan emits periodic
+      TestProfileSelectorDecisions.test_idle_emits_fast,method,(),55-72,false,18,1,checks idle emits fast
+      TestProfileSelectorDecisions.test_idle_with_vlm_ocr_emits_normal,method,(),74-89,false,16,1,checks idle with vlm ocr emits normal
+      TestProfileSelectorDecisions.test_decision_emitted_every_call,method,(),91-102,false,12,1,Every select() call emits exactly one decision.
   backend/tests/test_units.py:
     functions[131]{name,kind,sig,loc,async,lines,cc,does}:
       TestAppClassification.test_ide_detection,method,(),29-35,false,7,1,checks ide detection
@@ -1098,6 +1114,31 @@ function_details:
       TestDiagnosticsVlmOcr.test_vlm_ocr_check_healthy,method,(),1595-1609,false,15,1,VLM OCR check reports healthy stats.
       TestDiagnosticsVlmOcr.test_vlm_ocr_check_high_error_rate_warns,method,(),1611-1625,false,15,1,VLM OCR check warns when error rate > 30%.
       TestDiagnosticsVlmOcr.test_vlm_ocr_check_critical_error_rate_fails,method,(),1627-1639,false,13,1,VLM OCR check fails when error rate > 50%.
+  backend/tests/test_pipeline_nfo.py:
+    functions[23]{name,kind,sig,loc,async,lines,cc,does}:
+      TestExtractStepMetrics.test_scan_windows_metrics,method,(),26-35,false,10,1,checks scan windows metrics
+      TestExtractStepMetrics.test_scan_windows_no_active,method,(),37-44,false,8,1,checks scan windows no active
+      TestExtractStepMetrics.test_capture_screen_metrics,method,(),46-52,false,7,1,checks capture screen metrics
+      TestExtractStepMetrics.test_capture_screen_no_image,method,(),54-60,false,7,1,checks capture screen no image
+      TestExtractStepMetrics.test_build_context_metrics,method,(),62-69,false,8,1,checks build context metrics
+      TestExtractStepMetrics.test_suggest_actions_metrics,method,(),71-76,false,6,1,checks suggest actions metrics
+      TestExtractStepMetrics.test_build_broadcast_metrics,method,(),78-83,false,6,1,checks build broadcast metrics
+      TestExtractStepMetrics.test_unknown_step_returns_empty,method,(),85-88,false,4,1,checks unknown step returns empty
+      TestExtractStepMetrics.test_crop_windows_metrics,method,(),90-97,false,8,1,checks crop windows metrics
+      TestExtractStepMetrics.test_crop_windows_no_screen,method,(),99-104,false,6,1,checks crop windows no screen
+      TestExtractStepMetrics.test_exception_in_factory_returns_empty,method,(),106-116,false,11,1,"If a factory raises, return {} instead of crashing."
+      TestAnalyzeMetrics.test_full_analysis_result,method,(),125-150,false,26,1,checks full analysis result
+      TestAnalyzeMetrics.test_no_ocr,method,(),152-165,false,14,1,checks no ocr
+      TestAnalyzeMetrics.test_no_analysis_result,method,(),167-172,false,6,1,checks no analysis result
+      TestAnalyzeMetrics.test_cost_none_coerced_to_zero,method,(),174-179,false,6,1,checks cost none coerced to zero
+      _FakeStep.__init__,method,"(step_name, can=True, fail=False)",188-191,false,4,1,creates
+      _FakeStep.can_run,method,(ctx),193-194,false,2,1,checks run
+      _FakeStep.execute,method,"(ctx, bus)",196-199,true,4,2,starts
+      TestOrchestratorNfoEmission.test_run_emits_step_entries,method,(),205-232,true,28,2,Each step emits an nfo LogEntry with pipeline_run_id.
+      TestOrchestratorNfoEmission.test_skipped_step_emits_decision,method,(),235-250,true,16,2,Skipped steps emit entries with decision=skipped.
+      TestOrchestratorNfoEmission.test_failed_step_emits_error,method,(),253-268,true,16,2,Failed steps emit ERROR-level entries with exception info.
+      TestOrchestratorNfoEmission.test_completion_marker_has_totals,method,(),271-289,true,19,2,"Completion entry includes total_ms, total_cost, total_steps, skipped, errors."
+      TestOrchestratorNfoEmission.test_all_run_ids_match,method,(),292-305,true,14,3,All entries in a single run share the same pipeline_run_id.
   backend/tests/test_window_aware.py:
     functions[34]{name,kind,sig,loc,async,lines,cc,does}:
       TestWindowInfo.test_default_values,method,(),22-26,false,5,1,checks default values
@@ -1546,7 +1587,7 @@ function_details:
       TestPayloadRegistry.test_all_command_events_registered,method,(),198-205,false,8,2,checks all command events registered
       TestPayloadRegistry.test_system_events_registered,method,(),207-209,false,3,1,checks system events registered
   backend/tests/test_observability.py:
-    functions[20]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[29]{name,kind,sig,loc,async,lines,cc,does}:
       TestSpan.test_auto_generates_ids,method,(),14-18,false,5,1,checks auto generates ids
       TestSpan.test_set_attribute,method,(),20-23,false,4,1,checks set attribute
       TestSpan.test_set_error,method,(),25-29,false,5,1,checks set error
@@ -1567,6 +1608,15 @@ function_details:
       TestTracer.test_reset,method,(),162-168,false,7,1,checks reset
       TestGlobalTracer.test_get_tracer_singleton,method,(),172-176,false,5,1,checks get tracer singleton
       TestGlobalTracer.test_reset_tracer,method,(),178-183,false,6,1,checks reset tracer
+      TestTracerNfoBridge.test_emit_span_creates_log_entry,method,(),196-212,false,17,1,Bridge converts a finished Span into an nfo LogEntry.
+      TestTracerNfoBridge.test_emit_span_error_status,method,(),214-226,false,13,1,Error spans produce ERROR level entries.
+      TestTracerNfoBridge.test_emit_span_parent_id_included,method,(),228-238,false,11,1,Parent span ID is included when present.
+      TestTracerNfoBridge.test_emit_span_no_parent_id_when_empty,method,(),240-249,false,10,1,No parent_span_id key when span has no parent.
+      TestAttachNfoBridge.test_attach_sets_bridge_on_tracer,method,(),254-259,false,6,1,checks attach sets bridge on tracer
+      TestAttachNfoBridge.test_attach_uses_global_tracer,method,(),261-265,false,5,1,checks attach uses global tracer
+      TestAttachNfoBridge.test_bridge_called_on_span_finish,method,(),267-279,false,13,1,"After attaching, _record() calls the bridge."
+      TestAttachNfoBridge.test_bridge_error_does_not_break_tracing,method,(),281-293,false,13,1,"If bridge.emit_span raises, tracing still works."
+      TestAttachNfoBridge.test_bridge_not_called_when_not_attached,method,(),295-301,false,7,1,"Without bridge, spans work normally."
   backend/tests/test_circuit_breaker.py:
     functions[27]{name,kind,sig,loc,async,lines,cc,does}:
       TestCircuitBreaker.test_initial_state_closed,method,(),26-29,false,4,1,checks initial state closed
@@ -2378,14 +2428,15 @@ function_details:
       PipelineStep.can_run,method,"(ctx:PipelineContext) -> bool",20-22,false,3,1,Check if this step should run given current context.
       PipelineStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",24-26,true,3,1,"Execute step, update context, emit events."
   backend/pipeline/context.py:
-    functions[7]{name,kind,sig,loc,async,lines,cc,does}:
-      ProfileSelector.__init__,method,"(full_interval:float=60.0, force_profile:Optional[str]=None, ocr_manager=None)",39-52,false,14,3,creates
-      ProfileSelector.select,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",54-96,false,43,7,Choose optimal profile for this pipeline tick.
-      ProfileSelector._is_vlm_ocr_active,method,() -> bool,98-102,false,5,2,Check if the active OCR engine is cloud-based VLM OCR (high latency).
-      ProfileSelector.get_min_interval,method,() -> float,104-112,false,9,2,Return minimum pipeline interval based on active OCR engine.
-      ProfileSelector.notify_active_window_changed,method,"(new_wid:int)",114-118,false,5,2,Signal that active window changed — next tick should be FULL.
-      ProfileSelector.get_stats,method,() -> Dict,120-126,false,7,3,retrieves stats
-      PipelineContext.__post_init__,method,(),196-202,false,7,4,creates init
+    functions[8]{name,kind,sig,loc,async,lines,cc,does}:
+      _emit_profile_decision,function,"(profile:str, reason:str) -> None",14-35,false,22,1,Emit a profile selection decision to nfo.
+      ProfileSelector.__init__,method,"(full_interval:float=60.0, force_profile:Optional[str]=None, ocr_manager=None)",64-77,false,14,3,creates
+      ProfileSelector.select,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",79-128,false,50,7,Choose optimal profile for this pipeline tick.
+      ProfileSelector._is_vlm_ocr_active,method,() -> bool,130-134,false,5,2,Check if the active OCR engine is cloud-based VLM OCR (high latency).
+      ProfileSelector.get_min_interval,method,() -> float,136-144,false,9,2,Return minimum pipeline interval based on active OCR engine.
+      ProfileSelector.notify_active_window_changed,method,"(new_wid:int)",146-150,false,5,2,Signal that active window changed — next tick should be FULL.
+      ProfileSelector.get_stats,method,() -> Dict,152-158,false,7,3,retrieves stats
+      PipelineContext.__post_init__,method,(),228-234,false,7,4,creates init
   backend/pipeline/steps_tier1.py:
     functions[27]{name,kind,sig,loc,async,lines,cc,does}:
       MultiMonitorStep.__init__,method,"(monitor_capture, window_manager=None)",17-19,false,3,1,creates
@@ -2416,55 +2467,61 @@ function_details:
       ClipboardRelationStep._build_skill_ctx,method,"(screen_text:str, clipboard_top:str)",321-332,false,12,2,Build minimal SkillContext for clipboard relation detection.
       ClipboardRelationStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",334-382,true,49,8,starts
   backend/pipeline/steps_core.py:
-    functions[36]{name,kind,sig,loc,async,lines,cc,does}:
-      ScanWindowsStep.__init__,method,"(process_scanner, cache_ttl:float=3.0)",26-30,false,5,1,creates
-      ScanWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",32-33,false,2,1,checks run
-      ScanWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",35-54,true,20,5,starts
-      DetectActiveWindowStep.__init__,method,"(window_manager, use_window_roi:bool=False)",61-63,false,3,1,creates
-      DetectActiveWindowStep.can_run,method,"(ctx:PipelineContext) -> bool",65-66,false,2,1,checks run
-      DetectActiveWindowStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",68-82,true,15,3,starts
-      CaptureScreenStep.__init__,method,(capture),89-90,false,2,1,creates
-      CaptureScreenStep.can_run,method,"(ctx:PipelineContext) -> bool",92-93,false,2,1,checks run
-      CaptureScreenStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",95-118,true,24,4,starts
-      CropWindowsStep.__init__,method,(window_cropper),128-129,false,2,1,creates
-      CropWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",131-138,false,8,4,checks run
-      CropWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",140-162,true,23,2,starts
-      BuildContextStep.__init__,method,"(context_mgr, profile_mgr=None, app_state_ref=None, semantic_memory=None)",169-176,false,8,2,creates
-      BuildContextStep.can_run,method,"(ctx:PipelineContext) -> bool",178-179,false,2,1,checks run
-      BuildContextStep._context_version,method,"() -> Optional[int]",181-193,false,13,4,Best-effort version marker to detect context history changes.
-      BuildContextStep._focus_window_prefix,method,"(ctx:PipelineContext) -> str",196-205,false,10,4,focus window prefix
-      BuildContextStep._format_memories,method,"(items:list, max_chars:int=400) -> str",208-220,false,13,6,Format recalled memory items into a truncated string.
-      BuildContextStep._recall_semantic_context,method,"(query:str, max_chars:int=400) -> str",222-233,false,12,5,Recall relevant past memories from SemanticMemory to enrich context.
-      BuildContextStep._assemble_context_parts,method,"(ctx:PipelineContext, focus_prefix:str) -> str",235-252,false,18,8,"Build context string from window info, screen summary, focus, semantic memory, a..."
-      BuildContextStep._build_full_context,method,"(context_str:str, prompt_addon:str, transcript:str) -> str",255-263,false,9,5,Prepend prompt addon and transcript to context string.
-      BuildContextStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",265-299,true,35,7,starts
-      AnalyzeStep.__init__,method,"(analyzer, cost_budget=None)",306-308,false,3,1,creates
-      AnalyzeStep.can_run,method,"(ctx:PipelineContext) -> bool",310-311,false,2,2,checks run
-      AnalyzeStep._apply_budget_downgrade,method,"(requested_mode:str) -> tuple",313-343,false,31,8,Try budget-aware mode downgrade.
-      AnalyzeStep._restore_mode,method,"(requested_mode:str)",345-352,false,8,3,Restore analyzer to user-selected mode after budget downgrade.
-      AnalyzeStep._record_spend,method,"(cost:float)",354-360,false,7,5,Record analysis cost to budget tracker.
-      AnalyzeStep._record_ocr_spend,method,"(cost:float)",362-368,false,7,5,Record OCR cost to budget tracker (separate from analysis).
-      AnalyzeStep._run_analysis,method,"(ctx:PipelineContext, requested_mode:str, mode_switched:bool) -> dict",370-380,true,11,3,Run LLM analysis with budget-aware mode switching.
-      AnalyzeStep._emit_result,method,"(ctx:PipelineContext, bus:EventBus, requested_mode:str, effective_mode:str, latency_ms:int) -> None",382-409,true,28,2,Emit analysis completed event and OCR cost event if applicable.
-      AnalyzeStep._emit_ocr_cost,method,"(analysis:dict, bus:EventBus, correlation_id:str) -> None",411-437,true,27,6,Emit separate OCR cost event when VLM OCR reports cost.
-      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",439-452,true,14,2,starts
-      SuggestActionsStep.__init__,method,(shell_agent),459-460,false,2,1,creates
-      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",462-468,false,7,4,checks run
-      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",470-491,true,22,5,starts
-      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",498-499,false,2,2,checks run
-      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",501-552,true,52,6,starts
+    functions[37]{name,kind,sig,loc,async,lines,cc,does}:
+      ScanWindowsStep.__init__,method,"(process_scanner, cache_ttl:float=3.0)",27-31,false,5,1,creates
+      ScanWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",33-34,false,2,1,checks run
+      ScanWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",36-55,true,20,5,starts
+      DetectActiveWindowStep.__init__,method,"(window_manager, use_window_roi:bool=False)",62-64,false,3,1,creates
+      DetectActiveWindowStep.can_run,method,"(ctx:PipelineContext) -> bool",66-67,false,2,1,checks run
+      DetectActiveWindowStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",69-83,true,15,3,starts
+      CaptureScreenStep.__init__,method,(capture),90-91,false,2,1,creates
+      CaptureScreenStep.can_run,method,"(ctx:PipelineContext) -> bool",93-94,false,2,1,checks run
+      CaptureScreenStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",96-119,true,24,4,starts
+      CropWindowsStep.__init__,method,(window_cropper),129-130,false,2,1,creates
+      CropWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",132-139,false,8,4,checks run
+      CropWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",141-163,true,23,2,starts
+      BuildContextStep.__init__,method,"(context_mgr, profile_mgr=None, app_state_ref=None, semantic_memory=None)",170-177,false,8,2,creates
+      BuildContextStep.can_run,method,"(ctx:PipelineContext) -> bool",179-180,false,2,1,checks run
+      BuildContextStep._context_version,method,"() -> Optional[int]",182-194,false,13,4,Best-effort version marker to detect context history changes.
+      BuildContextStep._focus_window_prefix,method,"(ctx:PipelineContext) -> str",197-206,false,10,4,focus window prefix
+      BuildContextStep._format_memories,method,"(items:list, max_chars:int=400) -> str",209-221,false,13,6,Format recalled memory items into a truncated string.
+      BuildContextStep._recall_semantic_context,method,"(query:str, max_chars:int=400) -> str",223-234,false,12,5,Recall relevant past memories from SemanticMemory to enrich context.
+      BuildContextStep._assemble_context_parts,method,"(ctx:PipelineContext, focus_prefix:str) -> str",236-253,false,18,8,"Build context string from window info, screen summary, focus, semantic memory, a..."
+      BuildContextStep._build_full_context,method,"(context_str:str, prompt_addon:str, transcript:str) -> str",256-264,false,9,5,Prepend prompt addon and transcript to context string.
+      BuildContextStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",266-300,true,35,7,starts
+      AnalyzeStep.__init__,method,"(analyzer, cost_budget=None)",307-309,false,3,1,creates
+      AnalyzeStep.can_run,method,"(ctx:PipelineContext) -> bool",311-312,false,2,2,checks run
+      AnalyzeStep._apply_budget_downgrade,method,"(requested_mode:str) -> tuple",314-351,false,38,8,Try budget-aware mode downgrade.
+      AnalyzeStep._emit_decision,method,"(decision:str, reason:str, from_mode:str, to_mode:str) -> None",354-376,false,23,2,Emit a budget decision entry to nfo.
+      AnalyzeStep._restore_mode,method,"(requested_mode:str)",378-385,false,8,3,Restore analyzer to user-selected mode after budget downgrade.
+      AnalyzeStep._record_spend,method,"(cost:float)",387-393,false,7,5,Record analysis cost to budget tracker.
+      AnalyzeStep._record_ocr_spend,method,"(cost:float)",395-401,false,7,5,Record OCR cost to budget tracker (separate from analysis).
+      AnalyzeStep._run_analysis,method,"(ctx:PipelineContext, requested_mode:str, mode_switched:bool) -> dict",403-413,true,11,3,Run LLM analysis with budget-aware mode switching.
+      AnalyzeStep._emit_result,method,"(ctx:PipelineContext, bus:EventBus, requested_mode:str, effective_mode:str, latency_ms:int) -> None",415-442,true,28,2,Emit analysis completed event and OCR cost event if applicable.
+      AnalyzeStep._emit_ocr_cost,method,"(analysis:dict, bus:EventBus, correlation_id:str) -> None",444-470,true,27,6,Emit separate OCR cost event when VLM OCR reports cost.
+      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",472-485,true,14,2,starts
+      SuggestActionsStep.__init__,method,(shell_agent),492-493,false,2,1,creates
+      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",495-501,false,7,4,checks run
+      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",503-524,true,22,5,starts
+      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",531-532,false,2,2,checks run
+      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",534-585,true,52,6,starts
   backend/pipeline/orchestrator.py:
-    functions[13]{name,kind,sig,loc,async,lines,cc,does}:
-      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",182-240,false,59,3,"Factory: create the standard analysis pipeline from components."
-      create_profile_selector,function,(ocr_manager=None) -> ProfileSelector,243-249,false,7,2,Create ProfileSelector from environment variables.
-      ParallelGroup.__init__,method,"(steps:List, name:Optional[str]=None)",35-37,false,3,3,creates
-      ParallelGroup.can_run,method,"(ctx:PipelineContext) -> bool",39-40,false,2,2,checks run
-      ParallelGroup.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",42-64,true,23,5,starts
-      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None)",77-81,false,5,2,creates
-      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",83-86,false,4,1,Add a step to the pipeline (builder pattern).
-      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",88-91,false,4,3,Remove a step by name.
-      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",93-100,false,8,3,Insert a step before another step by name.
-      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",102-109,false,8,3,Insert a step after another step by name.
-      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",111-167,true,57,5,Execute all pipeline steps in order.
-      PipelineOrchestrator.get_step_names,method,"() -> List[str]",169-171,false,3,2,Get ordered list of step names.
-      PipelineOrchestrator.get_stats,method,() -> Dict,173-179,false,7,1,retrieves stats
+    functions[18]{name,kind,sig,loc,async,lines,cc,does}:
+      _get_nfo_logger,function,(),281-284,false,4,1,Return the nfo default logger (set by nfo.configure).
+      _extract_step_metrics,function,"(step_name:str, ctx:PipelineContext) -> Dict[str, Any]",287-349,false,63,3,Extract lightweight metrics from PipelineContext after a step executes.
+      _analyze_metrics,function,"(ctx:PipelineContext) -> Dict[str, Any]",352-370,false,19,4,"Extract analysis-specific metrics (cost, tokens, provider, OCR)."
+      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",373-431,false,59,3,"Factory: create the standard analysis pipeline from components."
+      create_profile_selector,function,(ocr_manager=None) -> ProfileSelector,434-440,false,7,2,Create ProfileSelector from environment variables.
+      ParallelGroup.__init__,method,"(steps:List, name:Optional[str]=None)",36-38,false,3,3,creates
+      ParallelGroup.can_run,method,"(ctx:PipelineContext) -> bool",40-41,false,2,2,checks run
+      ParallelGroup.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",43-65,true,23,5,starts
+      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None)",78-82,false,5,2,creates
+      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",84-87,false,4,1,Add a step to the pipeline (builder pattern).
+      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",89-92,false,4,3,Remove a step by name.
+      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",94-101,false,8,3,Insert a step before another step by name.
+      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",103-110,false,8,3,Insert a step after another step by name.
+      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",112-198,true,87,5,Execute all pipeline steps in order.
+      PipelineOrchestrator._emit_step,method,"(run_id:str, step_name:str, duration_ms:Optional[float]=None, exception:Optional[str]=None, exception_type:Optional[str]=None) -> None",202-232,false,31,3,Emit a single pipeline step entry to nfo.
+      PipelineOrchestrator._emit_completion,method,"(run_id:str, total_ms:float, total_cost:float, total_steps:int, skipped:int, errors:int) -> None",234-264,false,31,1,Emit the pipeline completion marker for PipelineSink flush.
+      PipelineOrchestrator.get_step_names,method,"() -> List[str]",266-268,false,3,2,Get ordered list of step names.
+      PipelineOrchestrator.get_stats,method,() -> Dict,270-276,false,7,1,retrieves stats

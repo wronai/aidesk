@@ -181,3 +181,121 @@ class TestGlobalTracer:
         reset_tracer()
         t2 = get_tracer()
         assert t1 is not t2
+
+
+# ---------------------------------------------------------------------------
+# TracerNfoBridge tests
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch, MagicMock
+from observability import TracerNfoBridge, attach_nfo_bridge
+
+
+class TestTracerNfoBridge:
+
+    def test_emit_span_creates_log_entry(self):
+        """Bridge converts a finished Span into an nfo LogEntry."""
+        span = Span(name="test_op")
+        span.set_attribute("key", "value")
+        span.finish()
+
+        mock_logger = MagicMock()
+        with patch("nfo.decorators._get_default_logger", return_value=mock_logger):
+            TracerNfoBridge.emit_span(span)
+            assert mock_logger.emit.called
+            entry = mock_logger.emit.call_args[0][0]
+            assert entry.function_name == "span.test_op"
+            assert entry.level == "INFO"
+            assert entry.extra["span_name"] == "test_op"
+            assert entry.extra["trace_id"] == span.trace_id
+            assert entry.extra["key"] == "value"
+            assert entry.duration_ms is not None
+
+    def test_emit_span_error_status(self):
+        """Error spans produce ERROR level entries."""
+        span = Span(name="fail_op")
+        span.set_error("connection refused")
+        span.finish()
+
+        mock_logger = MagicMock()
+        with patch("nfo.decorators._get_default_logger", return_value=mock_logger):
+            TracerNfoBridge.emit_span(span)
+            entry = mock_logger.emit.call_args[0][0]
+            assert entry.level == "ERROR"
+            assert entry.exception == "connection refused"
+            assert entry.exception_type == "SpanError"
+
+    def test_emit_span_parent_id_included(self):
+        """Parent span ID is included when present."""
+        parent = Span(name="parent")
+        child = Span(name="child", trace_id=parent.trace_id, parent_id=parent.span_id)
+        child.finish()
+
+        mock_logger = MagicMock()
+        with patch("nfo.decorators._get_default_logger", return_value=mock_logger):
+            TracerNfoBridge.emit_span(child)
+            entry = mock_logger.emit.call_args[0][0]
+            assert entry.extra["parent_span_id"] == parent.span_id
+
+    def test_emit_span_no_parent_id_when_empty(self):
+        """No parent_span_id key when span has no parent."""
+        span = Span(name="root")
+        span.finish()
+
+        mock_logger = MagicMock()
+        with patch("nfo.decorators._get_default_logger", return_value=mock_logger):
+            TracerNfoBridge.emit_span(span)
+            entry = mock_logger.emit.call_args[0][0]
+            assert "parent_span_id" not in entry.extra
+
+
+class TestAttachNfoBridge:
+
+    def test_attach_sets_bridge_on_tracer(self):
+        t = Tracer()
+        assert t._nfo_bridge is None
+        bridge = attach_nfo_bridge(t)
+        assert t._nfo_bridge is bridge
+        assert isinstance(bridge, TracerNfoBridge)
+
+    def test_attach_uses_global_tracer(self):
+        reset_tracer()
+        t = get_tracer()
+        bridge = attach_nfo_bridge()
+        assert t._nfo_bridge is bridge
+
+    def test_bridge_called_on_span_finish(self):
+        """After attaching, _record() calls the bridge."""
+        t = Tracer()
+        mock_bridge = MagicMock()
+        t._nfo_bridge = mock_bridge
+
+        with t.span("test_op") as s:
+            s.set_attribute("x", 42)
+
+        assert mock_bridge.emit_span.called
+        emitted_span = mock_bridge.emit_span.call_args[0][0]
+        assert emitted_span.name == "test_op"
+        assert emitted_span.attributes["x"] == 42
+
+    def test_bridge_error_does_not_break_tracing(self):
+        """If bridge.emit_span raises, tracing still works."""
+        t = Tracer()
+        mock_bridge = MagicMock()
+        mock_bridge.emit_span.side_effect = RuntimeError("bridge broke")
+        t._nfo_bridge = mock_bridge
+
+        # Should not raise
+        with t.span("test_op"):
+            pass
+
+        assert len(t._spans) == 1
+        assert t._spans[0].status == "ok"
+
+    def test_bridge_not_called_when_not_attached(self):
+        """Without bridge, spans work normally."""
+        t = Tracer()
+        assert t._nfo_bridge is None
+        with t.span("test_op"):
+            pass
+        assert len(t._spans) == 1
