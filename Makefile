@@ -22,7 +22,7 @@ ifeq ($(PORT),)
   PORT := 8000
 endif
 
-.PHONY: help setup setup-backend setup-overlay env install install-system-deps diag diagnostics run run-backend run-overlay stop clean test test-setup test-units test-e2e test-vlm-ocr test-all status logs
+.PHONY: help setup setup-backend setup-overlay env install install-system-deps diag diagnostics run run-backend run-overlay stop clean test test-setup test-units test-e2e test-vlm-ocr test-strategy test-all status logs
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -150,6 +150,9 @@ test-e2e: ## Run e2e API tests (with lifespan)
 
 test-vlm-ocr: ## Run VLM OCR engine + preflight tests
 	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_vlm_ocr_engine.py $(BACKEND_DIR)/tests/test_preflight.py -v
+
+test-strategy: ## Run OptimizationStrategy unit + integration tests
+	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/test_optimization_strategy.py $(BACKEND_DIR)/tests/test_optimization_integration.py -v
 
 test-all: ## Run full test suite (excluding known pre-existing failures)
 	$(PYTHON) -m pytest $(BACKEND_DIR)/tests/ -v --ignore=$(BACKEND_DIR)/tests/test_plugins.py

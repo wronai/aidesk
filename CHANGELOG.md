@@ -1,3 +1,23 @@
+## [2.1.38] - 2026-02-15
+
+### Summary
+
+refactor(docs): configuration management system
+
+### Docs
+
+- docs: update ARCHITECTURE.md
+
+### Other
+
+- build: update Makefile
+- update backend/bootstrap.py
+- update backend/server.py
+- update backend/tests/test_optimization_integration.py
+- update project.functions.toon
+- update project.toon
+
+
 ## [2.1.37] - 2026-02-15
 
 ### Summary

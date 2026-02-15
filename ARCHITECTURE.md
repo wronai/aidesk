@@ -463,6 +463,39 @@ ActionRisk (Enum)
 - 30+ safe commands whitelist (git status, ls, df, ps...)
 - 10+ approval-required commands (git push, pip install, make...)
 
+#### optimization_strategy.py - Centralized Pipeline Optimization (Tier 1)
+```python
+OptimizationStrategy
+├── decide(screen_changed, magnitude, idle) → OptimizationDecision
+│   ├── _budget_strategy()  — min cost: local OCR, hybrid, fallback model
+│   ├── _speed_strategy()   — min latency: GPU OCR, parallel, primary model
+│   ├── _quality_strategy() — max accuracy: ocr_plus_vision, primary model
+│   └── _auto_strategy()    — adaptive: budget_pct + latency → auto-switch
+├── record_tick(cost, latency) — feedback loop (EMA rolling window)
+├── detect_hardware() → HardwareProfile (auto-detect CUDA/VRAM)
+└── get_stats() → Dict
+
+OptimizationDecision (dataclass)
+├── ocr_engine: str           # paddleocr | vlm_ocr | tesseract | none
+├── analysis_mode: str        # vision_only | hybrid | ocr_only | ocr_plus_vision | skip
+├── vision_model_tier: str    # primary | fallback | emergency | none
+├── prefer_local: bool
+├── reason: str               # human-readable decision reason
+├── estimated_cost: float
+└── estimated_latency_ms: int
+
+Priority (Enum): BUDGET | SPEED | QUALITY | AUTO
+HardwareProfile (Enum): GPU_HIGH | GPU_LOW | CPU_ONLY | AUTO
+```
+
+**Integration points:**
+- `ProfileSelector.select()` — uses decision to map analysis_mode → pipeline profile
+- `AnalyzeStep.execute()` — uses decision for mode/OCR/model tier selection
+- `PipelineOrchestrator.run()` — calls `record_tick()` on completion (feedback loop)
+- `AppBootstrap.init_tier1()` — creates strategy after cost_budget
+
+**Config:** `OPTIMIZATION_PRIORITY=auto|budget|speed|quality`, `HARDWARE_PROFILE=auto|gpu_high|gpu_low|cpu_only`
+
 #### multi_monitor.py - Multi-Monitor Intelligence (Tier 1)
 ```python
 MonitorAwareCapture

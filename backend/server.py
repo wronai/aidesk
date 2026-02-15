@@ -212,6 +212,7 @@ app_state = {
     "action_library": None,
     "ocr_enhancer": None,
     "predictive_engine": None,
+    "optimization_strategy": None,
     "latest_window": None,
     "latest_organized_screen": None,
     "stats": {
@@ -314,6 +315,7 @@ def _nfo_validate_startup(state: Dict):
         "action_library": state.get("action_library") is not None,
         "ocr_enhancer": state.get("ocr_enhancer") is not None,
         "predictive_engine": state.get("predictive_engine") is not None,
+        "optimization_strategy": state.get("optimization_strategy") is not None,
     }
     ok = [k for k, v in components.items() if v]
     failed = [k for k, v in components.items() if not v]

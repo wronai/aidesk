@@ -1,6 +1,6 @@
 project: proxeen
-generated: "2026-02-15T11:00:20.406773"
-modules[116]{path,lang,items}:
+generated: "2026-02-15T11:12:17.763350"
+modules[119]{path,lang,items}:
   rename_to_proxeen.py,python,6
   backend/process_scanner.py,python,28
   backend/stt.py,python,8
@@ -22,13 +22,14 @@ modules[116]{path,lang,items}:
   backend/context.py,python,6
   backend/action_templates.py,python,22
   backend/window_aware.py,python,43
+  backend/optimization_strategy.py,python,21
   backend/vlm_ocr_engine.py,python,7
   backend/async_subprocess.py,python,4
   backend/test_setup.py,python,14
   backend/wayland_screencast.py,python,21
   backend/event_bus.py,python,27
   backend/command_handlers.py,python,9
-  backend/settings.py,python,7
+  backend/settings.py,python,11
   backend/predictive_engine.py,python,16
   backend/ocr_post_process.py,python,17
   backend/semantic_memory.py,python,25
@@ -64,11 +65,13 @@ modules[116]{path,lang,items}:
   backend/tests/test_pipeline_nfo.py,python,23
   backend/tests/test_window_aware.py,python,34
   backend/tests/test_analysis_loop.py,python,20
+  backend/tests/test_optimization_strategy.py,python,39
   backend/tests/test_skills.py,python,158
   backend/tests/test_bootstrap.py,python,20
   backend/tests/test_multi_monitor.py,python,33
   backend/tests/test_plugins.py,python,18
   backend/tests/test_routes.py,python,122
+  backend/tests/test_optimization_integration.py,python,28
   backend/tests/test_typed_events.py,python,26
   backend/tests/test_observability.py,python,29
   backend/tests/test_circuit_breaker.py,python,27
@@ -113,9 +116,9 @@ modules[116]{path,lang,items}:
   backend/skills/url_handler.py,python,5
   backend/pipeline/protocol.py,python,2
   backend/pipeline/__init__.py,python,0
-  backend/pipeline/context.py,python,8
+  backend/pipeline/context.py,python,10
   backend/pipeline/steps_tier1.py,python,27
-  backend/pipeline/steps_core.py,python,37
+  backend/pipeline/steps_core.py,python,39
   backend/pipeline/orchestrator.py,python,18
 
 function_details:
@@ -239,21 +242,21 @@ function_details:
       EventBroadcaster.broadcast,method,"(event_type:str, data:Dict) -> None",223-225,true,3,1,Send event to all connected SSE clients.
   backend/bootstrap.py:
     functions[15]{name,kind,sig,loc,async,lines,cc,does}:
-      _get_nfo_logger,function,(),51-54,false,4,1,Return the nfo default logger (set by nfo.configure).
-      _emit_boot,function,"(component:str, phase:str, ok:bool, elapsed_ms:float, summary:str='') -> None",57-74,false,18,3,Emit an nfo LogEntry for a bootstrap component init.
-      _init_optional,function,"(state:dict, key:str, factory) -> bool",77-88,false,12,2,Try to initialize an optional component.
-      AppBootstrap.__init__,method,"(app_state:dict, broadcast_fn:Callable, version:str='')",107-114,false,8,1,creates
-      AppBootstrap._init_component,method,"(key:str, factory, phase:str) -> bool",118-145,false,28,6,"Initialize a component with timing, nfo logging, and error handling."
-      AppBootstrap.init_core,method,(),149-165,false,17,2,"Initialize capture, OCR manager, and analyzer."
-      AppBootstrap.init_window,method,(),169-175,false,7,3,"Initialize window manager, profile manager, and shell agent."
-      AppBootstrap.init_scanners,method,(),179-199,false,21,2,Initialize process scanner and window cropper.
-      AppBootstrap.init_tier1,method,(),203-215,false,13,2,"Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR..."
-      AppBootstrap.init_pipeline,method,(),219-279,false,61,2,"Initialize event bus, pipeline orchestrator, CQRS handlers."
-      AppBootstrap.init_plugins,method,(),283-297,false,15,1,Discover and load plugins.
-      AppBootstrap.start_tasks,method,"(screen_loop_coro, on_transcript_cb)",301-354,true,54,9,"Start screen analysis loop, STT, and diagnostics as async tasks."
-      AppBootstrap.startup,method,"(screen_loop_coro, on_transcript_cb)",359-387,true,29,6,Run all initialization phases in order.
-      AppBootstrap.shutdown,method,(),392-433,true,42,10,Cancel all tasks and emit shutdown event.
-      AppBootstrap.init_report,method,"() -> Dict[str, bool]",438-440,false,3,1,Return init success/failure for each component.
+      _get_nfo_logger,function,(),52-55,false,4,1,Return the nfo default logger (set by nfo.configure).
+      _emit_boot,function,"(component:str, phase:str, ok:bool, elapsed_ms:float, summary:str='') -> None",58-75,false,18,3,Emit an nfo LogEntry for a bootstrap component init.
+      _init_optional,function,"(state:dict, key:str, factory) -> bool",78-89,false,12,2,Try to initialize an optional component.
+      AppBootstrap.__init__,method,"(app_state:dict, broadcast_fn:Callable, version:str='')",108-115,false,8,1,creates
+      AppBootstrap._init_component,method,"(key:str, factory, phase:str) -> bool",119-146,false,28,6,"Initialize a component with timing, nfo logging, and error handling."
+      AppBootstrap.init_core,method,(),150-166,false,17,2,"Initialize capture, OCR manager, and analyzer."
+      AppBootstrap.init_window,method,(),170-176,false,7,3,"Initialize window manager, profile manager, and shell agent."
+      AppBootstrap.init_scanners,method,(),180-200,false,21,2,Initialize process scanner and window cropper.
+      AppBootstrap.init_tier1,method,(),204-227,false,24,2,"Initialize Tier 1 modules: multi-monitor, semantic memory, action templates, OCR..."
+      AppBootstrap.init_pipeline,method,(),231-294,false,64,2,"Initialize event bus, pipeline orchestrator, CQRS handlers."
+      AppBootstrap.init_plugins,method,(),298-312,false,15,1,Discover and load plugins.
+      AppBootstrap.start_tasks,method,"(screen_loop_coro, on_transcript_cb)",316-369,true,54,9,"Start screen analysis loop, STT, and diagnostics as async tasks."
+      AppBootstrap.startup,method,"(screen_loop_coro, on_transcript_cb)",374-402,true,29,6,Run all initialization phases in order.
+      AppBootstrap.shutdown,method,(),407-448,true,42,10,Cancel all tasks and emit shutdown event.
+      AppBootstrap.init_report,method,"() -> Dict[str, bool]",453-455,false,3,1,Return init success/failure for each component.
   backend/multi_monitor.py:
     functions[19]{name,kind,sig,loc,async,lines,cc,does}:
       create_multi_monitor_from_env,function,(settings=None) -> MonitorAwareCapture,453-462,false,10,2,Create MonitorAwareCapture from settings.
@@ -427,11 +430,11 @@ function_details:
       _get_sqlite_conn,function,"(db_file:str) -> sqlite3.Connection",86-98,false,13,2,Get a shared SQLite connection for log writes (reused across log entries).
       _flush_and_close_sqlite_conn,function,(),101-119,false,19,4,Flush buffered SQLite log writes and close shared connection on shutdown.
       setup_logging,function,(),122-183,false,62,2,initializes logging
-      broadcast,function,"(event_type:str, data:Dict)",226-250,true,25,5,Broadcast SSE event to all connected overlay clients.
-      screen_analysis_loop,function,(),253-262,true,10,1,Main loop — delegates to AnalysisLoop (testable tick extraction).
-      on_transcript,function,"(text:str, is_final:bool)",265-291,true,27,4,Callback for STT transcripts.
-      _nfo_validate_startup,function,"(state:Dict)",295-333,false,39,5,nfo-instrumented startup validation.
-      lifespan,function,"(app:FastAPI)",337-354,true,18,1,FastAPI lifespan context manager — delegates to AppBootstrap.
+      broadcast,function,"(event_type:str, data:Dict)",227-251,true,25,5,Broadcast SSE event to all connected overlay clients.
+      screen_analysis_loop,function,(),254-263,true,10,1,Main loop — delegates to AnalysisLoop (testable tick extraction).
+      on_transcript,function,"(text:str, is_final:bool)",266-292,true,27,4,Callback for STT transcripts.
+      _nfo_validate_startup,function,"(state:Dict)",296-335,false,40,5,nfo-instrumented startup validation.
+      lifespan,function,"(app:FastAPI)",339-356,true,18,1,FastAPI lifespan context manager — delegates to AppBootstrap.
   backend/app_profiles.py:
     functions[9]{name,kind,sig,loc,async,lines,cc,does}:
       create_profile_manager,function,(settings=None) -> ProfileManager,390-392,false,3,1,Create ProfileManager instance.
@@ -550,6 +553,29 @@ function_details:
       WindowManager._get_monitor_for_window,method,"(info:WindowInfo) -> int",923-937,false,15,5,Determine which monitor a window center falls on.
       WindowManager.get_window_roi,method,"(info:Optional[WindowInfo]=None) -> Optional[Dict]",939-956,false,18,4,Get Region of Interest based on active window geometry.
       WindowManager.get_stats,method,() -> Dict,958-978,false,21,3,Get WindowManager statistics.
+  backend/optimization_strategy.py:
+    functions[21]{name,kind,sig,loc,async,lines,cc,does}:
+      _ema,function,"(values:List[float], alpha:float=0.3) -> float",61-68,false,8,3,Exponential Moving Average over a list of values.
+      create_optimization_strategy,function,"(settings:Any=None, cost_budget:Any=None) -> OptimizationStrategy",419-475,false,57,5,Create OptimizationStrategy from application settings.
+      OptimizationStrategy.__init__,method,"(priority:Priority, hardware:HardwareProfile, cost_budget:Any=None, settings:Any=None, metrics_window:int=20)",91-118,false,28,1,Initialize strategy.
+      OptimizationStrategy.decide,method,"(screen_changed:bool, change_magnitude:float=0.0, idle_frames:int=0) -> OptimizationDecision",120-139,false,20,1,Main decision method — called once per pipeline tick.
+      OptimizationStrategy.record_tick,method,"(actual_cost:float, actual_latency_ms:float, mode:str='') -> None",141-164,false,24,3,Feedback loop — record actual cost and latency after tick completes.
+      OptimizationStrategy._budget_strategy,method,"(changed:bool, magnitude:float, idle_frames:int) -> OptimizationDecision",168-200,false,33,3,"Minimize costs: local OCR, hybrid mode, fallback model."
+      OptimizationStrategy._speed_strategy,method,"(changed:bool, magnitude:float, idle_frames:int) -> OptimizationDecision",202-223,false,22,4,"Minimize latency: GPU OCR, primary model, parallel processing."
+      OptimizationStrategy._quality_strategy,method,"(changed:bool, magnitude:float, idle_frames:int) -> OptimizationDecision",225-248,false,24,5,"Maximize accuracy: ocr_plus_vision, primary model, lower skip threshold."
+      OptimizationStrategy._auto_strategy,method,"(changed:bool, magnitude:float, idle_frames:int) -> OptimizationDecision",250-281,false,32,5,"Adaptive: switches behavior based on budget state and recent metrics."
+      OptimizationStrategy._skip_decision,method,"(reason:str) -> OptimizationDecision",285-295,false,11,1,Return a no-op skip decision.
+      OptimizationStrategy._local_ocr_engine,method,() -> str,297-301,false,5,2,Choose local OCR engine based on hardware profile.
+      OptimizationStrategy._budget_usage_pct,method,() -> float,303-314,false,12,4,Return current budget usage as percentage (0-100).
+      OptimizationStrategy._avg_latency,method,() -> float,316-320,false,5,2,Average latency from rolling window (ms).
+      OptimizationStrategy._avg_cost,method,() -> float,322-326,false,5,2,Average cost from rolling window ($).
+      OptimizationStrategy._estimate_cost,method,"(mode:str) -> float",328-341,false,14,2,Estimate cost for a given mode using EMA of historical costs.
+      OptimizationStrategy._estimate_latency,method,"(mode:str, ocr_engine:str='') -> int",343-356,false,14,3,Estimate latency for a given mode+engine using EMA of historical latencies.
+      OptimizationStrategy._get_warning_pct,method,() -> float,358-362,false,5,3,Get budget warning percentage from settings or default.
+      OptimizationStrategy._get_critical_pct,method,() -> float,364-368,false,5,3,Get budget critical percentage from settings or default.
+      OptimizationStrategy._get_max_tick_latency,method,() -> float,370-374,false,5,3,Get max tick latency from settings or default.
+      OptimizationStrategy.get_stats,method,() -> Dict,376-386,false,11,1,Return strategy state for diagnostics.
+      OptimizationStrategy.detect_hardware,method,() -> HardwareProfile,391-413,false,23,4,Auto-detect hardware profile by checking CUDA availability and VRAM.
   backend/vlm_ocr_engine.py:
     functions[7]{name,kind,sig,loc,async,lines,cc,does}:
       VLMOCREngine.__init__,method,"(model:str='openrouter/qwen/qwen2.5-vl-32b-instruct:free', api_key:Optional[str]=None, api_base:Optional[str]=None, max_tokens:int=1500, temperature:float=0.1, image_detail:str='low', timeout:float=15.0)",68-96,false,29,1,creates
@@ -645,14 +671,18 @@ function_details:
       CommandHandlers.handle_run_safe,method,"(event:Event)",122-134,true,13,4,Run a safe (read-only) command.
       CommandHandlers.handle_run_benchmark,method,"(event:Event)",136-149,true,14,5,Run OCR benchmark.
   backend/settings.py:
-    functions[7]{name,kind,sig,loc,async,lines,cc,does}:
-      get_settings,function,() -> Settings,255-262,false,8,1,Get cached application settings.
-      reload_settings,function,() -> Settings,265-268,false,4,1,Force reload settings (clears cache).
-      Settings.validate_analysis_mode,method,(v),204-208,false,5,2,validates analysis mode
-      Settings.validate_ocr_engine,method,(v),212-216,false,5,2,validates ocr engine
-      Settings.validate_tts_engine,method,(v),220-234,false,15,2,validates tts engine
-      Settings.cors_origins_list,method,"() -> List[str]",237-239,false,3,3,Parse CORS_ORIGINS comma-separated string into list.
-      Settings.ocr_languages_list,method,"() -> List[str]",242-244,false,3,3,Parse OCR_LANGUAGES comma-separated string into list.
+    functions[11]{name,kind,sig,loc,async,lines,cc,does}:
+      get_settings,function,() -> Settings,311-318,false,8,1,Get cached application settings.
+      reload_settings,function,() -> Settings,321-324,false,4,1,Force reload settings (clears cache).
+      Settings.validate_optimization_priority,method,(v),228-232,false,5,2,validates optimization priority
+      Settings.validate_hardware_profile,method,(v),236-240,false,5,2,validates hardware profile
+      Settings.validate_prefer_local_ocr,method,(v),244-248,false,5,2,validates prefer local ocr
+      Settings.validate_prefer_local_llm,method,(v),252-256,false,5,2,validates prefer local llm
+      Settings.validate_analysis_mode,method,(v),260-264,false,5,2,validates analysis mode
+      Settings.validate_ocr_engine,method,(v),268-272,false,5,2,validates ocr engine
+      Settings.validate_tts_engine,method,(v),276-290,false,15,2,validates tts engine
+      Settings.cors_origins_list,method,"() -> List[str]",293-295,false,3,3,Parse CORS_ORIGINS comma-separated string into list.
+      Settings.ocr_languages_list,method,"() -> List[str]",298-300,false,3,3,Parse OCR_LANGUAGES comma-separated string into list.
   backend/predictive_engine.py:
     functions[16]{name,kind,sig,loc,async,lines,cc,does}:
       create_predictive_engine_from_env,function,(settings=None) -> PredictiveAnalyzer,435-447,false,13,2,Create PredictiveAnalyzer from settings.
@@ -1197,6 +1227,47 @@ function_details:
       TestClipboardBroadcastRegression.test_broadcast_clipboard_when_present,method,(),342-360,true,19,1,"When clipboard data exists, it should be broadcast."
       TestClipboardBroadcastRegression.test_no_clipboard_broadcast_when_empty,method,(),363-379,true,17,2,"When clipboard_suggestions is empty, no clipboard broadcast should occur."
       TestClipboardBroadcastRegression.test_clipboard_suggestions_without_auto_copies,method,(),382-400,true,19,1,Suggestions present but auto_copies empty — should still broadcast.
+  backend/tests/test_optimization_strategy.py:
+    functions[39]{name,kind,sig,loc,async,lines,cc,does}:
+      _make_budget,function,"(daily_spent=0.0, daily_limit=5.0, hourly_spent=0.0, hourly_limit=1.0)",20-30,false,11,1,Create a mock CostBudget with configurable stats.
+      _make_settings,function,(),33-46,false,14,2,Create a mock Settings with defaults + overrides.
+      _make_strategy,function,"(priority='budget', hardware='cpu_only', daily_spent=0.0)",49-58,false,10,5,Shortcut to create a configured strategy.
+      TestOptimizationDecision.test_skip_decision_has_zero_cost,method,(),64-67,false,4,1,checks skip decision has zero cost
+      TestOptimizationDecision.test_decision_fields_populated,method,(),69-77,false,9,1,checks decision fields populated
+      TestHardwareDetection.test_auto_detect_without_torch,method,(),83-87,false,5,1,checks auto detect without torch
+      TestHardwareDetection.test_auto_detect_with_cuda,method,(),89-97,false,9,1,checks auto detect with cuda
+      TestHardwareDetection.test_auto_detect_low_vram,method,(),99-107,false,9,1,checks auto detect low vram
+      TestHardwareDetection.test_explicit_override,method,(),109-111,false,3,1,checks explicit override
+      TestBudgetStrategy.test_no_change_returns_skip,method,(),117-121,false,5,1,checks no change returns skip
+      TestBudgetStrategy.test_change_with_gpu_uses_paddleocr,method,(),123-127,false,5,1,checks change with gpu uses paddleocr
+      TestBudgetStrategy.test_change_without_gpu_uses_tesseract,method,(),129-133,false,5,1,checks change without gpu uses tesseract
+      TestBudgetStrategy.test_critical_budget_forces_ocr_only,method,(),135-139,false,5,1,checks critical budget forces ocr only
+      TestBudgetStrategy.test_uses_fallback_model_tier,method,(),141-144,false,4,1,checks uses fallback model tier
+      TestSpeedStrategy.test_no_change_returns_skip,method,(),150-153,false,4,1,checks no change returns skip
+      TestSpeedStrategy.test_gpu_prefers_local_ocr,method,(),155-159,false,5,1,checks gpu prefers local ocr
+      TestSpeedStrategy.test_no_gpu_uses_cloud_ocr,method,(),161-165,false,5,1,checks no gpu uses cloud ocr
+      TestSpeedStrategy.test_large_change_uses_ocr_plus_vision,method,(),167-170,false,4,1,checks large change uses ocr plus vision
+      TestSpeedStrategy.test_small_change_uses_hybrid,method,(),172-175,false,4,1,checks small change uses hybrid
+      TestQualityStrategy.test_always_ocr_plus_vision,method,(),181-184,false,4,1,checks always ocr plus vision
+      TestQualityStrategy.test_uses_primary_model,method,(),186-189,false,4,1,checks uses primary model
+      TestQualityStrategy.test_no_change_still_may_analyze,method,(),191-194,false,4,1,checks no change still may analyze
+      TestQualityStrategy.test_no_change_skips_after_idle_threshold,method,(),196-199,false,4,1,checks no change skips after idle threshold
+      TestAutoStrategy.test_low_budget_behaves_like_speed,method,(),205-208,false,4,1,checks low budget behaves like speed
+      TestAutoStrategy.test_high_budget_behaves_like_budget,method,(),210-213,false,4,1,checks high budget behaves like budget
+      TestAutoStrategy.test_mid_budget_behaves_like_quality_with_fallback,method,(),215-219,false,5,1,checks mid budget behaves like quality with fallback
+      TestAutoStrategy.test_high_latency_triggers_budget_mode,method,(),221-228,false,8,2,checks high latency triggers budget mode
+      TestFeedbackLoop.test_record_tick_updates_rolling_window,method,(),234-238,false,5,1,checks record tick updates rolling window
+      TestFeedbackLoop.test_rolling_window_bounded,method,(),240-245,false,6,2,checks rolling window bounded
+      TestFeedbackLoop.test_estimate_cost_uses_ema,method,(),247-252,false,6,2,checks estimate cost uses ema
+      TestFeedbackLoop.test_estimate_latency_uses_ema,method,(),254-259,false,6,2,checks estimate latency uses ema
+      TestFeedbackLoop.test_ema_function,method,(),261-265,false,5,1,checks ema function
+      TestFeedbackLoop.test_per_mode_tracking,method,(),267-272,false,6,1,checks per mode tracking
+      TestFactory.test_create_from_settings_defaults,method,(),278-282,false,5,1,checks create from settings defaults
+      TestFactory.test_create_with_explicit_priority,method,(),284-288,false,5,1,checks create with explicit priority
+      TestFactory.test_auto_hardware_detection,method,(),290-294,false,5,1,checks auto hardware detection
+      TestFactory.test_create_with_cost_budget,method,(),296-300,false,5,1,checks create with cost budget
+      TestGetStats.test_stats_returns_dict,method,(),306-312,false,7,1,checks stats returns dict
+      TestGetStats.test_stats_reflects_recorded_ticks,method,(),314-321,false,8,1,checks stats reflects recorded ticks
   backend/tests/test_skills.py:
     functions[158]{name,kind,sig,loc,async,lines,cc,does}:
       _ctx,function,(),21-22,false,2,1,ctx
@@ -1558,6 +1629,36 @@ function_details:
       TestSkillRoutesWithRealClipboard.test_clipboard_items_populated_from_manager,method,(),953-971,false,19,1,Verify clipboard_items is populated from ClipboardManager queue.
       TestRouteInit.test_all_modules_have_init,method,(),977-981,false,5,2,checks all modules have init
       TestRouteInit.test_init_sets_state,method,(),983-989,false,7,1,checks init sets state
+  backend/tests/test_optimization_integration.py:
+    functions[28]{name,kind,sig,loc,async,lines,cc,does}:
+      _make_budget,function,"(daily_spent=0.0, daily_limit=5.0)",29-40,false,12,1,creates budget
+      _make_settings,function,(),43-55,false,13,2,creates settings
+      _make_analyzer,function,"(mode='hybrid', cost=0.002)",58-70,false,13,1,creates analyzer
+      _make_bus,function,(),73-76,false,4,1,creates bus
+      _make_strategy,function,"(priority='budget', hardware='cpu_only', daily_spent=0.0)",79-87,false,9,1,creates strategy
+      TestPipelineWithStrategy.test_pipeline_runs_without_strategy,method,(),96-103,true,8,1,"Backward compat: pipeline works fine with no strategy."
+      TestPipelineWithStrategy.test_pipeline_runs_with_budget_strategy,method,(),106-118,true,13,1,Pipeline with budget strategy records ticks.
+      TestPipelineWithStrategy.test_pipeline_runs_with_speed_strategy,method,(),121-132,true,12,1,Speed strategy produces valid decisions.
+      TestPipelineWithStrategy.test_pipeline_skips_analysis_when_no_change,method,(),135-139,true,5,1,Strategy skip decision should be respected.
+      TestPipelineWithStrategy.test_strategy_downgrades_on_budget_critical,method,(),142-147,true,6,1,"Critical budget → ocr_only, no LLM."
+      TestPipelineWithStrategy.test_record_tick_called_after_pipeline_complete,method,(),150-163,true,14,1,Verify record_tick is called during pipeline completion.
+      TestPipelineWithStrategy.test_feedback_loop_affects_next_decision,method,(),166-177,true,12,2,"After recording ticks, EMA estimates should change."
+      TestE2EOptimization.test_budget_mode_uses_hybrid_not_vision,method,(),185-189,false,5,1,checks budget mode uses hybrid not vision
+      TestE2EOptimization.test_speed_mode_with_gpu_uses_local_ocr,method,(),191-195,false,5,1,checks speed mode with gpu uses local ocr
+      TestE2EOptimization.test_auto_mode_adapts_to_budget_state,method,(),197-206,false,10,1,checks auto mode adapts to budget state
+      TestE2EOptimization.test_fallback_chain_on_budget_exhaustion,method,(),208-213,false,6,1,Critical budget forces ocr_only (end of fallback chain).
+      TestModelTierSwitching.test_primary_model_used_when_budget_ok,method,(),219-222,false,4,1,checks primary model used when budget ok
+      TestModelTierSwitching.test_fallback_model_on_budget_warning,method,(),224-227,false,4,1,checks fallback model on budget warning
+      TestModelTierSwitching.test_emergency_model_on_critical,method,(),229-233,false,5,1,Critical budget → no model (ocr_only).
+      TestAnalyzeStepWithDecision.test_analyze_skips_on_skip_decision,method,(),242-254,true,13,1,checks analyze skips on skip decision
+      TestAnalyzeStepWithDecision.test_analyze_uses_decision_mode,method,(),257-271,true,15,1,checks analyze uses decision mode
+      TestAnalyzeStepWithDecision.test_analyze_records_actual_cost,method,(),274-286,true,13,1,checks analyze records actual cost
+      TestAnalyzeStepWithDecision.test_analyze_legacy_path_without_decision,method,(),289-301,true,13,1,"Without decision, existing _apply_budget_downgrade path is used."
+      TestProfileSelectorWithStrategy.test_selector_without_strategy_uses_heuristic,method,(),309-314,false,6,1,checks selector without strategy uses heuristic
+      TestProfileSelectorWithStrategy.test_selector_with_strategy_uses_decision,method,(),316-329,false,14,1,checks selector with strategy uses decision
+      TestProfileSelectorWithStrategy.test_selector_skip_decision_returns_fast,method,(),331-345,false,15,1,checks selector skip decision returns fast
+      TestProfileSelectorWithStrategy.test_factory_passes_strategy,method,(),347-350,false,4,1,checks factory passes strategy
+      TestProfileSelectorWithStrategy.test_factory_without_strategy,method,(),352-354,false,3,1,checks factory without strategy
   backend/tests/test_typed_events.py:
     functions[26]{name,kind,sig,loc,async,lines,cc,does}:
       TestPayloadValidation.test_windows_scanned_defaults,method,(),39-42,false,4,1,checks windows scanned defaults
@@ -2428,15 +2529,17 @@ function_details:
       PipelineStep.can_run,method,"(ctx:PipelineContext) -> bool",20-22,false,3,1,Check if this step should run given current context.
       PipelineStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",24-26,true,3,1,"Execute step, update context, emit events."
   backend/pipeline/context.py:
-    functions[8]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[10]{name,kind,sig,loc,async,lines,cc,does}:
       _emit_profile_decision,function,"(profile:str, reason:str) -> None",14-35,false,22,1,Emit a profile selection decision to nfo.
-      ProfileSelector.__init__,method,"(full_interval:float=60.0, force_profile:Optional[str]=None, ocr_manager=None)",64-77,false,14,3,creates
-      ProfileSelector.select,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",79-128,false,50,7,Choose optimal profile for this pipeline tick.
-      ProfileSelector._is_vlm_ocr_active,method,() -> bool,130-134,false,5,2,Check if the active OCR engine is cloud-based VLM OCR (high latency).
-      ProfileSelector.get_min_interval,method,() -> float,136-144,false,9,2,Return minimum pipeline interval based on active OCR engine.
-      ProfileSelector.notify_active_window_changed,method,"(new_wid:int)",146-150,false,5,2,Signal that active window changed — next tick should be FULL.
-      ProfileSelector.get_stats,method,() -> Dict,152-158,false,7,3,retrieves stats
-      PipelineContext.__post_init__,method,(),228-234,false,7,4,creates init
+      ProfileSelector.__init__,method,"(full_interval:float=60.0, force_profile:Optional[str]=None, ocr_manager=None, optimization_strategy=None)",64-79,false,16,3,creates
+      ProfileSelector.select,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",81-105,false,25,3,Choose optimal profile for this pipeline tick.
+      ProfileSelector._select_via_strategy,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",107-154,false,48,9,Use OptimizationStrategy decision to determine pipeline profile.
+      ProfileSelector._select_heuristic,method,"(ctx:PipelineContext, capture=None) -> PipelineProfile",156-191,false,36,6,Original heuristic-based profile selection (no strategy).
+      ProfileSelector._is_vlm_ocr_active,method,() -> bool,193-197,false,5,2,Check if the active OCR engine is cloud-based VLM OCR (high latency).
+      ProfileSelector.get_min_interval,method,() -> float,199-207,false,9,2,Return minimum pipeline interval based on active OCR engine.
+      ProfileSelector.notify_active_window_changed,method,"(new_wid:int)",209-213,false,5,2,Signal that active window changed — next tick should be FULL.
+      ProfileSelector.get_stats,method,() -> Dict,215-221,false,7,3,retrieves stats
+      PipelineContext.__post_init__,method,(),296-302,false,7,4,creates init
   backend/pipeline/steps_tier1.py:
     functions[27]{name,kind,sig,loc,async,lines,cc,does}:
       MultiMonitorStep.__init__,method,"(monitor_capture, window_manager=None)",17-19,false,3,1,creates
@@ -2467,7 +2570,7 @@ function_details:
       ClipboardRelationStep._build_skill_ctx,method,"(screen_text:str, clipboard_top:str)",321-332,false,12,2,Build minimal SkillContext for clipboard relation detection.
       ClipboardRelationStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",334-382,true,49,8,starts
   backend/pipeline/steps_core.py:
-    functions[37]{name,kind,sig,loc,async,lines,cc,does}:
+    functions[39]{name,kind,sig,loc,async,lines,cc,does}:
       ScanWindowsStep.__init__,method,"(process_scanner, cache_ttl:float=3.0)",27-31,false,5,1,creates
       ScanWindowsStep.can_run,method,"(ctx:PipelineContext) -> bool",33-34,false,2,1,checks run
       ScanWindowsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",36-55,true,20,5,starts
@@ -2499,29 +2602,31 @@ function_details:
       AnalyzeStep._run_analysis,method,"(ctx:PipelineContext, requested_mode:str, mode_switched:bool) -> dict",403-413,true,11,3,Run LLM analysis with budget-aware mode switching.
       AnalyzeStep._emit_result,method,"(ctx:PipelineContext, bus:EventBus, requested_mode:str, effective_mode:str, latency_ms:int) -> None",415-442,true,28,2,Emit analysis completed event and OCR cost event if applicable.
       AnalyzeStep._emit_ocr_cost,method,"(analysis:dict, bus:EventBus, correlation_id:str) -> None",444-470,true,27,6,Emit separate OCR cost event when VLM OCR reports cost.
-      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",472-485,true,14,2,starts
-      SuggestActionsStep.__init__,method,(shell_agent),492-493,false,2,1,creates
-      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",495-501,false,7,4,checks run
-      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",503-524,true,22,5,starts
-      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",531-532,false,2,2,checks run
-      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",534-585,true,52,6,starts
+      AnalyzeStep._apply_optimization_decision,method,"(ctx:PipelineContext) -> tuple",472-502,false,31,7,Apply OptimizationDecision from strategy to analyzer.
+      AnalyzeStep._emit_optimization_decision,method,(decision) -> None,505-532,false,28,2,Emit an nfo entry for the optimization strategy decision.
+      AnalyzeStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",534-571,true,38,6,starts
+      SuggestActionsStep.__init__,method,(shell_agent),578-579,false,2,1,creates
+      SuggestActionsStep.can_run,method,"(ctx:PipelineContext) -> bool",581-587,false,7,4,checks run
+      SuggestActionsStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",589-610,true,22,5,starts
+      BuildBroadcastStep.can_run,method,"(ctx:PipelineContext) -> bool",617-618,false,2,2,checks run
+      BuildBroadcastStep.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",620-671,true,52,6,starts
   backend/pipeline/orchestrator.py:
     functions[18]{name,kind,sig,loc,async,lines,cc,does}:
-      _get_nfo_logger,function,(),281-284,false,4,1,Return the nfo default logger (set by nfo.configure).
-      _extract_step_metrics,function,"(step_name:str, ctx:PipelineContext) -> Dict[str, Any]",287-349,false,63,3,Extract lightweight metrics from PipelineContext after a step executes.
-      _analyze_metrics,function,"(ctx:PipelineContext) -> Dict[str, Any]",352-370,false,19,4,"Extract analysis-specific metrics (cost, tokens, provider, OCR)."
-      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",373-431,false,59,3,"Factory: create the standard analysis pipeline from components."
-      create_profile_selector,function,(ocr_manager=None) -> ProfileSelector,434-440,false,7,2,Create ProfileSelector from environment variables.
+      _get_nfo_logger,function,(),296-299,false,4,1,Return the nfo default logger (set by nfo.configure).
+      _extract_step_metrics,function,"(step_name:str, ctx:PipelineContext) -> Dict[str, Any]",302-364,false,63,3,Extract lightweight metrics from PipelineContext after a step executes.
+      _analyze_metrics,function,"(ctx:PipelineContext) -> Dict[str, Any]",367-385,false,19,4,"Extract analysis-specific metrics (cost, tokens, provider, OCR)."
+      create_pipeline,function,"(bus:EventBus, capture=None, analyzer=None, context_mgr=None, window_mgr=None, profile_mgr=None, shell_agent=None, process_scanner=None) -> PipelineOrchestrator",388-447,false,60,3,"Factory: create the standard analysis pipeline from components."
+      create_profile_selector,function,"(ocr_manager=None, optimization_strategy=None) -> ProfileSelector",450-457,false,8,2,Create ProfileSelector from environment variables.
       ParallelGroup.__init__,method,"(steps:List, name:Optional[str]=None)",36-38,false,3,3,creates
       ParallelGroup.can_run,method,"(ctx:PipelineContext) -> bool",40-41,false,2,2,checks run
       ParallelGroup.execute,method,"(ctx:PipelineContext, bus:EventBus) -> PipelineContext",43-65,true,23,5,starts
-      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None)",78-82,false,5,2,creates
-      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",84-87,false,4,1,Add a step to the pipeline (builder pattern).
-      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",89-92,false,4,3,Remove a step by name.
-      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",94-101,false,8,3,Insert a step before another step by name.
-      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",103-110,false,8,3,Insert a step after another step by name.
-      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",112-198,true,87,5,Execute all pipeline steps in order.
-      PipelineOrchestrator._emit_step,method,"(run_id:str, step_name:str, duration_ms:Optional[float]=None, exception:Optional[str]=None, exception_type:Optional[str]=None) -> None",202-232,false,31,3,Emit a single pipeline step entry to nfo.
-      PipelineOrchestrator._emit_completion,method,"(run_id:str, total_ms:float, total_cost:float, total_steps:int, skipped:int, errors:int) -> None",234-264,false,31,1,Emit the pipeline completion marker for PipelineSink flush.
-      PipelineOrchestrator.get_step_names,method,"() -> List[str]",266-268,false,3,2,Get ordered list of step names.
-      PipelineOrchestrator.get_stats,method,() -> Dict,270-276,false,7,1,retrieves stats
+      PipelineOrchestrator.__init__,method,"(bus:EventBus, steps:Optional[List]=None, optimization_strategy=None)",78-84,false,7,2,creates
+      PipelineOrchestrator.add_step,method,"(step) -> \"PipelineOrchestrator\"",86-89,false,4,1,Add a step to the pipeline (builder pattern).
+      PipelineOrchestrator.remove_step,method,"(name:str) -> \"PipelineOrchestrator\"",91-94,false,4,3,Remove a step by name.
+      PipelineOrchestrator.insert_before,method,"(before_name:str, step) -> \"PipelineOrchestrator\"",96-103,false,8,3,Insert a step before another step by name.
+      PipelineOrchestrator.insert_after,method,"(after_name:str, step) -> \"PipelineOrchestrator\"",105-112,false,8,3,Insert a step after another step by name.
+      PipelineOrchestrator.run,method,"(ctx:Optional[PipelineContext]=None) -> PipelineContext",114-213,true,100,8,Execute all pipeline steps in order.
+      PipelineOrchestrator._emit_step,method,"(run_id:str, step_name:str, duration_ms:Optional[float]=None, exception:Optional[str]=None, exception_type:Optional[str]=None) -> None",217-247,false,31,3,Emit a single pipeline step entry to nfo.
+      PipelineOrchestrator._emit_completion,method,"(run_id:str, total_ms:float, total_cost:float, total_steps:int, skipped:int, errors:int) -> None",249-279,false,31,1,Emit the pipeline completion marker for PipelineSink flush.
+      PipelineOrchestrator.get_step_names,method,"() -> List[str]",281-283,false,3,2,Get ordered list of step names.
+      PipelineOrchestrator.get_stats,method,() -> Dict,285-291,false,7,1,retrieves stats

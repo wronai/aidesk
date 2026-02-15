@@ -42,6 +42,7 @@ from ocr_post_process import create_ocr_enhancer_from_env
 from predictive_engine import create_predictive_engine_from_env
 from clipboard_intel import create_clipboard_manager_from_env
 from cost_budget import create_cost_budget_from_env
+from optimization_strategy import create_optimization_strategy
 from plugins.loader import PluginLoader
 from preflight import run_preflight
 
@@ -214,6 +215,17 @@ class AppBootstrap:
         for key, factory in tier1_components:
             self._init_component(key, factory, "tier1", settings=self.settings)
 
+        # OptimizationStrategy depends on cost_budget — create after it
+        self._init_component(
+            "optimization_strategy",
+            lambda **kw: create_optimization_strategy(
+                settings=kw.get("settings"),
+                cost_budget=self.state.get("cost_budget"),
+            ),
+            "tier1",
+            settings=self.settings,
+        )
+
     # ── Phase 5: Pipeline + CQRS (depends on phases 1-4) ──
 
     def init_pipeline(self):
@@ -225,6 +237,7 @@ class AppBootstrap:
         )
 
         # Pipeline Orchestrator
+        opt_strategy = self.state.get("optimization_strategy")
         self.state["pipeline"] = create_pipeline(
             bus=self.state["event_bus"],
             capture=self.state["capture"],
@@ -243,11 +256,13 @@ class AppBootstrap:
             predictive_engine=self.state.get("predictive_engine"),
             clipboard_manager=self.state.get("clipboard_manager"),
             cost_budget=self.state.get("cost_budget"),
+            optimization_strategy=opt_strategy,
         )
 
-        # Profile Selector (pass OCR manager for VLM OCR latency awareness)
+        # Profile Selector (pass OCR manager + optimization strategy)
         self.state["profile_selector"] = create_profile_selector(
             ocr_manager=self.state.get("ocr_manager"),
+            optimization_strategy=opt_strategy,
         )
 
         # CQRS Read Model (restore from snapshot if available)
