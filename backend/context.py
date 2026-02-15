@@ -1,7 +1,14 @@
 """
 Context manager for maintaining conversation history.
+
+.. deprecated::
+    ContextManager is superseded by SemanticMemory (vector-based recall)
+    and EventStore (CQRS event log). It will be removed in a future version.
+    New code should use SemanticMemory for context enrichment and EventStore
+    for audit/history. BuildContextStep already integrates both.
 """
 import time
+import warnings
 from collections import deque
 from typing import Dict, List, Literal
 import nfo
@@ -15,7 +22,13 @@ ContextType = Literal["screen", "speech", "system"]
 class ContextManager:
     """
     Manages conversation context with sliding window and summarization.
+
+    .. deprecated::
+        Use SemanticMemory for context recall and EventStore for history.
+        This class will be removed in a future version.
     """
+
+    _deprecation_warned = False
 
     def __init__(self, max_items: int = 20):
         """
@@ -24,6 +37,15 @@ class ContextManager:
         Args:
             max_items: Maximum number of context items to keep
         """
+        if not ContextManager._deprecation_warned:
+            warnings.warn(
+                "ContextManager is deprecated — use SemanticMemory + EventStore instead. "
+                "It will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            ContextManager._deprecation_warned = True
+
         self.max_items = max_items
         self.history: deque = deque(maxlen=max_items)
         self.total_items = 0
@@ -146,4 +168,5 @@ class ContextManager:
             "newest_timestamp": (
                 self.history[-1]["timestamp"] if self.history else None
             ),
+            "deprecated": True,
         }

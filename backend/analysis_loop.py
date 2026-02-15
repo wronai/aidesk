@@ -68,7 +68,12 @@ class AnalysisLoop:
         while True:
             try:
                 ctx = await self.tick()
-                await asyncio.sleep(self.capture.adaptive_interval)
+                interval = self.capture.adaptive_interval
+                # Enforce minimum interval when VLM OCR is active (high latency)
+                min_interval = self.profile_selector.get_min_interval()
+                if min_interval > interval:
+                    interval = min_interval
+                await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 raise
             except Exception as e:

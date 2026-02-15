@@ -240,9 +240,10 @@ def create_pipeline(
     return pipeline
 
 
-def create_profile_selector() -> ProfileSelector:
+def create_profile_selector(ocr_manager=None) -> ProfileSelector:
     """Create ProfileSelector from environment variables."""
     return ProfileSelector(
         full_interval=float(os.getenv("PIPELINE_FULL_INTERVAL", "60.0")),
         force_profile=os.getenv("PIPELINE_PROFILE") or None,
+        ocr_manager=ocr_manager,
     )

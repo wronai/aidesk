@@ -101,6 +101,16 @@ class ProfileSelector:
             return False
         return getattr(self._ocr_manager, "active_engine_name", "") == "vlm_ocr"
 
+    def get_min_interval(self) -> float:
+        """Return minimum pipeline interval based on active OCR engine.
+
+        VLM OCR is 10-50x slower than PaddleOCR — enforce at least 2s
+        between pipeline ticks to avoid API bombardment.
+        """
+        if self._is_vlm_ocr_active():
+            return 2.0
+        return 0.0  # no additional minimum
+
     def notify_active_window_changed(self, new_wid: int):
         """Signal that active window changed — next tick should be FULL."""
         if new_wid != self._last_active_wid:

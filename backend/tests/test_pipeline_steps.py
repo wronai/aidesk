@@ -39,7 +39,7 @@ class TestAnalyzeStepWithBudget:
         analyzer.set_mode.assert_any_call("ocr_only")
         analyzer.set_mode.assert_any_call("hybrid")
         assert analyzer.set_mode.call_count == 2
-        budget.record_spend.assert_called_with(0.05)
+        budget.record_spend.assert_called_with(0.05, source="analysis")
         assert ctx.analysis_result["mode"] == "ocr_only"
 
     @pytest.mark.asyncio
@@ -68,7 +68,7 @@ class TestAnalyzeStepWithBudget:
         # Verify
         budget.get_suggested_mode.assert_called_with("hybrid")
         analyzer.set_mode.assert_not_called()
-        budget.record_spend.assert_called_with(0.05)
+        budget.record_spend.assert_called_with(0.05, source="analysis")
 
     @pytest.mark.asyncio
     async def test_no_budget_component(self):
@@ -105,6 +105,29 @@ class TestAnalyzeStepWithBudget:
         # Temporary switch to cheap mode, then restoration back to requested mode.
         assert analyzer.set_mode.call_args_list[0].args == ("ocr_only",)
         assert analyzer.set_mode.call_args_list[-1].args == ("hybrid",)
+
+    @pytest.mark.asyncio
+    async def test_ocr_failure_does_not_block_analysis(self):
+        """OCR failure should not prevent LLM analysis from completing (graceful degradation)."""
+        analyzer = MagicMock()
+        analyzer.analysis_mode = "hybrid"
+        # Analysis returns result even when OCR failed internally
+        analyzer.analyze = AsyncMock(return_value={
+            "text": "analysis without OCR",
+            "cost": 0.02,
+            "tokens": 50,
+            "mode": "hybrid",
+            "ocr": {"text": "", "engine": "paddleocr", "confidence": 0.0},
+        })
+
+        step = AnalyzeStep(analyzer, cost_budget=None)
+        ctx = PipelineContext(image_b64="base64")
+        bus = EventBus(enable_store=False)
+
+        result = await step.execute(ctx, bus)
+        assert result.analysis_result is not None
+        assert result.analysis_result["text"] == "analysis without OCR"
+        assert result.analysis_failed is not True
 
     @pytest.mark.asyncio
     async def test_analysis_completed_event_contains_budget_metadata(self):

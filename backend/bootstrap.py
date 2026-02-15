@@ -191,8 +191,10 @@ class AppBootstrap:
             cost_budget=self.state.get("cost_budget"),
         )
 
-        # Profile Selector
-        self.state["profile_selector"] = create_profile_selector()
+        # Profile Selector (pass OCR manager for VLM OCR latency awareness)
+        self.state["profile_selector"] = create_profile_selector(
+            ocr_manager=self.state.get("ocr_manager"),
+        )
 
         # CQRS Read Model (restore from snapshot if available)
         read_model = ReadModel()

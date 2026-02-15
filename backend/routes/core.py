@@ -103,7 +103,8 @@ async def stats():
     for key in ("capture", "analyzer", "ocr_manager", "stt", "window_manager",
                 "profile_manager", "shell_agent", "process_scanner", "window_cropper",
                 "profile_selector", "multi_monitor", "semantic_memory",
-                "action_library", "ocr_enhancer", "predictive_engine"):
+                "action_library", "ocr_enhancer", "predictive_engine",
+                "cost_budget"):
         component = _state.get(key)
         if component and hasattr(component, "get_stats"):
             stats_key = "ocr" if key == "ocr_manager" else key

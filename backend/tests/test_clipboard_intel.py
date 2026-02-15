@@ -526,3 +526,96 @@ NameError: name 'foo' is not defined"""
         result = self._analyzer().analyze(tb)
         assert "Traceback" in result.label
         assert "foo" in result.response
+
+
+# ===== E2E: Full clipboard pipeline round-trip =====
+
+class TestClipboardIntelE2E:
+    """End-to-end: analysis → auto-copy → paste suggestion → event emission."""
+
+    @pytest.mark.asyncio
+    async def test_terminal_error_round_trip(self):
+        """Terminal error text flows through the full clipboard pipeline."""
+        from unittest.mock import MagicMock
+        from pipeline import ClipboardStep, PipelineContext, PipelineProfile
+        from event_bus import EventBus, EventType
+
+        mgr = ClipboardManager(max_items=20)
+        step = ClipboardStep(mgr)
+        bus = EventBus(enable_store=False)
+
+        # Collect emitted events
+        events = []
+        async def _on_event(event):
+            events.append(event)
+        bus.subscribe(EventType.CLIPBOARD_UPDATED.value, _on_event)
+
+        # Simulate analysis result with terminal error
+        ctx = PipelineContext()
+        ctx.profile = PipelineProfile.NORMAL.value
+        ctx.analysis_result = {
+            "text": "ModuleNotFoundError: No module named 'requests'\nhttps://pypi.org/project/requests/",
+        }
+        ctx.active_window = MagicMock()
+        ctx.active_window.category = AppCategory.TERMINAL
+
+        # Execute clipboard step
+        ctx = await step.execute(ctx, bus)
+
+        # 1. Auto-copy: error fix command should be in queue
+        all_texts = [i.text for i in mgr.queue.get_all()]
+        assert any("pip install requests" in t for t in all_texts), f"Expected pip install in {all_texts}"
+
+        # 2. Queue should have at least one auto-copied item
+        assert len(all_texts) >= 1
+
+        # 3. Paste suggestion: pip install should rank high for terminal
+        suggestions = mgr.suggest_paste(AppCategory.TERMINAL)
+        assert len(suggestions) >= 1
+
+        # 4. Event emitted
+        assert len(events) >= 1
+        assert events[0].data["auto_copied"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_agent_action_to_clipboard_to_paste(self):
+        """Agent-suggested command → clipboard → paste suggestion."""
+        from unittest.mock import MagicMock
+        from pipeline import ClipboardStep, PipelineContext, PipelineProfile
+        from event_bus import EventBus
+
+        mgr = ClipboardManager()
+        step = ClipboardStep(mgr)
+        bus = EventBus(enable_store=False)
+
+        ctx = PipelineContext()
+        ctx.profile = PipelineProfile.NORMAL.value
+        ctx.analysis_result = {"text": "Build failed"}
+        ctx.active_window = MagicMock()
+        ctx.active_window.category = AppCategory.TERMINAL
+        ctx.agent_actions = [
+            {"command": "npm run build", "description": "Rebuild project"},
+        ]
+
+        ctx = await step.execute(ctx, bus)
+
+        # Agent action should be in queue as AGENT source
+        agent_items = mgr.queue.get_by_source(ClipSource.AGENT)
+        assert len(agent_items) >= 1
+        assert any("npm run build" in i.text for i in agent_items)
+
+        # Should score high in paste suggestions for terminal
+        suggestions = mgr.suggest_paste(AppCategory.TERMINAL)
+        if suggestions:
+            assert suggestions[0].source == ClipSource.AGENT
+
+    def test_snippet_expansion_in_context(self):
+        """Snippet store integrates with manager for quick-paste."""
+        mgr = ClipboardManager()
+        mgr.snippets.add(";;deploy", "kubectl apply -f deploy.yaml", category="terminal")
+
+        expanded = mgr.snippets.expand(";;deploy", category="terminal")
+        assert expanded == "kubectl apply -f deploy.yaml"
+
+        # Wrong category returns None
+        assert mgr.snippets.expand(";;deploy", category="browser") is None

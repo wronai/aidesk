@@ -204,6 +204,21 @@ class BuildContextStep:
             "Skup się na tym oknie — tu użytkownik aktualnie pracuje."
         )
 
+    @staticmethod
+    def _format_memories(items: list, max_chars: int = 400) -> str:
+        """Format recalled memory items into a truncated string."""
+        snippets = []
+        total = 0
+        for mem in items:
+            text = mem.content[:150] if hasattr(mem, 'content') else str(mem)[:150]
+            if total + len(text) > max_chars:
+                break
+            snippets.append(text)
+            total += len(text)
+        if not snippets:
+            return ""
+        return "🧠 Relevant memories:\n" + "\n".join(f"- {s}" for s in snippets)
+
     def _recall_semantic_context(self, query: str, max_chars: int = 400) -> str:
         """Recall relevant past memories from SemanticMemory to enrich context."""
         if not self._semantic or not query:
@@ -212,16 +227,7 @@ class BuildContextStep:
             recalled = self._semantic.recall_relevant(query, k=2)
             if not recalled:
                 return ""
-            snippets = []
-            total = 0
-            for mem in recalled:
-                text = mem.content[:150] if hasattr(mem, 'content') else str(mem)[:150]
-                if total + len(text) > max_chars:
-                    break
-                snippets.append(text)
-                total += len(text)
-            if snippets:
-                return "🧠 Relevant memories:\n" + "\n".join(f"- {s}" for s in snippets)
+            return self._format_memories(recalled, max_chars)
         except Exception as e:
             logger.debug("Semantic recall in BuildContextStep failed", error=str(e))
         return ""
@@ -361,11 +367,8 @@ class AnalyzeStep:
             except Exception as e:
                 logger.warning("Failed to record OCR spend", error=str(e), cost=cost)
 
-    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
-        t0 = time.time()
-        requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
-        effective_mode, mode_switched = self._apply_budget_downgrade(requested_mode)
-
+    async def _run_analysis(self, ctx: PipelineContext, requested_mode: str, mode_switched: bool) -> dict:
+        """Run LLM analysis with budget-aware mode switching."""
         try:
             analysis = await self._analyzer.analyze(ctx.image_b64, ctx.full_context)
         except Exception:
@@ -374,14 +377,14 @@ class AnalyzeStep:
         finally:
             if mode_switched:
                 self._restore_mode(requested_mode)
+        return analysis
 
-        if analysis.get("error"):
-            ctx.analysis_failed = True
-
-        ctx.analysis_result = analysis
+    async def _emit_result(self, ctx: PipelineContext, bus: EventBus,
+                           requested_mode: str, effective_mode: str, latency_ms: int) -> None:
+        """Emit analysis completed event and OCR cost event if applicable."""
+        analysis = ctx.analysis_result
         analysis_cost = float(analysis.get("cost", 0.0) or 0.0)
         actual_mode = analysis.get("mode", effective_mode)
-        latency_ms = round((time.time() - t0) * 1000)
 
         self._record_spend(analysis_cost)
 
@@ -403,27 +406,49 @@ class AnalyzeStep:
             correlation_id=ctx.correlation_id,
         ))
 
-        # Emit separate OCR cost event when VLM OCR reports cost
-        ocr_data = analysis.get("ocr")
-        if ocr_data and ocr_data.get("engine") == "vlm_ocr":
-            ocr_mgr = getattr(self._analyzer, "ocr_manager", None)
-            if ocr_mgr:
-                active = ocr_mgr.active_engine
-                ocr_cost = getattr(active, "_last_cost", 0.0) if active else 0.0
-                if ocr_cost > 0:
-                    self._record_ocr_spend(ocr_cost)
-                    await bus.publish(Event(
-                        type=EventType.OCR_COST.value,
-                        data={
-                            "engine": "vlm_ocr",
-                            "cost": round(ocr_cost, 6),
-                            "tokens": getattr(active, "_total_tokens_used", 0),
-                            "model": getattr(active, "model", "unknown"),
-                        },
-                        source=self.name,
-                        correlation_id=ctx.correlation_id,
-                    ))
+        await self._emit_ocr_cost(analysis, bus, ctx.correlation_id)
 
+    async def _emit_ocr_cost(self, analysis: dict, bus: EventBus, correlation_id: str) -> None:
+        """Emit separate OCR cost event when VLM OCR reports cost."""
+        ocr_data = analysis.get("ocr")
+        if not ocr_data or ocr_data.get("engine") != "vlm_ocr":
+            return
+
+        ocr_mgr = getattr(self._analyzer, "ocr_manager", None)
+        if not ocr_mgr:
+            return
+
+        active = ocr_mgr.active_engine
+        ocr_cost = getattr(active, "_last_cost", 0.0) if active else 0.0
+        if ocr_cost <= 0:
+            return
+
+        self._record_ocr_spend(ocr_cost)
+        await bus.publish(Event(
+            type=EventType.OCR_COST.value,
+            data={
+                "engine": "vlm_ocr",
+                "cost": round(ocr_cost, 6),
+                "tokens": getattr(active, "_total_tokens_used", 0),
+                "model": getattr(active, "model", "unknown"),
+            },
+            source=self.name,
+            correlation_id=correlation_id,
+        ))
+
+    async def execute(self, ctx: PipelineContext, bus: EventBus) -> PipelineContext:
+        t0 = time.time()
+        requested_mode = getattr(self._analyzer, "analysis_mode", "hybrid")
+        effective_mode, mode_switched = self._apply_budget_downgrade(requested_mode)
+
+        analysis = await self._run_analysis(ctx, requested_mode, mode_switched)
+
+        if analysis.get("error"):
+            ctx.analysis_failed = True
+        ctx.analysis_result = analysis
+
+        await self._emit_result(ctx, bus, requested_mode, effective_mode,
+                                latency_ms=round((time.time() - t0) * 1000))
         return ctx
 
 

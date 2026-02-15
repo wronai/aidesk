@@ -938,7 +938,7 @@ class TestAnalyzeStepBudget:
                 assert requested_mode == "hybrid"
                 return "ocr_only"
 
-            def record_spend(self, cost):
+            def record_spend(self, cost, source="analysis"):
                 self.recorded.append(cost)
 
         analyzer = _Analyzer()
@@ -1082,6 +1082,37 @@ class TestProfileSelector:
         ps.select(ctx)  # NORMAL
         ps.select(ctx)  # NORMAL
         assert ps.profile_counts["normal"] == 2
+
+    def test_vlm_ocr_min_interval_enforced(self):
+        """ProfileSelector with vlm_ocr active returns min_interval >= 2s."""
+        class FakeOCR:
+            active_engine_name = "vlm_ocr"
+
+        ps = ProfileSelector(full_interval=9999, ocr_manager=FakeOCR())
+        assert ps.get_min_interval() >= 2.0
+
+    def test_paddleocr_no_min_interval(self):
+        """ProfileSelector with paddleocr returns 0 min_interval."""
+        class FakeOCR:
+            active_engine_name = "paddleocr"
+
+        ps = ProfileSelector(full_interval=9999, ocr_manager=FakeOCR())
+        assert ps.get_min_interval() == 0.0
+
+    def test_vlm_ocr_idle_upgrades_fast_to_normal(self):
+        """VLM OCR active + idle should return NORMAL, not FAST."""
+        class FakeOCR:
+            active_engine_name = "vlm_ocr"
+
+        class FakeCapture:
+            consecutive_unchanged = 100
+            idle_threshold = 30
+
+        ps = ProfileSelector(full_interval=9999, ocr_manager=FakeOCR())
+        ps._last_full_time = time.time()
+        ctx = PipelineContext()
+        profile = ps.select(ctx, capture=FakeCapture())
+        assert profile == PipelineProfile.NORMAL
 
 
 class TestTopKCropSelection:
@@ -1309,6 +1340,53 @@ class TestBuildContextStepCaching:
         assert ctx1.context_str != ctx2.context_str
 
 
+class TestBuildContextSemanticRecall:
+    """Tests for _recall_semantic_context and _format_memories decomposition."""
+
+    def test_recall_with_empty_memory_returns_empty(self):
+        from pipeline import BuildContextStep
+
+        class FakeCtxMgr:
+            total_items = 0
+            def get_context_string(self, n=5, max_length=500):
+                return ""
+
+        class FakeSemantic:
+            def recall_relevant(self, query, k=2):
+                return []
+
+        step = BuildContextStep(context_mgr=FakeCtxMgr(), semantic_memory=FakeSemantic())
+        assert step._recall_semantic_context("test query") == ""
+
+    def test_recall_with_no_semantic_returns_empty(self):
+        from pipeline import BuildContextStep
+
+        class FakeCtxMgr:
+            total_items = 0
+            def get_context_string(self, n=5, max_length=500):
+                return ""
+
+        step = BuildContextStep(context_mgr=FakeCtxMgr(), semantic_memory=None)
+        assert step._recall_semantic_context("test query") == ""
+
+    def test_format_memories_truncates_to_max_chars(self):
+        from pipeline import BuildContextStep
+
+        class FakeMem:
+            def __init__(self, content):
+                self.content = content
+
+        items = [FakeMem("a" * 200), FakeMem("b" * 200), FakeMem("c" * 200)]
+        result = BuildContextStep._format_memories(items, max_chars=350)
+        assert "aaa" in result
+        assert "bbb" in result
+        assert "ccc" not in result  # truncated
+
+    def test_format_memories_empty_list(self):
+        from pipeline import BuildContextStep
+        assert BuildContextStep._format_memories([]) == ""
+
+
 class TestClipboardRelationStep:
     """Tests for proactive ClipboardRelationStep in pipeline."""
 
@@ -1498,3 +1576,64 @@ class TestFeedbackLoopWiring:
         import asyncio
         result = asyncio.get_event_loop().run_until_complete(execute_action("test_exec"))
         assert "test_exec" in library.executions
+
+
+# ===== AutoDiagnostics VLM OCR Check =====
+
+from diagnostics import AutoDiagnostics
+
+
+class TestDiagnosticsVlmOcr:
+    def test_vlm_ocr_check_not_registered(self):
+        """VLM OCR check returns ok when engine not registered."""
+        mock_ocr = type("OCR", (), {"engines": {}})()
+        diag = AutoDiagnostics({"ocr_manager": mock_ocr})
+        result = diag._check_vlm_ocr()
+        assert result["ok"] is True
+        assert "not registered" in result["detail"].lower()
+
+    def test_vlm_ocr_check_healthy(self):
+        """VLM OCR check reports healthy stats."""
+        engine = type("VLM", (), {
+            "get_stats": lambda self: {
+                "total_calls": 50, "errors": 2, "total_cost_usd": 0.005,
+                "avg_latency_ms": 800.0, "model": "test-model",
+            },
+            "_error_count": 2,
+        })()
+        mock_ocr = type("OCR", (), {"engines": {"vlm_ocr": engine}})()
+        diag = AutoDiagnostics({"ocr_manager": mock_ocr})
+        result = diag._check_vlm_ocr()
+        assert result["ok"] is True
+        assert result["detail"]["total_calls"] == 50
+        assert result["detail"]["warning"] is None
+
+    def test_vlm_ocr_check_high_error_rate_warns(self):
+        """VLM OCR check warns when error rate > 30%."""
+        engine = type("VLM", (), {
+            "get_stats": lambda self: {
+                "total_calls": 10, "errors": 4, "total_cost_usd": 0.001,
+                "avg_latency_ms": 1200.0, "model": "test-model",
+            },
+            "_error_count": 4,
+        })()
+        mock_ocr = type("OCR", (), {"engines": {"vlm_ocr": engine}})()
+        diag = AutoDiagnostics({"ocr_manager": mock_ocr})
+        result = diag._check_vlm_ocr()
+        assert result["ok"] is True  # warn, not fail
+        assert result["detail"]["error_rate_pct"] == 40.0
+        assert result["detail"]["warning"] == "High error rate"
+
+    def test_vlm_ocr_check_critical_error_rate_fails(self):
+        """VLM OCR check fails when error rate > 50%."""
+        engine = type("VLM", (), {
+            "get_stats": lambda self: {
+                "total_calls": 10, "errors": 6, "total_cost_usd": 0.0,
+                "avg_latency_ms": 0.0, "model": "test-model",
+            },
+            "_error_count": 6,
+        })()
+        mock_ocr = type("OCR", (), {"engines": {"vlm_ocr": engine}})()
+        diag = AutoDiagnostics({"ocr_manager": mock_ocr})
+        result = diag._check_vlm_ocr()
+        assert result["ok"] is False
