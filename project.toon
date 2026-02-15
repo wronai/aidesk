@@ -1,0 +1,862 @@
+# proxeen | 114f 33182L | python:100/javascript:14
+# Keys: M=modules, D=details, i=imports, c=classes, f=functions, m=methods
+M[114]:
+  rename_to_proxeen.py,118
+  backend/process_scanner.py,484
+  backend/stt.py,223
+  backend/query_handlers.py,251
+  backend/protocols.py,141
+  backend/bootstrap.py,283
+  backend/multi_monitor.py,382
+  backend/window_cropper.py,413
+  backend/circuit_breaker.py,220
+  backend/analyzer.py,366
+  backend/typed_events.py,177
+  backend/capture.py,457
+  backend/shell_agent.py,401
+  backend/observability.py,162
+  backend/diagnostics.py,414
+  backend/server.py,286
+  backend/app_profiles.py,352
+  backend/ocr_engines.py,507
+  backend/context.py,135
+  backend/action_templates.py,537
+  backend/window_aware.py,791
+  backend/vlm_ocr_engine.py,327
+  backend/async_subprocess.py,131
+  backend/test_setup.py,193
+  backend/wayland_screencast.py,328
+  backend/event_bus.py,506
+  backend/command_handlers.py,125
+  backend/settings.py,195
+  backend/predictive_engine.py,346
+  backend/ocr_post_process.py,451
+  backend/semantic_memory.py,495
+  backend/cost_budget.py,145
+  backend/analysis_loop.py,143
+  backend/preflight.py,330
+  backend/config_service.py,324
+  overlay/preload.js,35
+  overlay/config.js,7
+  overlay/main.js,206
+  overlay/app.js,280
+  overlay/components/connection-status.js,39
+  overlay/components/screen-summary.js,31
+  overlay/components/transcript-viewer.js,29
+  overlay/components/selection-panel.js,182
+  overlay/components/window-context.js,49
+  overlay/components/ocr-controls.js,106
+  overlay/components/base.js,39
+  overlay/components/agent-actions.js,69
+  overlay/components/analysis-viewer.js,62
+  overlay/services/sse.js,94
+  backend/clipboard_intel/manager.py,115
+  backend/clipboard_intel/engines.py,224
+  backend/clipboard_intel/__init__.py,45
+  backend/clipboard_intel/selection.py,128
+  backend/clipboard_intel/queue.py,98
+  backend/clipboard_intel/models.py,98
+  backend/tests/test_wayland_screencast.py,280
+  backend/tests/test_settings.py,129
+  backend/tests/test_units.py,1307
+  backend/tests/conftest.py,4
+  backend/tests/test_window_aware.py,187
+  backend/tests/test_analysis_loop.py,304
+  backend/tests/test_skills.py,922
+  backend/tests/test_bootstrap.py,320
+  backend/tests/test_multi_monitor.py,214
+  backend/tests/test_plugins.py,155
+  backend/tests/test_routes.py,795
+  backend/tests/test_typed_events.py,167
+  backend/tests/test_observability.py,154
+  backend/tests/test_circuit_breaker.py,187
+  backend/tests/test_clipboard_intel.py,481
+  backend/tests/test_action_templates.py,185
+  backend/tests/test_coverage_gaps.py,223
+  backend/tests/test_readmodel_persistence.py,112
+  backend/tests/test_tier1.py,681
+  backend/tests/test_e2e.py,515
+  backend/tests/test_semantic_memory.py,160
+  backend/tests/test_vlm_ocr_engine.py,210
+  backend/tests/test_cost_budget.py,84
+  backend/tests/test_parallel_group.py,107
+  backend/tests/test_event_store.py,66
+  backend/tests/test_preflight.py,226
+  backend/tests/test_pipeline_steps.py,123
+  backend/tests/test_analyzer.py,220
+  backend/routes/screen.py,86
+  backend/routes/config.py,38
+  backend/routes/memory.py,42
+  backend/routes/events.py,95
+  backend/routes/__init__.py,35
+  backend/routes/agent.py,77
+  backend/routes/templates.py,39
+  backend/routes/core.py,163
+  backend/routes/ocr.py,129
+  backend/routes/clipboard.py,192
+  backend/routes/windows.py,82
+  backend/plugins/loader.py,113
+  backend/plugins/__init__.py,5
+  backend/plugins/example_window_notifier.py,56
+  backend/plugins/example_logger.py,43
+  backend/plugins/interface.py,27
+  backend/skills/error_fixer.py,228
+  backend/skills/base.py,186
+  backend/skills/shell_command.py,212
+  backend/skills/__init__.py,109
+  backend/skills/clipboard_relation.py,881
+  backend/skills/voice_command.py,149
+  backend/skills/translation.py,162
+  backend/skills/tts.py,343
+  backend/skills/url_handler.py,101
+  backend/pipeline/protocol.py,20
+  backend/pipeline/__init__.py,57
+  backend/pipeline/context.py,146
+  backend/pipeline/steps_tier1.py,306
+  backend/pipeline/steps_core.py,456
+  backend/pipeline/orchestrator.py,203
+D:
+  rename_to_proxeen.py:
+    i: os,re,sys,shutil,pathlib.Path,typing.{List,Tuple}
+    e: REPLACEMENTS,replace_case_preserving,find_files_and_dirs,rename_files_and_dirs,update_file_contents,create_backup,main
+    replace_case_preserving(text:str)->str
+    find_files_and_dirs(root_dir:Path)->Tuple[List[Path], List[Path]]
+    rename_files_and_dirs(files_to_rename:List[Path];dirs_to_rename:List[Path])->bool
+    update_file_contents(root_dir:Path;extensions:List[str]=None)->bool
+    create_backup(root_dir:Path)->bool
+    main()
+  backend/process_scanner.py:
+    i: os,re,subprocess,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Tuple}
+    e: ProcessInfo,VisibleWindow,ProcessScanner,create_process_scanner
+    ProcessInfo: to_dict(0)  # Information about a running process w...
+    VisibleWindow: to_dict(0),roi(0)  # A visible window on screen with its p...
+    ProcessScanner: __init__(1),_check_tool(1),_run(2),_parse_window_id(1),_query_active_window_id(0)  # Scans running processes and visible w...
+    create_process_scanner(window_manager:Optional[WindowManager]=None;settings=None)->ProcessScanner
+  backend/stt.py:
+    i: os,asyncio,nfo,structlog,deepgram.{DeepgramClient,DeepgramClientOptions,LiveOptions,LiveTranscriptionEvents},typing.{Callable,Optional}
+    e: RealtimeSTT,create_stt_from_env
+    RealtimeSTT: __init__(5),start(1),_send_audio_bytes(1),_resolve_device(1),_capture_audio(0)  # Real-time speech-to-text using Deepgr...
+    create_stt_from_env(settings=None)->Optional[RealtimeSTT]
+  backend/query_handlers.py:
+    i: json,time,nfo,structlog,event_bus.Event,pathlib.Path,typing.{Any,Callable,Dict,Optional}
+    e: ReadModel,QueryHandlers
+    ReadModel: __init__(0),on_event(1),on_windows_scanned(1),on_screen_captured(1),on_analysis_completed(1)  # CQRS Read Model — materialized view o...
+    QueryHandlers: __init__(3),register_all(0),_project_windows(1),_project_capture(1),_project_analysis(1)  # Registry of CQRS query handlers.
+  backend/protocols.py:
+    i: typing
+    e: ScreenCapture,OCRExtractor,ScreenAnalyzer,WindowDetector,ProcessScanning,WindowCropping,ProfileProvider,CommandAgent
+    ScreenCapture: capture(2),adaptive_interval(0),get_stats(0),get_monitors(0)  # Contract for screen capture modules.
+    OCRExtractor: extract(1),set_engine(1),benchmark(1),get_available_engines(0),get_stats(0)  # Contract for OCR text extraction.
+    ScreenAnalyzer: analyze(2),set_mode(1),get_stats(0)  # Contract for screen analysis (VLM / h...
+    WindowDetector: get_active_window(0),get_monitors(0),get_window_roi(1),get_stats(0)  # Contract for active window detection.
+    ProcessScanning: scan_all_windows(0),get_window_layout(0),get_stats(0)  # Contract for scanning visible windows...
+  backend/bootstrap.py:
+    i: asyncio,os,time,nfo,structlog,capture.create_capture_from_env,typing.{Callable,Dict,List,Optional}
+    e: AppBootstrap
+    AppBootstrap: __init__(3),init_core(0),init_window(0),init_scanners(0),init_tier1(0)  # Orchestrates application startup and...
+    _init_optional(state:dict;key:str;factory)->bool
+  backend/multi_monitor.py:
+    i: os,re,subprocess,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Tuple}
+    e: MonitorActivity,MultiMonitorSnapshot,MonitorAwareCapture,create_multi_monitor_from_env
+    MonitorActivity: to_dict(0)  # Tracks activity level for a single mo...
+    MultiMonitorSnapshot: to_dict(0)  # Complete multi-monitor state for one...
+    MonitorAwareCapture: __init__(2),_find_window_monitor(2),_find_primary_monitor(1),detect_active_monitor(2),_build_monitor_activity(4)  # Multi-monitor intelligence layer.
+    create_multi_monitor_from_env(settings=None)->MonitorAwareCapture
+  backend/window_cropper.py:
+    i: base64,os,time,dataclasses.{dataclass,field},io.BytesIO,typing.{Dict,List,Optional,Tuple}
+    e: CroppedWindow,OrganizedScreenData,WindowCropper,create_window_cropper
+    CroppedWindow: to_dict(0)  # A cropped screenshot region associate...
+    OrganizedScreenData: to_dict(0),get_summary_for_tts(0)  # Organized collection of all visible a...
+    WindowCropper: __init__(7),_select_top_k(2),crop_all_windows(2),_should_skip_window(5),_crop_single_window(6)  # Crops individual application windows...
+    create_window_cropper(process_scanner:ProcessScanner;crops_dir:Optional[str]=None;settings=None)->WindowCropper
+  backend/circuit_breaker.py:
+    i: asyncio,time,dataclasses.{dataclass,field},enum.Enum,typing.{Callable,Dict,List,Optional,Set}
+    e: CircuitState,CircuitBreaker,_TRANSIENT_ERROR_SUBSTRINGS,is_transient_error,retry_with_backoff,StepGuard,wrap_step_with_guard
+    CircuitState: 
+    CircuitBreaker: __post_init__(0),can_execute(0),record_success(0),record_failure(0),_transition(1)  # Circuit breaker that disables a compo...
+    StepGuard: __init__(5),name(0),can_run(1),execute(2),get_breaker_stats(0)  # Wraps a PipelineStep with circuit bre...
+    is_transient_error(error:Exception)->bool
+    retry_with_backoff(fn;max_retries:int=3;base_delay:float=1.0;max_delay:float=30.0;backoff_factor:float=2.0;retry_on:Optional[Callable]=None)
+    wrap_step_with_guard(step;failure_threshold:int=5;reset_timeout:float=60.0;max_retries:int=2)->StepGuard
+  backend/analyzer.py:
+    i: os,time,asyncio,nfo,structlog,litellm,litellm.acompletion,typing.{Dict,Literal,Optional}
+    e: AnalysisStrategy,VisionOnlyStrategy,OCROnlyStrategy,HybridStrategy,OCRPlusVisionStrategy,_STRATEGIES,TokenBucketLimiter,ScreenAnalyzer
+    AnalysisStrategy: build_messages(3),needs_ocr(0),needs_llm(0)  # Strategy interface for analysis modes...
+    VisionOnlyStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # Pure VLM: send image to vision model,...
+    OCROnlyStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # Pure OCR: extract text only, no LLM c...
+    HybridStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # OCR text → LLM text prompt (no image...
+    OCRPlusVisionStrategy: needs_ocr(0),needs_llm(0),build_messages(3)  # OCR text + image → VLM (most accurate...
+    create_analyzer_from_env(ocr_manager:Optional[OCRManager]=None;settings=None)->ScreenAnalyzer
+  backend/typed_events.py:
+    i: event_bus.{Event,EventType},pydantic.{BaseModel,ConfigDict,Field},typing.{Any,Dict,List,Optional}
+    e: EventPayload,WindowsScannedPayload,ActiveWindowPayload,ScreenCapturedPayload,ScreenOrganizedPayload,ContextBuiltPayload,AnalysisCompletedPayload,AgentSuggestedPayload
+    EventPayload:   # Base class for all typed event payloads.
+    WindowsScannedPayload:   # Payload for pipeline.windows_scanned...
+    ActiveWindowPayload:   # Payload for detect_active_window events.
+    ScreenCapturedPayload:   # Payload for pipeline.screen_captured...
+    ScreenOrganizedPayload:   # Payload for pipeline.screen_organized...
+    typed_event(event_type:EventType;payload:EventPayload;source:str='';correlation_id:str='')->Event
+    parse_payload(event:Event)->Optional[EventPayload]
+  backend/capture.py:
+    i: mss,imagehash,numpy,base64,json,time,subprocess,shutil,PIL.Image,io.BytesIO
+    e: WAYLAND_FRAME_PATH,WAYLAND_STATUS_PATH,SYSTEM_PYTHON3,SmartScreenCapture,create_capture_from_env
+    SmartScreenCapture: __init__(7),_check_change_detected(1),_encode_and_save(2),capture(2),adaptive_interval(0)  # Captures screen with intelligent chan...
+    _detect_backend()->str
+    _resize_preserve_aspect(img:Any;max_dim:int)->Image.Image
+    create_capture_from_env(settings=None)->SmartScreenCapture
+  backend/shell_agent.py:
+    i: os,re,shlex,subprocess,time,dataclasses.{dataclass,field},enum.Enum,typing.{Dict,List}
+    e: ActionRisk,AgentAction,SAFE_COMMANDS,APPROVAL_COMMANDS,BLOCKED_PATTERNS,ACTION_RULES,ShellAgent,create_shell_agent_from_env
+    ActionRisk:   # Risk level for agent actions.
+    AgentAction: to_dict(0)  # A suggested or executed agent action.
+    ShellAgent: __init__(5),suggest_actions(3),execute_action(3),execute_safe(2),approve_action(1)  # Safe shell command execution engine.
+    create_shell_agent_from_env(settings=None)->ShellAgent
+  backend/observability.py:
+    i: time,uuid,collections.defaultdict,contextlib.contextmanager,dataclasses.{dataclass,field},typing.{Any,Dict,List,Optional}
+    e: Span,Tracer,get_tracer,reset_tracer
+    Span: __post_init__(0),duration_ms(0),set_attribute(2),set_error(1),finish(0)  # A single traced operation (OTel-compa...
+    Tracer: __init__(2),span(3),_record(1),get_metrics(0),get_recent_spans(2)  # Lightweight tracer that collects span...
+    get_tracer(service_name:str='proxeen')->Tracer
+    reset_tracer()
+  backend/diagnostics.py:
+    i: asyncio,os,time,glob,sqlite3,nfo,typing.{Callable,Dict,List,Optional}
+    e: AutoDiagnostics
+    AutoDiagnostics: __init__(2),run_loop(1),_run_checks(0),_check_capture(0),_check_captures_dir(0)  # Periodic self-diagnostics that verify:
+  backend/server.py:
+    i: asyncio,json,os,time,sqlite3,threading,contextlib.asynccontextmanager,typing.{Dict,List,Optional}
+    e: APP_VERSION,_SQLITE_CONN,_SQLITE_LOCK,_SQLITE_PENDING_WRITES,_SQLITE_FLUSH_EVERY,setup_logging,broadcast,screen_analysis_loop
+    _read_version()->str
+    _get_sqlite_conn(db_file:str)->sqlite3.Connection
+    _flush_and_close_sqlite_conn()
+    setup_logging()
+    broadcast(event_type:str;data:Dict)
+    screen_analysis_loop()
+    on_transcript(text:str;is_final:bool)
+    _nfo_validate_startup(state:Dict)
+  backend/app_profiles.py:
+    i: nfo,structlog,dataclasses.{dataclass,field},typing.{Dict,List,Optional},window_aware.AppCategory
+    e: AppProfile,PROFILES,DEFAULT_PROFILE,ProfileManager,create_profile_manager
+    AppProfile:   # Analysis profile for a specific appli...
+    ProfileManager: __init__(0),get_profile(1),get_prompt_addon(1),get_focus_keywords(1),get_priority_boost(1)  # Manages per-app analysis profiles and...
+    create_profile_manager(settings=None)->ProfileManager
+  backend/ocr_engines.py:
+    i: os,time,base64,abc.{ABC,abstractmethod},io.BytesIO,typing.{Dict,List,Optional,Tuple}
+    e: OCRResult,BaseOCREngine,PaddleOCREngine,EasyOCREngine,TesseractEngine,ENGINES,OCRManager,create_ocr_manager_from_env
+    OCRResult: __init__(6),to_dict(0),to_llm_context(0),_cluster_regions(0)  # Standardized OCR result across all en...
+    BaseOCREngine: __init__(1),_initialize(0),_extract(1),extract_from_b64(1),get_stats(0)  # Abstract base class for OCR engines.
+    PaddleOCREngine: __init__(2),_initialize(0),_extract(1)  # PaddleOCR engine - fastest, best for...
+    EasyOCREngine: __init__(2),_initialize(0),_extract(1)  # EasyOCR engine - high accuracy (CER 0...
+    TesseractEngine: __init__(1),_initialize(0),_extract(1)  # Tesseract 5+ engine - lightweight (~1...
+    create_ocr_manager_from_env(settings=None)->OCRManager
+  backend/context.py:
+    i: time,warnings,nfo,structlog,collections.deque,typing.{Dict,List,Literal}
+    e: ContextManager
+    ContextManager: __init__(1),add(3),get_recent(2),get_context_string(2),clear(0)  # Manages conversation context with sli...
+  backend/action_templates.py:
+    i: json,os,re,sqlite3,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional}
+    e: ActionTemplate,ScoredAction,AppActionLibrary,create_action_library_from_env
+    ActionTemplate: confidence(0),should_auto_execute(0),to_dict(0)  # A learned action template with confid...
+    ScoredAction: to_dict(0)  # An action suggestion with confidence...
+    AppActionLibrary: __init__(3),_init_db(0),_load_templates(0),_seed_defaults(0),_persist_template(1)  # Per-app action template library that...
+    create_action_library_from_env(settings=None)->AppActionLibrary
+  backend/window_aware.py:
+    i: os,re,subprocess,time,dataclasses.{dataclass,field},enum.Enum,typing.{Dict,List,Optional}
+    e: AppCategory,APP_RULES,SERVICE_WINDOW_CLASS_PATTERNS,SERVICE_WINDOW_TITLES,PROCESS_RULES,CMDLINE_RULES,TITLE_FALLBACK_RULES,_COMPILED_APP_RULES
+    AppCategory:   # Application categories for per-app an...
+    WindowInfo: to_dict(0),to_context_string(0)  # Information about the currently activ...
+    MonitorInfo: to_dict(0)  # Information about a connected monitor.
+    _EwmhBackend: __init__(0),_init(0),available(0),get_active_window_id(0),get_mouse_window_id(0)  # Fast X11 window detection via python-...
+    WindowManager: __init__(3),_check_tool(1),_detect_display_server(0),_run(2),get_active_window(0)  # Linux window manager integration.
+    _get_ewmh_backend()->Optional[_EwmhBackend]
+    create_window_manager_from_env(settings=None)->WindowManager
+  backend/vlm_ocr_engine.py:
+    i: os,time,nfo,structlog,ocr_engines.{BaseOCREngine,OCRResult},typing.{Dict,List,Optional}
+    e: VLM_OCR_SYSTEM_PROMPT,VLM_OCR_SYSTEM_PROMPT_SHORT,VLMOCREngine
+    VLMOCREngine: __init__(7),_initialize(0),_extract(1),extract_from_b64(1),aextract_from_b64(1)  # Cloud-based OCR engine using Vision L...
+  backend/async_subprocess.py:
+    i: asyncio,subprocess,nfo,structlog,typing.{List,Optional}
+    e: run_async,run_async_shell,run_in_thread_sync,run_in_thread
+    run_async(cmd:List[str];timeout:float=3.0;cwd:Optional[str]=None)->Optional[str]
+    run_async_shell(command:str;timeout:float=10.0;cwd:Optional[str]=None;max_output:int=2000)->dict
+    run_in_thread_sync(cmd:List[str];timeout:float=3.0;cwd:Optional[str]=None)->Optional[str]
+    run_in_thread(cmd:List[str];timeout:float=3.0;cwd:Optional[str]=None)->Optional[str]
+  backend/test_setup.py:
+    i: sys,os
+    e: GREEN,RED,YELLOW,BLUE,RESET,check,main
+    check(name;passed;details='')
+    _is_real_key(value:str;placeholder_prefix:str='your_')->bool
+    _check_python_version()->bool
+    _check_packages()->bool
+    _check_env_file(env_path:str)->bool
+    _load_env(env_path:str)->bool
+    _check_api_keys()->bool
+    _check_screen_capture()->bool
+  backend/wayland_screencast.py:
+    i: os,sys,signal,time,json,gi,gi.repository.{GLib,Gio,Gst}
+    e: OUTPUT_PATH,QUALITY,MAX_FPS,STATUS_PATH,TOKEN_PATH,SCREENCAST_IFACE,REQUEST_IFACE,PORTAL_BUS
+    ScreenCastCapture: __init__(0),_next_token(0),_subscribe_response(2),_portal_call(3),start(0)  # Captures Wayland screen via ScreenCas...
+    main()
+  backend/event_bus.py:
+    i: asyncio,json,os,sqlite3,threading,time,uuid,dataclasses.{asdict,dataclass,field}
+    e: EventCategory,EventType,Event,EventStore,EventBus,create_event_bus
+    EventCategory:   # Top-level event categories for CQRS s...
+    EventType:   # All known event types in the system.
+    Event: __post_init__(0),to_dict(0),to_json(0)  # Immutable domain event.
+    EventStore: __init__(4),_trace_append_sample(0),_trace_query_sample(0),_open_connection(0),_ensure_db(0)  # Persistent event store using SQLite.
+    EventBus: __init__(2),subscribe(2),unsubscribe(2),add_middleware(1),publish(1)  # Async event bus with typed pub/sub an...
+    create_event_bus(enable_store:bool=True;db_path:str='logs/events.db')->EventBus
+  backend/command_handlers.py:
+    i: nfo,structlog,event_bus.{Event,EventBus,EventCategory,EventType},typing.{Any,Callable,Dict,Optional}
+    e: CommandHandlers
+    CommandHandlers: __init__(2),set_broadcast(1),register_all(0),handle_switch_ocr(1),handle_switch_mode(1)  # Registry of CQRS command handlers.
+  backend/settings.py:
+    i: os,functools.lru_cache,pydantic.{Field,field_validator},pydantic_settings.BaseSettings,typing.{List,Optional}
+    e: Settings,get_settings,reload_settings
+    Settings: validate_analysis_mode(1),validate_ocr_engine(1),validate_tts_engine(1),cors_origins_list(0),ocr_languages_list(0)  # Application settings — loaded from .e...
+    get_settings()->Settings
+    reload_settings()->Settings
+  backend/predictive_engine.py:
+    i: asyncio,os,time,collections.defaultdict,dataclasses.{dataclass,field},typing.{Any,Callable,Coroutine,Dict}
+    e: TransitionStats,PredictionResult,PrefetchCache,PredictiveAnalyzer,create_predictive_engine_from_env
+    TransitionStats: key(0)  # Statistics for a single app transitio...
+    PredictionResult: to_dict(0)  # A predicted next window/app with conf...
+    PrefetchCache: is_valid(0),to_dict(0)  # Cached pre-fetched data for a predict...
+    PredictiveAnalyzer: __init__(5),observe_window_change(2),predict_next_action(1),set_prefetch_callback(1),maybe_prefetch(1)  # Learns window switching patterns and...
+    create_predictive_engine_from_env(settings=None)->PredictiveAnalyzer
+  backend/ocr_post_process.py:
+    i: os,re,time,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Set,Tuple}
+    e: _HAS_SYMSPELL,TextType,CHAR_CONFUSIONS,CODE_OCR_FIXES,TERMINAL_OCR_FIXES,PROGRAMMING_KEYWORDS,CODE_INDICATORS,TERMINAL_INDICATORS
+    TextType:   # Detected type of OCR text region.
+    PostProcessResult: to_dict(0)  # Result of OCR post-processing.
+    OCREnhancer: __init__(4),_init_spell_checker(1),enhance(2),_detect_text_type(1),_score_line(1)  # Post-processes OCR results to improve...
+    create_ocr_enhancer_from_env(settings=None)->OCREnhancer
+  backend/semantic_memory.py:
+    i: hashlib,json,os,sqlite3,time,collections.defaultdict,dataclasses.{dataclass,field},typing.{Dict,List}
+    e: _HAS_EMBEDDER,MemoryItem,SemanticMemory,create_semantic_memory_from_env
+    MemoryItem: to_dict(0)  # A single memory entry with embedding...
+    SemanticMemory: __init__(7),_init_embedder(0),_embed(1),_embed_batch(1),_init_db(0)  # Embedding-based semantic memory with...
+    create_semantic_memory_from_env(settings=None)->SemanticMemory
+  backend/cost_budget.py:
+    i: json,time,nfo,structlog,dataclasses.{asdict,dataclass},event_bus.EventBus,pathlib.Path,typing.{Dict,Optional}
+    e: BudgetConfig,CostBudget,create_cost_budget_from_env
+    BudgetConfig: 
+    CostBudget: __init__(2),check_and_reset(0),can_spend(1),record_spend(2),get_suggested_mode(1)  # Tracks API spend and enforces budget...
+    create_cost_budget_from_env(settings=None)->CostBudget
+  backend/analysis_loop.py:
+    i: asyncio,nfo,structlog,event_bus.EventBus,pipeline.PipelineContext,typing.{Any,Callable,Coroutine,Dict,Optional}
+    e: AnalysisLoop
+    AnalysisLoop: __init__(2),pipeline(0),profile_selector(0),capture(0),context_mgr(0)  # Encapsulates the main screen analysis...
+  backend/preflight.py:
+    i: io,os,sys,time,asyncio,nfo,contextlib.contextmanager,typing.{Dict,List,Optional}
+    e: _GREEN,_RED,_YELLOW,_BLUE,_DIM,_BOLD,_RESET,PreflightResult
+    PreflightResult: __init__(5),to_dict(0)  # Result of a single preflight check.
+    PreflightDiagnostics: __init__(1),run(0),_check_litellm(0),_check_api_keys(0),_ping_vision_llm(0)  # Pre-startup connectivity checks for a...
+    _mask_key(key:str)->str
+    _fmt_ok(name:str;detail:str='';latency_ms:float=0)->str
+    _fmt_fail(name:str;detail:str='')->str
+    _fmt_skip(name:str;detail:str='')->str
+    _fmt_header(title:str)->str
+    _suppress_stdout()
+    run_preflight(settings=None)->Dict
+  backend/config_service.py:
+    i: os,re,subprocess,nfo,dataclasses.{dataclass,field},typing.{Dict,List,Optional,Tuple}
+    e: ENV_PATH,read_env,read_env_with_alternatives,update_env,AudioDevice,discover_audio_devices,CONFIG_SCHEMA,get_config_with_schema
+    AudioDevice: to_dict(0)  # Single audio device (source or sink).
+    _parse_env_file(path:str)->Tuple[List[str], Dict[str, str], Dict[str, List[dict]]]
+    read_env()->Dict[str, str]
+    read_env_with_alternatives()->Tuple[Dict[str, str], Dict[str, List[dict]]]
+    update_env(updates:Dict[str;str])->Dict[str, str]
+    _run_pactl(args:List[str])->Optional[str]
+    _parse_pactl_list(output:str;device_type:str)->List[AudioDevice]
+    _build_device(d:Dict[str;str];device_type:str)->AudioDevice
+    _discover_pactl()->Tuple[List[AudioDevice], List[AudioDevice]]
+  overlay/main.js:
+    e: createOverlay,loadPrefs,savePrefs,startSelectionWatcher,moveToNextScreen
+    loadPrefs()
+    savePrefs()
+    createOverlay()
+    moveToNextScreen()
+    startSelectionWatcher()
+  overlay/app.js:
+    i: ./components/agent-actions.js,./components/analysis-viewer.js,./components/connection-status.js,./components/ocr-controls.js,./components/screen-summary.js,./components/selection-panel.js,./components/transcript-viewer.js,./components/window-context.js,./config.js,./services/sse.js
+    e: App
+    App: constructor(0),handleTranscript(1),handleSelectionAnalysis(1),maybeTriggerVoiceCommandAnalysis(1),resolveVoiceContextText(1)
+  overlay/components/connection-status.js:
+    i: ./base.js
+    e: ConnectionStatus
+    ConnectionStatus: connectedCallback(0),update(1),setWarning(1)
+  overlay/components/screen-summary.js:
+    i: ./base.js
+    e: ScreenSummary
+    ScreenSummary: connectedCallback(0),update(1)
+  overlay/components/transcript-viewer.js:
+    i: ./base.js
+    e: TranscriptViewer
+    TranscriptViewer: connectedCallback(0),update(2)
+  overlay/components/selection-panel.js:
+    i: ./base.js
+    e: SelectionPanel
+    SelectionPanel: connectedCallback(0),show(0),hide(0),triggerAnalysis(0),_updateClipboardPreview(0)
+  overlay/components/window-context.js:
+    i: ./base.js
+    e: WindowContext
+    WindowContext: connectedCallback(0),update(1)
+  overlay/components/ocr-controls.js:
+    i: ./base.js
+    e: OCRControls
+    OCRControls: connectedCallback(0),setMode(1),setEngine(1),setAvailableEngines(1),updateInfo(1)
+  overlay/components/base.js:
+    e: BaseComponent
+    BaseComponent: constructor(0),qs(1),qsa(1),emit(1),escapeHtml(1)
+  overlay/components/agent-actions.js:
+    i: ./base.js
+    e: AgentActions
+    AgentActions: connectedCallback(0),update(1),showResult(1)
+  overlay/components/analysis-viewer.js:
+    i: ./base.js
+    e: AnalysisViewer
+    AnalysisViewer: connectedCallback(0),update(1),formatAnalysisText(1)
+  overlay/services/sse.js:
+    i: ../config.js
+    e: SSEService
+    SSEService: constructor(1),connect(0),on(2),off(2),emit(2)
+  backend/clipboard_intel/manager.py:
+    i: nfo,structlog,models.{AutoCopyResult,ClipSource,ClipboardItem,PasteSuggestion},typing.{Dict,List,Optional},window_aware.AppCategory
+    e: SnippetStore,ClipboardManager,create_clipboard_manager_from_env
+    SnippetStore: __init__(0),add(4),remove(1),expand(2),get_all(0)  # Simple key→value snippet store for fo...
+    ClipboardManager: __init__(1),push(4),scan_and_copy(3),suggest_paste(3),mark_pasted(1)  # Orchestrates clipboard intelligence:...
+    create_clipboard_manager_from_env(settings=None)->ClipboardManager
+  backend/clipboard_intel/engines.py:
+    i: re,time,models.{AutoCopyResult,ClipSource,PasteSuggestion},queue.ClipboardQueue,typing.{Dict,List,Optional},window_aware.AppCategory
+    e: AUTO_COPY_RULES,ContextCopyEngine,_PASTE_CONTEXT_KEYWORDS,PasteSuggester
+    ContextCopyEngine: __init__(1),scan(3)  # Scans screen text for actionable cont...
+    PasteSuggester: suggest(4)  # Suggests the best clipboard item to p...
+  backend/clipboard_intel/selection.py:
+    i: re,models.SelectionAnalysis,typing.{Dict,List,Optional}
+    e: SELECTION_ANALYSIS_RULES,SelectionAnalyzer
+    SelectionAnalyzer: __init__(1),analyze(1)  # Analyzes user-selected text using pat...
+  backend/clipboard_intel/queue.py:
+    i: time,collections.deque,models.{ClipSource,ClipboardItem},typing.{Dict,List}
+    e: ClipboardQueue
+    ClipboardQueue: __init__(1),push(4),get_all(0),get_recent(1),get_by_source(1)  # Ring buffer of last N clipboard items...
+  backend/clipboard_intel/models.py:
+    i: time,dataclasses.dataclass,enum.Enum,typing.Dict
+    e: ClipSource,ClipboardItem,AutoCopyResult,PasteSuggestion,Snippet,SelectionAnalysis
+    ClipSource:   # Origin of a clipboard entry.
+    ClipboardItem: __post_init__(0),to_dict(0)  # A single item in the clipboard queue.
+    AutoCopyResult: to_dict(0)  # Result of context-aware auto-copy scan.
+    PasteSuggestion: to_dict(0)  # A suggested clipboard item to paste i...
+    Snippet: to_dict(0)  # A reusable text snippet triggered by...
+  backend/tests/test_wayland_screencast.py:
+    i: json,os,sys,tempfile,pytest,wayland_screencast,unittest.mock.{MagicMock,patch},wayland_screencast.ScreenCastCapture
+    e: TestRestoreToken,TestStatusFile,TestNewSample,TestLifecycle,TestSessionManagement,TestPipeline,TestMain,TestStatusAndLogging
+    TestRestoreToken: test_save_load_roundtrip(2),test_save_none_deletes_file(2),test_load_missing_file_returns_none(2)
+    TestStatusFile: test_write_status(2)
+    TestNewSample: test_rate_limiting(0),test_pull_sample_failure(3),test_successful_frame_save(3)  # Test frame processing logic using moc...
+    TestLifecycle: test_stop_stops_pipeline(0),test_stop_no_pipeline(0)
+    TestSessionManagement: test_next_token_increments(0),test_on_session_created_success(0),test_on_session_created_failure_response(0),test_on_session_created_missing_handle(0),test_on_sources_selected_success(0)
+  backend/tests/test_settings.py:
+    i: os,sys,pytest,settings.{Settings,get_settings,reload_settings}
+    e: TestSettingsDefaults,TestSettingsValidation,TestVlmOcrSettingsValidation,TestSettingsProperties,TestSettingsFromEnv,TestGetSettings
+    TestSettingsDefaults: test_default_vision_model(1),test_default_port(1),test_default_analysis_mode(1),test_default_ocr_engine(1),test_default_tts_engine(0)
+    TestSettingsValidation: test_invalid_analysis_mode_rejected(0),test_vlm_ocr_engine_accepted(0),test_invalid_ocr_engine_rejected(0),test_invalid_tts_engine_rejected(0),test_port_range_enforced(0)
+    TestVlmOcrSettingsValidation: test_vlm_ocr_timeout_too_low_rejected(0),test_vlm_ocr_timeout_too_high_rejected(0),test_vlm_ocr_image_detail_invalid_rejected(0),test_vlm_ocr_max_tokens_too_low_rejected(0),test_vlm_ocr_max_tokens_too_high_rejected(0)
+    TestSettingsProperties: test_cors_origins_list(0),test_ocr_languages_list(0),test_empty_cors_origins(0)
+    TestSettingsFromEnv: test_env_var_override(1),test_bool_from_env(1),test_float_from_env(1),test_tts_engine_from_env(1)
+  backend/tests/test_units.py:
+    i: sys,os,time,pytest,PIL.Image,unittest.mock.patch,window_aware.{AppCategory,MonitorInfo,WindowInfo,WindowManager}
+    e: TestAppClassification,TestWindowManagerActiveSelection,TestWindowInfo,TestProfileManager,TestShellAgent,TestProcessInfo,TestVisibleWindow,TestProcessScanner
+    TestAppClassification: test_ide_detection(0),test_terminal_detection(0),test_browser_detection(0),test_email_detection(0),test_service_window_not_misclassified_as_email(0)  # Test application classification by WM...
+    TestWindowManagerActiveSelection: test_query_window_id_prefers_cursor_window(0),test_query_window_id_falls_back_to_focused_when_cursor_is_service(0),test_query_mouse_window_id_parses_shell_output(0)
+    TestWindowInfo: _make_info(0),test_to_dict(0),test_to_context_string(0),test_to_dict_no_git(0)  # Test WindowInfo dataclass serialization.
+    TestProfileManager: test_init_loads_profiles(0),test_get_prompt_addon_ide(0),test_get_prompt_addon_terminal(0),test_switch_tracking(0),test_get_stats(0)
+    TestShellAgent: test_init(0),test_suggest_module_not_found(0),test_suggest_git_push_rejected(0),test_suggest_npm_module_missing(0),test_blocked_commands(0)
+  backend/tests/test_window_aware.py:
+    i: os,sys,time,pytest,window_aware
+    e: TestWindowInfo,TestMonitorInfo,TestRuleLists,TestClassifyAppDataDriven,TestServiceWindowDetection,TestParseGeometry,TestExtractPathFromTitle,TestWindowROI
+    TestWindowInfo: test_default_values(0),test_to_dict_keys(0),test_to_dict_with_git(0),test_to_context_string(0),test_to_context_string_minimal(0)
+    TestMonitorInfo: test_to_dict(0)
+    TestRuleLists: test_app_rules_cover_all_categories(0),test_compiled_rules_match_raw_count(0),test_cmdline_rules_not_empty(0),test_title_fallback_rules_not_empty(0),test_service_patterns_include_critical(0)
+    TestClassifyAppDataDriven: test_cmdline_layer_ide(0),test_cmdline_layer_game(0),test_title_fallback_layer_vim(0),test_title_fallback_layer_bash(0),test_title_fallback_layer_browser(0)  # Test the data-driven classification t...
+    TestServiceWindowDetection: test_service_by_class(0),test_service_by_title(0),test_normal_app_not_service(0),test_none_fields_handled(0)
+  backend/tests/test_analysis_loop.py:
+    i: asyncio,os,sys,time,pytest,analysis_loop.AnalysisLoop,pipeline.PipelineContext,unittest.mock.{AsyncMock,MagicMock,patch}
+    e: TestAnalysisLoopInit,TestTick,TestWindowTracking,TestStoreAnalysis,TestErrorHandling,TestClipboardBroadcastRegression
+    TestAnalysisLoopInit: test_constructor(0),test_properties(0)
+    TestTick: test_basic_tick(0),test_tick_with_active_window(0),test_tick_with_analysis(0),test_tick_with_organized_screen(0),test_tick_with_clipboard_broadcast(0)
+    TestWindowTracking: test_window_change_notifies_selector(0),test_same_window_no_notify(0),test_window_change_second_tick(0)
+    TestStoreAnalysis: test_no_analysis_no_store(0),test_analysis_stored_with_metadata(0)
+    TestErrorHandling: test_pipeline_step_errors_logged(0),test_agent_actions_broadcast(0)
+    _make_state()
+    _make_active_window(wid=100;title='Code';category_value='development')
+  backend/tests/test_skills.py:
+    i: asyncio,os,sys,pytest,skills.base.{BaseSkill,SkillCategory,SkillContext,SkillOption,SkillResult},types.SimpleNamespace
+    e: TestSkillRouter,TestShellCommandSkill,TestErrorFixerSkill,TestTranslationSkill,TestTTSSkill,TestVoiceCommandSkill,TestURLHandlerSkill,TestSerialization
+    TestSkillRouter: test_init(0),test_analyze_shell_command(0),test_analyze_error(0),test_analyze_url(0),test_analyze_english_text(0)
+    TestShellCommandSkill: test_detect_git(0),test_detect_docker(0),test_detect_pip(0),test_detect_sudo(0),test_no_detect_plain_text(0)
+    TestErrorFixerSkill: test_detect_module_not_found(0),test_detect_node_module(0),test_detect_git_error(0),test_detect_no_space(0),test_no_detect_clean_text(0)
+    TestTranslationSkill: test_detect_language_english(0),test_detect_language_german(0),test_detect_language_polish(0),test_detect_language_short_text(0),test_skill_detect_foreign(0)
+    TestTTSSkill: test_detect_available_engines(0),test_get_best_engine_auto_skips_basic_only(1),test_get_best_engine_preferred_basic_allowed(1),test_skill_honors_configured_preferred_engine(1),test_skill_detect_native_text(0)
+    _ctx()
+  backend/tests/test_bootstrap.py:
+    i: asyncio,os,sys,pytest,bootstrap.{AppBootstrap,_init_optional},unittest.mock.{AsyncMock,MagicMock,patch}
+    e: TestInitOptional,TestAppBootstrapInit,TestInitCore,TestInitWindow,TestInitScanners,TestInitTier1,TestInitPipeline,TestShutdown
+    TestInitOptional: test_success(0),test_failure(0),test_with_kwargs(0)
+    TestAppBootstrapInit: test_constructor(1)
+    TestInitCore: test_initializes_core_components(4)
+    TestInitWindow: test_all_enabled(4),test_window_disabled(3),test_window_manager_failure_graceful(3)
+    TestInitScanners: test_success(3),test_failure_graceful(2)
+    _make_state()
+    _mock_settings()
+  backend/tests/test_multi_monitor.py:
+    i: os,sys,time,pytest,multi_monitor.{MonitorActivity,MonitorAwareCapture,MultiMonitorSnapshot},unittest.mock.{MagicMock,patch},window_aware.MonitorInfo
+    e: TestMonitorActivity,TestMultiMonitorSnapshot,TestDetectActiveMonitor,TestBuildSnapshot,TestPriority,TestMonitorsToAnalyze,TestCaptureROI,TestWindowOnMonitor
+    TestMonitorActivity: test_to_dict_keys(0)
+    TestMultiMonitorSnapshot: test_to_dict_keys(0)
+    TestDetectActiveMonitor: setup_method(0),test_active_window_on_left_monitor(0),test_active_window_on_right_monitor(0),test_active_window_geometry_fallback(0),test_no_active_window_falls_to_primary(0)
+    TestBuildSnapshot: setup_method(0),test_basic_snapshot(0),test_windows_mapped_to_monitors(0),test_active_monitor_has_highest_priority(0),test_no_windows_empty_snapshot(0)
+    TestPriority: test_active_window_boosts_priority(0),test_primary_gets_boost(0),test_window_count_adds_to_priority(0)
+    _make_monitors()
+    _make_windows()
+  backend/tests/test_plugins.py:
+    i: asyncio,os,sys,pytest,plugins.interface.PluginInterface,plugins.loader.PluginLoader,unittest.mock.{AsyncMock,MagicMock,patch}
+    e: MockPlugin,MockDisabledPlugin,MockBadPlugin,MockSyncShutdownPlugin,TestPluginLoader
+    MockPlugin: __init__(0),register(2),shutdown(0)
+    MockDisabledPlugin: __init__(0)
+    MockBadPlugin: 
+    MockSyncShutdownPlugin: shutdown(0)
+    TestPluginLoader: test_init(0),test_default_plugin_dir_resolves_to_backend_plugins(0),test_discover_and_load_success(2),test_discover_skips_internal_modules(2),test_discover_twice_skips_already_loaded_modules(2)
+  backend/tests/test_routes.py:
+    i: asyncio,json,os,sys,time,pytest,fastapi.FastAPI,unittest.mock.{AsyncMock,MagicMock,patch}
+    e: TestCoreRoutes,TestAgentRoutes,TestOCRRoutes,TestWindowsRoutes,TestMemoryRoutes,TestTemplatesRoutes,TestEventsRoutes,TestScreenRoutes
+    TestCoreRoutes: setup(0),test_status(0),test_stats(0),test_health_healthy(0),test_health_unhealthy(0)
+    TestAgentRoutes: setup(0),test_get_actions(0),test_get_actions_no_agent(0),test_approve_action(0),test_approve_action_not_found(0)
+    TestOCRRoutes: setup(0),test_ocr_engines(0),test_ocr_engines_not_initialized(0),test_set_ocr_engine_success(0),test_set_ocr_engine_invalid(0)
+    TestWindowsRoutes: setup(0),test_get_active_window(0),test_get_active_window_not_enabled(0),test_get_latest_window(0),test_get_latest_window_no_data(0)
+    TestMemoryRoutes: setup(0),test_search_with_query(0),test_search_without_query(0),test_search_not_initialized(0),test_memory_stats(0)
+    _make_app_state()
+    _build_client()
+  backend/tests/test_typed_events.py:
+    i: os,sys,pytest,event_bus.{Event,EventType},typed_events.{ActiveWindowPayload,EventPayload,ScreenCapturedPayload,ScreenOrganizedPayload,WindowsScannedPayload}
+    e: TestPayloadValidation,TestTypedEventFactory,TestParsePayload,TestPayloadRegistry
+    TestPayloadValidation: test_windows_scanned_defaults(0),test_windows_scanned_with_values(0),test_screen_captured_serializes(0),test_analysis_completed_all_fields(0),test_switch_ocr_requires_engine(0)
+    TestTypedEventFactory: test_creates_valid_event(0),test_correlation_id_passed(0),test_excludes_none_values(0),test_command_event(0)
+    TestParsePayload: test_parse_known_type(0),test_parse_unknown_type(0),test_roundtrip(0),test_parse_with_extra_fields(0)
+    TestPayloadRegistry: test_all_pipeline_events_registered(0),test_all_command_events_registered(0),test_system_events_registered(0)
+  backend/tests/test_observability.py:
+    i: os,sys,time,pytest,observability.{Span,Tracer,get_tracer,reset_tracer}
+    e: TestSpan,TestTracer,TestGlobalTracer
+    TestSpan: test_auto_generates_ids(0),test_set_attribute(0),test_set_error(0),test_duration_ms(0),test_to_dict(0)
+    TestTracer: test_span_context_manager(0),test_span_records_error(0),test_parent_child_spans(0),test_metrics_aggregation(0),test_metrics_error_rate(0)
+    TestGlobalTracer: test_get_tracer_singleton(0),test_reset_tracer(0)
+  backend/tests/test_circuit_breaker.py:
+    i: asyncio,os,sys,time,pytest,circuit_breaker.{CircuitBreaker,CircuitState,StepGuard,is_transient_error,retry_with_backoff}
+    e: TestCircuitBreaker,TestTransientErrorDetection,TestRetryWithBackoff,TestStepGuard
+    TestCircuitBreaker: test_initial_state_closed(0),test_stays_closed_below_threshold(0),test_opens_at_threshold(0),test_open_blocks_execution(0),test_open_to_half_open_after_timeout(0)
+    TestTransientErrorDetection: test_429_is_transient(0),test_timeout_is_transient(0),test_503_is_transient(0),test_rate_limit_is_transient(0),test_syntax_error_not_transient(0)
+    TestRetryWithBackoff: test_succeeds_first_try(0),test_retries_transient_then_succeeds(0),test_raises_after_max_retries(0),test_no_retry_for_non_transient(0)
+    _MockStep: can_run(1),execute(2)  # Mock pipeline step for testing.
+    TestStepGuard: test_delegates_name(0),test_delegates_can_run(0),test_success_passes_through(0),test_circuit_opens_after_threshold(0),test_breaker_stats(0)
+  backend/tests/test_clipboard_intel.py:
+    i: os,sys,time,pytest,clipboard_intel
+    e: TestClipboardItem,TestClipboardQueue,TestContextCopyEngine,TestPasteSuggester,TestSnippetStore,TestClipboardManager,TestClipboardStep,TestSelectionAnalyzer
+    TestClipboardItem: test_defaults(0),test_label_truncated(0),test_label_newlines_stripped(0),test_to_dict(0)
+    TestClipboardQueue: test_push_and_get(0),test_dedup_promotes(0),test_dedup_increments_used_count(0),test_empty_text_ignored(0),test_whitespace_only_ignored(0)
+    TestContextCopyEngine: test_terminal_error(0),test_python_module_not_found(0),test_node_module_not_found(0),test_url_extraction(0),test_email_extraction(0)
+    TestPasteSuggester: test_empty_queue(0),test_agent_items_score_higher(0),test_category_match_bonus(0),test_max_suggestions(0),test_pinned_bonus(0)
+    TestSnippetStore: test_add_and_expand(0),test_expand_missing(0),test_category_filter(0),test_remove(0),test_get_all(0)
+  backend/tests/test_action_templates.py:
+    i: json,os,sys,tempfile,time,pytest,action_templates.{ActionTemplate,AppActionLibrary,ScoredAction}
+    e: TestActionTemplate,TestAppActionLibrary,TestScoredAction
+    TestActionTemplate: test_confidence_neutral_prior(0),test_confidence_all_approved(0),test_confidence_mixed(0),test_should_auto_execute_not_yet(0),test_should_auto_execute_threshold_reached(0)  # Unit tests for the ActionTemplate dat...
+    TestAppActionLibrary: setup(1),test_seed_templates_loaded(0),test_suggest_module_not_found(0),test_suggest_no_match(0),test_suggest_filters_by_category(0)  # Integration tests for AppActionLibrary.
+    TestScoredAction: test_to_dict(0)
+  backend/tests/test_coverage_gaps.py:
+    i: asyncio,os,sys,tempfile,pytest,analyzer.{OCROnlyStrategy,VisionOnlyStrategy},config_service.{_parse_env_file,read_env,update_env}
+    e: TestParseEnvFile,TestReadEnv,TestUpdateEnv,TestAnalysisStrategies,TestOCREnhancerFuzz,TestAsyncSubprocess
+    TestParseEnvFile: _write_env(1),test_parse_simple_key_value(0),test_parse_preserves_comments(0),test_parse_empty_value(0),test_parse_commented_alternative(0)
+    TestReadEnv: test_read_env_returns_dict(0)
+    TestUpdateEnv: test_update_creates_file_if_missing(0)
+    TestAnalysisStrategies: test_vision_only_needs_no_ocr(0),test_vision_only_builds_image_message(0),test_ocr_only_needs_ocr_no_llm(0),test_ocr_only_builds_empty_messages(0),test_hybrid_needs_ocr_and_llm(0)
+    TestOCREnhancerFuzz: _random_text(2),test_enhance_never_crashes_on_random_input(0),test_enhance_empty_string(0),test_enhance_whitespace_only(0),test_enhance_unicode(0)  # Property-based-style fuzz tests for O...
+  backend/tests/test_readmodel_persistence.py:
+    i: json,os,sys,pytest,query_handlers.ReadModel
+    e: TestStateDict,TestRestore,TestSaveSnapshot,TestLoadSnapshot
+    TestStateDict: test_empty_model(0),test_populated_model(0)
+    TestRestore: test_restore_from_dict(0),test_restore_ignores_unknown_keys(0),test_restore_partial(0)
+    TestSaveSnapshot: test_save_creates_file(1),test_save_creates_parent_dirs(1),test_save_graceful_on_bad_path(0)
+    TestLoadSnapshot: test_load_restores_state(1),test_load_missing_file_no_error(1),test_load_corrupted_file(1),test_roundtrip_preserves_event_counts(1),test_roundtrip_preserves_agent_suggestions(1)
+  backend/tests/test_tier1.py:
+    i: asyncio,os,sys,tempfile,time,pytest,multi_monitor.MonitorAwareCapture,window_aware.{AppCategory,MonitorInfo,WindowInfo}
+    e: TestMonitorAwareCapture,TestSemanticMemory,TestAppActionLibrary,TestOCREnhancer,TestPredictiveAnalyzer,TestTier1PipelineSteps,TestPipelineContextTier1Fields
+    TestMonitorAwareCapture: _make_monitors(0),_make_window(6),test_create_from_env(0),test_detect_active_monitor_from_window(0),test_detect_active_monitor_primary_fallback(0)  # Test multi-monitor intelligence.
+    TestSemanticMemory: _make_memory(0),test_create_from_env(0),test_add_memory(0),test_add_empty_memory(0),test_recall_recent(0)  # Test semantic memory with keyword fal...
+    TestAppActionLibrary: _make_lib(0),test_create_from_env(0),test_seed_templates_loaded(0),test_suggest_python_module_error(0),test_suggest_node_module_error(0)  # Test action template learning and sug...
+    TestOCREnhancer: test_create_from_env(0),test_detect_code_type(0),test_detect_terminal_type(0),test_fix_code_ocr_errors(0),test_fix_terminal_ocr_errors(0)  # Test OCR post-processing pipeline.
+    TestPredictiveAnalyzer: test_create_from_env(0),test_observe_transitions(0),test_predict_next_action(0),test_no_prediction_below_threshold(0),test_no_prediction_insufficient_data(0)  # Test predictive pre-fetching engine.
+  backend/tests/test_e2e.py:
+    i: json,time,pytest,fastapi.testclient.TestClient,server.app
+    e: client,TestCoreEndpoints,TestEventSourcingEndpoints,TestConfigServiceEndpoints,TestWindowAwarenessEndpoints,TestOCREndpoints,TestShellAgentEndpoints,TestProfilesEndpoints
+    TestCoreEndpoints: test_root_returns_200(1),test_root_lists_all_endpoint_groups(1),test_health_structure(1),test_health_components_are_bool(1),test_status_endpoint(1)  # Root, health, status, stats.
+    TestEventSourcingEndpoints: test_events_returns_list(1),test_events_limit(1),test_events_filter_by_type(1),test_events_filter_by_source(1),test_events_have_required_fields(1)  # Event store queries, event bus stats,...
+    TestConfigServiceEndpoints: test_config_get(1),test_config_schema_groups(1),test_config_schema_field_structure(1),test_config_values_has_known_keys(1),test_audio_devices(1)  # Configuration read/write + audio devi...
+    TestWindowAwarenessEndpoints: test_window_active(1),test_window_latest(1),test_monitors(1),test_window_stats(1),test_processes(1)  # Active window, monitors, processes, s...
+    TestOCREndpoints: test_ocr_engines_list(1),test_ocr_stats(1),test_ocr_switch_invalid_engine(1),test_analysis_mode_get(1),test_analysis_mode_valid_switch(1)  # OCR engine management, analysis mode...
+    client()
+  backend/tests/test_semantic_memory.py:
+    i: os,sys,time,pytest,semantic_memory.{MemoryItem,SemanticMemory}
+    e: TestMemoryItem,TestSemanticMemoryKeywordFallback
+    TestMemoryItem: test_to_dict_keys(0),test_content_truncated_in_dict(0)
+    TestSemanticMemoryKeywordFallback: setup(1),test_add_memory_returns_id(0),test_add_empty_content_returns_none(0),test_add_memory_dedup(0),test_recall_recent(0)  # Tests using keyword fallback (no sent...
+  backend/tests/test_vlm_ocr_engine.py:
+    i: os,sys,time,pytest,ocr_engines.{BaseOCREngine,OCRResult},unittest.mock.{AsyncMock,MagicMock,patch},vlm_ocr_engine.VLMOCREngine
+    e: TestVLMOCREngineInit,TestVLMOCREngineInitialize,TestVLMOCREngineExtract,TestVLMOCREngineAsync,TestCleanResponse,TestGetStats
+    TestVLMOCREngineInit: test_inherits_base_ocr_engine(0),test_default_values(0),test_custom_values(0),test_extract_raises_not_implemented(0)
+    TestVLMOCREngineInitialize: test_initialize_sets_litellm(0),test_initialize_resolves_openrouter_key(0),test_initialize_resolves_gemini_key(0),test_initialize_keeps_explicit_key(0)
+    TestVLMOCREngineExtract: setup_method(0),test_successful_extraction(0),test_no_text_detected(0),test_api_failure_returns_empty(0),test_lazy_init_on_first_call(0)
+    TestVLMOCREngineAsync: setup_method(0),test_async_extraction(0),test_async_api_failure(0),test_async_cost_tracking(0),test_async_no_text_detected(0)
+    TestCleanResponse: setup_method(0),test_strips_markdown_code_blocks(0),test_strips_leading_backticks(0),test_strips_common_prefixes(0),test_preserves_clean_text(0)
+    _make_response(text='extracted text';tokens=50;cost=0.0001)
+  backend/tests/test_cost_budget.py:
+    i: json,os,sys,time,pytest,cost_budget.{BudgetConfig,CostBudget,create_cost_budget_from_env},unittest.mock.{MagicMock,patch}
+    e: TestCostBudget
+    TestCostBudget: test_init_defaults(1),test_record_spend(1),test_can_spend(1),test_hourly_reset(1),test_daily_reset(1)
+  backend/tests/test_parallel_group.py:
+    i: asyncio,os,sys,time,pytest,event_bus.EventBus,pipeline.{ParallelGroup,PipelineContext}
+    e: TestParallelGroup
+    _SlowStep: __init__(2),can_run(1),execute(2)  # Mock step that sleeps for a given dur...
+    _FailingStep: __init__(1),can_run(1),execute(2)  # Mock step that always raises.
+    _SkippedStep: __init__(1),can_run(1),execute(2)  # Mock step that can_run returns False.
+    TestParallelGroup: test_runs_all_steps(0),test_parallel_is_faster_than_sequential(0),test_error_in_one_doesnt_block_others(0),test_skipped_steps_not_executed(0),test_can_run_true_if_any_step_runnable(0)
+  backend/tests/test_event_store.py:
+    i: os,sys,event_bus.{Event,EventStore},unittest.mock.MagicMock
+    e: TestEventStore
+    TestEventStore: test_append_query_and_stats(1),test_duplicate_event_id_does_not_increment_count(1),test_prune_respects_max_events(1),test_close_is_idempotent(1),test_sampled_nfo_trace_hooks(2)
+  backend/tests/test_preflight.py:
+    i: os,sys,pytest,preflight.{PreflightDiagnostics,PreflightResult,_mask_key},types.SimpleNamespace,unittest.mock.{AsyncMock,MagicMock,patch}
+    e: _LITELLM_MOD,TestPreflightResult,TestFormatHelpers,TestCheckApiKeys,TestCheckLitellm,TestPingVisionLLM,TestPingVlmOcr,TestFullRun
+    TestPreflightResult: test_ok_result(0),test_failed_result(0),test_skipped_result(0)
+    TestFormatHelpers: test_mask_key_short(0),test_mask_key_long(0),test_fmt_ok_contains_checkmark(0),test_fmt_fail_contains_cross(0),test_fmt_skip_contains_symbol(0)
+    TestCheckApiKeys: test_no_keys_needed_for_local_model(0),test_openrouter_key_required(0),test_openrouter_key_present(0),test_vlm_ocr_triggers_key_check(0),test_litellm_api_key_override(0)
+    TestCheckLitellm: test_litellm_available(0)
+    TestPingVisionLLM: test_ocr_only_mode_skips(0),test_successful_ping(0),test_failed_ping(0)
+    _make_settings()
+    _make_llm_response(text='OK';tokens=5)
+  backend/tests/test_pipeline_steps.py:
+    i: pytest,sys,os,event_bus.{EventBus,EventType},pipeline.{AnalyzeStep,PipelineContext},unittest.mock.{AsyncMock,MagicMock}
+    e: TestAnalyzeStepWithBudget
+    TestAnalyzeStepWithBudget: test_budget_check_downgrades_mode(0),test_budget_ok_keeps_mode(0),test_no_budget_component(0),test_budget_downgrade_is_per_run_not_persistent(0),test_ocr_failure_does_not_block_analysis(0)
+  backend/tests/test_analyzer.py:
+    i: asyncio,os,sys,time,pytest,analyzer.ScreenAnalyzer,types.SimpleNamespace,unittest.mock.{AsyncMock,MagicMock,patch}
+    e: TestStrategies,TestProviderDetection,TestModeSwitch,TestPromptBuilding,TestOCR,TestAnalyze,TestTokenBucketLimiter,TestAnalyzerStats
+    TestStrategies: test_vision_only(0),test_ocr_only(0),test_hybrid(0),test_ocr_plus_vision(0),test_strategy_registry(0)
+    TestProviderDetection: test_ollama(0),test_gemini(0),test_openai_gpt(0),test_openai_o1(0),test_anthropic(0)
+    TestModeSwitch: setup_method(0),test_switch_to_valid_mode(0),test_switch_to_invalid_mode(0),test_switch_all_modes(0)
+    TestPromptBuilding: setup_method(0),test_base_prompt(0),test_prompt_with_ocr(0),test_prompt_with_context(0),test_prompt_with_both(0)
+    TestOCR: test_ocr_disabled_returns_empty(0),test_ocr_with_manager(0)
+  backend/routes/screen.py:
+    i: nfo,os,fastapi.{APIRouter,HTTPException},fastapi.responses.{FileResponse,JSONResponse},typing.Dict
+    e: init,get_organized_screen,get_screen_stats,list_screenshots,get_screenshot,list_crops,get_crop,screenshot_browser
+    _get_crops_dir()->str
+    init(app_state:dict;broadcast_fn)
+    get_organized_screen()
+    get_screen_stats()
+    list_screenshots()
+    get_screenshot(filename:str)
+    list_crops()
+    get_crop(filename:str)
+  backend/routes/config.py:
+    i: nfo,os,config_service.{discover_audio_devices,get_config_with_schema,update_env},fastapi.{APIRouter,Request},fastapi.responses.{FileResponse,JSONResponse},typing.Dict
+    e: init,get_config,post_config,get_audio_devices,config_ui
+    init(app_state:dict;broadcast_fn)
+    get_config()
+    post_config(request:Request)
+    get_audio_devices()
+    config_ui()
+  backend/routes/memory.py:
+    i: nfo,fastapi.APIRouter,fastapi.responses.JSONResponse,typing.{Dict,Optional}
+    e: init,search_memory,memory_stats,compress_memory
+    init(app_state:dict;broadcast_fn)
+    search_memory(q:str='';k:int=5;type:Optional[str]=None)
+    memory_stats()
+    compress_memory()
+  backend/routes/events.py:
+    i: nfo,fastapi.APIRouter,fastapi.responses.JSONResponse,typing.{Dict,Optional}
+    e: init,query_events,event_bus_stats,pipeline_info,get_read_model,get_read_model_pipeline,get_read_model_stats,get_traces
+    init(app_state:dict;broadcast_fn)
+    query_events(type:Optional[str]=None;source:Optional[str]=None;correlation_id:Optional[str]=None;since:Optional[float]=None;limit:int=50)
+    event_bus_stats()
+    pipeline_info()
+    get_read_model()
+    get_read_model_pipeline()
+    get_read_model_stats()
+    get_traces(name:Optional[str]=None;n:int=20)
+  backend/routes/__init__.py:
+    i: fastapi.APIRouter,routes.agent.agent_router,routes.config.config_router,routes.core.core_router,routes.events.events_router,routes.memory.memory_router,routes.ocr.ocr_router,routes.screen.screen_router,routes.templates.templates_router,routes.windows.windows_router
+    e: register_all_routes
+    register_all_routes(app;app_state:dict;broadcast_fn)
+  backend/routes/agent.py:
+    i: nfo,fastapi.{APIRouter,Request},fastapi.responses.JSONResponse,typing.Dict
+    e: init,get_pending_actions,approve_action,execute_action,agent_history,agent_run_safe
+    init(app_state:dict;broadcast_fn)
+    get_pending_actions()
+    approve_action(action_id:str)
+    execute_action(action_id:str)
+    agent_history()
+    agent_run_safe(request:Request)
+  backend/routes/templates.py:
+    i: nfo,json,fastapi.{APIRouter,Request},fastapi.responses.JSONResponse,typing.Dict
+    e: init,get_action_templates,import_templates,export_templates
+    init(app_state:dict;broadcast_fn)
+    get_action_templates()
+    import_templates(request:Request)
+    export_templates(include_stats:bool=False)
+  backend/routes/core.py:
+    i: nfo,asyncio,json,time,fastapi.{APIRouter,Request},fastapi.responses.{JSONResponse,StreamingResponse},typing.{Dict,Optional}
+    e: init,root,sse_stream,status,stats,health,preflight,rerun_preflight
+    init(app_state:dict;broadcast_fn)
+    root()
+    sse_stream(request:Request)
+    status()
+    stats()
+    health()
+    preflight()
+    rerun_preflight()
+  backend/routes/ocr.py:
+    i: nfo,base64,fastapi.APIRouter,fastapi.responses.JSONResponse,io.BytesIO,typing.Dict
+    e: init,ocr_engines,set_ocr_engine,ocr_benchmark,ocr_stats,ocr_post_process_stats,get_analysis_mode,set_analysis_mode
+    init(app_state:dict;broadcast_fn)
+    ocr_engines()
+    set_ocr_engine(engine_name:str)
+    ocr_benchmark()
+    ocr_stats()
+    ocr_post_process_stats()
+    get_analysis_mode()
+    set_analysis_mode(mode_name:str)
+  backend/routes/clipboard.py:
+    i: nfo,fastapi.{APIRouter,Request},fastapi.responses.JSONResponse,typing.Dict
+    e: init,get_clipboard_queue,get_paste_suggestions,push_to_clipboard,mark_pasted,pin_item,get_snippets,add_snippet
+    init(app_state:dict;broadcast_fn)
+    get_clipboard_queue(n:int=10)
+    get_paste_suggestions()
+    push_to_clipboard(request:Request)
+    mark_pasted(index:int)
+    pin_item(request:Request)
+    get_snippets()
+    add_snippet(request:Request)
+  backend/routes/windows.py:
+    i: nfo,fastapi.APIRouter,fastapi.responses.JSONResponse,typing.Dict
+    e: init,get_active_window,get_latest_window,get_monitors,window_stats,get_all_processes,get_all_windows,get_multi_monitor
+    init(app_state:dict;broadcast_fn)
+    get_active_window()
+    get_latest_window()
+    get_monitors()
+    window_stats()
+    get_all_processes()
+    get_all_windows()
+    get_multi_monitor()
+  backend/plugins/loader.py:
+    i: asyncio,importlib,os,pkgutil,sys,types.ModuleType,typing.{Any,Dict,Optional,Set}
+    e: PluginLoader
+    PluginLoader: __init__(3),_import_module(1),discover_and_load(0),_instantiate_plugin(1),_register_plugin(1)  # Manages lifecycle of plugins: discove...
+  backend/plugins/example_window_notifier.py:
+    i: nfo,structlog,event_bus.{Event,EventBus}
+    e: Plugin
+    Plugin: __init__(0),register(2),_on_window(1),shutdown(0)  # Emits a custom event when the user sw...
+  backend/plugins/example_logger.py:
+    i: nfo,structlog
+    e: Plugin
+    Plugin: __init__(0),register(2),_on_analysis(1),_on_context(1),shutdown(0)  # Logs selected pipeline events to stru...
+  backend/plugins/interface.py:
+    i: event_bus.EventBus,typing.{Any,Dict,Optional,Protocol}
+    e: PluginInterface
+    PluginInterface: register(2),shutdown(0)  # Protocol that all plugins must implem...
+  backend/skills/error_fixer.py:
+    i: re,nfo,skills.base,typing.{List,Optional}
+    e: ERROR_RULES,ErrorFixerSkill
+    ErrorFixerSkill: __init__(0),detect(2),_find_match(1),_expand_template(3),get_options(2)
+  backend/skills/base.py:
+    i: re,time,abc.{ABC,abstractmethod},dataclasses.{dataclass,field},enum.Enum,typing.{Any,Dict,List}
+    e: SkillCategory,OptionRisk,SkillContext,SkillOption,SkillResult,SkillMatch,BaseSkill
+    SkillCategory:   # Broad category for organizing skills.
+    OptionRisk:   # Risk level for skill options (matches...
+    SkillContext: __post_init__(0)  # Context passed to skills for detectio...
+    SkillOption: to_dict(0)  # A single actionable option shown in t...
+    SkillResult: to_dict(0)  # Result of executing a skill option.
+  backend/skills/shell_command.py:
+    i: re,shlex,nfo,skills.base.{BaseSkill,SkillCategory,SkillContext,SkillOption,SkillResult},typing.{List,Optional}
+    e: _CMD_PREFIXES,_CMD_PATTERN,_PIPE_PATTERN,_SHEBANG_PATTERN,_DANGEROUS,ShellCommandSkill
+    ShellCommandSkill: detect(2),_clipboard_relates_to_cmd(2),_assess_risk(1),_extract_command(1),get_options(2)
+  backend/skills/__init__.py:
+    i: nfo,structlog,skills.base.{BaseSkill,SkillCategory,SkillContext,SkillMatch,SkillOption},typing.{Dict,List,Optional}
+    e: BUILTIN_SKILLS,SkillRouter
+    SkillRouter: __init__(0),analyze(2),execute(4),register_skill(1),get_skill_names(0)  # Routes selected text to matching skil...
+    _load_builtins()
+  backend/skills/clipboard_relation.py:
+    i: re,difflib.SequenceMatcher,skills.base.{BaseSkill,SkillCategory},typing.{Dict,List,Optional,Set,Tuple},urllib.parse.urlparse
+    e: _LANG_WORDS,_CYRILLIC_RE,_CJK_RE,_URL_RE,_PATH_RE,_PACKAGE_RE,_ERROR_RE,_FILE_LINE_RE
+    _Intent: __init__(5)  # Internal scored intent.
+    ClipboardRelationSkill: detect(2),get_options(2),execute(3),_execute_copy_both_option(3),_execute_show_diff_option(3)  # Detect intent from the relationship b...
+    _detect_lang(text:str)->str
+    _detect_lang_pair(text_a:str;text_b:str)->Tuple[str, str]
+    _text_similarity(a:str;b:str)->float
+    _extract_domain(text:str)->str
+  backend/skills/voice_command.py:
+    i: re,time,nfo,skills.base.{BaseSkill,SkillCategory,SkillContext,SkillOption,SkillResult},typing.{List,Optional}
+    e: VOICE_COMMANDS,_COMPILED_COMMANDS,_MAX_TRANSCRIPT_AGE,VoiceCommandSkill
+    VoiceCommandSkill: detect(2),_match_command(1),get_options(2),execute(3),_execute_cancel(2)
+  backend/skills/translation.py:
+    i: re,nfo,skills.base,typing.List
+    e: _LANG_HINTS,_CJK_PATTERN,_CYRILLIC_PATTERN,_MIN_DETECT_LENGTH,_MIN_WORD_COUNT,detect_language,TranslationSkill
+    TranslationSkill: detect(2),get_options(2),execute(3),_translate(3),_label(2)
+    detect_language(text:str)->str
+    _lang_name(code:str;pl:bool=True)->str
+  backend/skills/tts.py:
+    i: asyncio,os,shlex,shutil,tempfile,nfo,typing.{Dict,List,Optional,Tuple}
+    e: _TTS_ENGINES,_AUDIO_PLAYERS,_GENERIC_LANGS,_PICO_LANGS,detect_tts_engines,get_best_tts_engine,TTSSkill
+    TTSSkill: __init__(0),detect(2),get_options(2),execute(3),_resolve_engine(1)
+    _resolve_piper_model(configured:str)->str
+    _map_lang(engine_name:str;locale:str)->str
+    _build_speed_flag(engine_name:str;slow:bool)->str
+    _pick_play_command(file_path:str)->Optional[str]
+    _run_shell(cmd:str;timeout:float=30.0)->Tuple[int, str, str]
+    _format_engine_command(template:str;values:Dict[str;str])->str
+    detect_tts_engines()->List[dict]
+    get_best_tts_engine(preferred:str='auto')->Optional[dict]
+  backend/skills/url_handler.py:
+    i: re,nfo,skills.base,typing.List
+    e: _URL_RE,_PATH_RE,_IP_RE,_EMAIL_RE,URLHandlerSkill
+    URLHandlerSkill: detect(2),_extract(1),get_options(2),execute(3),_label(2)
+  backend/pipeline/protocol.py:
+    i: context.PipelineContext,event_bus.EventBus,typing.{Protocol,runtime_checkable}
+    e: PipelineStep
+    PipelineStep: can_run(1),execute(2)  # Protocol for pipeline steps (Interfac...
+  backend/pipeline/context.py:
+    i: time,uuid,structlog,dataclasses.{dataclass,field},enum.Enum,typing.{Any,Dict,List,Optional}
+    e: PipelineProfile,ProfileSelector,PipelineContext
+    PipelineProfile:   # Pipeline execution profiles for speci...
+    ProfileSelector: __init__(3),select(2),_is_vlm_ocr_active(0),get_min_interval(0),notify_active_window_changed(1)  # Adaptively selects pipeline profile p...
+    PipelineContext: __post_init__(0)  # Immutable-ish accumulator passed thro...
+  backend/pipeline/steps_tier1.py:
+    i: time,structlog,context.{PipelineContext,PipelineProfile},event_bus.{Event,EventBus,EventType},typing.Optional
+    e: MultiMonitorStep,SemanticMemoryStep,ActionTemplateStep,OCRPostProcessStep,PredictiveStep,ClipboardStep,ClipboardRelationStep
+    MultiMonitorStep: __init__(2),can_run(1),execute(2)  # Detect active monitor and build multi...
+    SemanticMemoryStep: __init__(1),can_run(1),execute(2)  # Store analysis results and recall rel...
+    ActionTemplateStep: __init__(1),can_run(1),execute(2)  # Match analysis against action templat...
+    OCRPostProcessStep: __init__(1),can_run(1),execute(2)  # Post-process OCR text to fix common e...
+    PredictiveStep: __init__(1),can_run(1),execute(2)  # Record window transitions and predict...
+  backend/pipeline/steps_core.py:
+    i: base64,os,time,structlog,PIL.Image,io.BytesIO,typing.{Any,Dict,List,Optional}
+    e: ScanWindowsStep,DetectActiveWindowStep,CaptureScreenStep,CropWindowsStep,BuildContextStep,AnalyzeStep,SuggestActionsStep,BuildBroadcastStep
+    ScanWindowsStep: __init__(2),can_run(1),execute(2)  # Phase 1a: Scan all visible windows wi...
+    DetectActiveWindowStep: __init__(2),can_run(1),execute(2)  # Phase 1b: Detect active window and bu...
+    CaptureScreenStep: __init__(1),can_run(1),execute(2)  # Phase 2: Capture fullscreen or ROI sc...
+    CropWindowsStep: __init__(1),can_run(1),execute(2)  # Phase 3+4: Crop each visible applicat...
+    BuildContextStep: __init__(4),can_run(1),_context_version(0),_focus_window_prefix(1),_format_memories(2)  # Phase 5: Build rich context from wind...
+  backend/pipeline/orchestrator.py:
+    i: asyncio,os,time,nfo,structlog,event_bus.{Event,EventBus},typing.{Dict,List,Optional}
+    e: ParallelGroup,PipelineOrchestrator,create_pipeline,create_profile_selector
+    ParallelGroup: __init__(2),can_run(1),execute(2)  # Runs multiple pipeline steps concurre...
+    PipelineOrchestrator: __init__(2),add_step(1),remove_step(1),insert_before(2),insert_after(2)  # Executes a sequence of PipelineSteps,...
+    create_pipeline(bus:EventBus;capture=None;analyzer=None;context_mgr=None;window_mgr=None;profile_mgr=None;...+1)->PipelineOrchestrator
+    create_profile_selector(ocr_manager=None)->ProfileSelector
