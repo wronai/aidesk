@@ -1,6 +1,4 @@
 """Unit tests for route modules using FastAPI TestClient with mocked state."""
-import asyncio
-import json
 import os
 import sys
 import time

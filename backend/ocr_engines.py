@@ -11,7 +11,7 @@ import time
 import base64
 from abc import ABC, abstractmethod
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 from PIL import Image

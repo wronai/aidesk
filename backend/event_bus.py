@@ -12,16 +12,15 @@ Usage:
     bus.subscribe("screen.captured", handler_fn)
     await bus.publish(Event(type="screen.captured", data={...}))
 """
-import asyncio
 import json
 import os
 import sqlite3
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
+from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 import nfo
 import structlog

@@ -24,13 +24,12 @@ import os
 import re
 import sqlite3
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Dict, List, Optional, Tuple
 
 import nfo
 import structlog
 
-from window_aware import AppCategory
 
 logger = structlog.get_logger()
 

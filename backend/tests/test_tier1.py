@@ -12,7 +12,6 @@ import sys
 import tempfile
 import time
 
-import pytest
 
 # Add backend directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,8 +23,6 @@ from window_aware import AppCategory, WindowInfo, MonitorInfo
 
 from multi_monitor import (
     MonitorAwareCapture,
-    MonitorActivity,
-    MultiMonitorSnapshot,
     create_multi_monitor_from_env,
 )
 
@@ -556,7 +553,6 @@ from predictive_engine import (
     PredictiveAnalyzer,
     PredictionResult,
     PrefetchCache,
-    TransitionStats,
     create_predictive_engine_from_env,
 )
 

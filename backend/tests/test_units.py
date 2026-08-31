@@ -13,9 +13,9 @@ from PIL import Image
 # Add backend directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from window_aware import AppCategory, WindowInfo, MonitorInfo, WindowManager
-from app_profiles import ProfileManager, create_profile_manager, AppProfile
-from shell_agent import ShellAgent, AgentAction, ActionRisk, create_shell_agent_from_env
+from window_aware import AppCategory, WindowInfo, WindowManager
+from app_profiles import create_profile_manager
+from shell_agent import ShellAgent
 from process_scanner import ProcessScanner, ProcessInfo, VisibleWindow
 from window_cropper import WindowCropper, CroppedWindow, OrganizedScreenData
 from capture import create_capture_from_env
@@ -622,7 +622,7 @@ class TestCaptureFactory:
 
 # ===== EventBus Tests =====
 
-from event_bus import Event, EventBus, EventStore, EventType, EventCategory, create_event_bus
+from event_bus import Event, EventBus, EventStore, EventType, EventCategory
 from pipeline import (
     AnalyzeStep,
     PipelineContext,
@@ -631,8 +631,7 @@ from pipeline import (
     ProfileSelector,
     create_pipeline,
 )
-from command_handlers import CommandHandlers
-from query_handlers import QueryHandlers, ReadModel
+from query_handlers import ReadModel
 
 
 class TestEvent:

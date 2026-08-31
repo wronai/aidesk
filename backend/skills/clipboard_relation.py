@@ -47,10 +47,14 @@ from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 from skills.base import (
-    BaseSkill, SkillCategory, SkillContext, SkillMatch, SkillOption, SkillResult, OptionRisk,
+    BaseSkill,
+    SkillCategory,
+    SkillContext,
+    SkillOption,
+    SkillResult,
+    OptionRisk,
 )
 
-import nfo
 import structlog
 
 logger = structlog.get_logger()

@@ -1,0 +1,8 @@
+# local.dev.txt — locally developed dependencies of this project (generated 2026-07-04)
+# by ~/github/local.dev.sh — DO NOT EDIT; see ~/github/local.dev.md
+# project: proxeen 2.1.38 (python) at /home/tom/github/wronai/proxeen
+# deps declared: 13 | with local source: 0
+
+## LOCAL DEPS: none — all dependencies are external
+
+## EXTERNAL DEPS (no local source, 13): black, fastapi, litellm, pillow, psutil, pytest, pytest-asyncio, pytest-cov, python-dotenv, pyyaml, requests, ruff, uvicorn
